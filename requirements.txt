@@ -1,10 +1,9 @@
 streamlit
 openai
-pymupdf
 pymilvus
 langchain-core
 langchain-milvus
 pypdf
-fitz
+PyMuPDF
 unstructured
 markdown

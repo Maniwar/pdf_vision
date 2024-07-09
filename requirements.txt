@@ -4,6 +4,5 @@ pymupdf
 pymilvus
 langchain
 langchain-community
-langchain_openai
+langchain-openai
 langchain-milvus
-fitz

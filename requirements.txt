@@ -2,7 +2,9 @@ streamlit
 openai
 pymupdf
 pymilvus
-langchain
-langchain-community
-langchain-openai
+langchain-core==0.1.40
 langchain-milvus
+pypdf
+fitz
+unstructured
+markdown

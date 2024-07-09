@@ -2,7 +2,7 @@ streamlit
 openai
 pymupdf
 pymilvus
-langchain-core==0.1.40
+langchain-core
 langchain-milvus
 pypdf
 fitz

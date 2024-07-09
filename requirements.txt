@@ -1,0 +1,10 @@
+streamlit
+openai
+PyPDF2
+pinecone-client
+pdf2image
+PyMuPDF
+langchain
+langchain_milvus
+unstructured
+markdown

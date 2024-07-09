@@ -5,5 +5,4 @@ langchain-core
 langchain-milvus
 pypdf
 PyMuPDF # instead of fitz
-unstructured
-markdown
+unstructured markdown

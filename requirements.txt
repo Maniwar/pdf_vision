@@ -1,6 +1,6 @@
 streamlit
 openai
-pymupdf -U
+pymupdf --upgrade
 pymilvus
 langchain-core
 langchain-milvus

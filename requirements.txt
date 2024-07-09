@@ -1,10 +1,7 @@
 streamlit
 openai
 PyPDF2
-pinecone-client
 pdf2image
-PyMuPDF
+pymupdf
 langchain
-langchain_milvus
-unstructured
-markdown
+pymilvus

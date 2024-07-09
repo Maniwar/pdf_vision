@@ -1,6 +1,6 @@
 streamlit
 openai
-pymupdf
+pymupdf -U
 pymilvus
 langchain-core
 langchain-milvus

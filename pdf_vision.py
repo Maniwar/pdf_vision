@@ -1,6 +1,6 @@
 import streamlit as st
 import fitz  # PyMuPDF
-from openai import OpenAI
+import openai
 import base64
 from io import BytesIO
 from pathlib import Path
@@ -13,11 +13,11 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 
 # Set the OpenAI API key from Streamlit secrets
-openai_api_key = st.secrets["general"]["OPENAI_API_KEY"]
+openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]
 
 # Initialize the OpenAI client and embeddings model
-client = OpenAI(api_key=openai_api_key)
-embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
+MODEL = "gpt-4o"
+embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
 
 # Initialize Milvus cloud connection
 connections.connect(
@@ -51,8 +51,8 @@ def encode_image(image):
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-def extract_images_from_pdf(file):
-    pdf_document = fitz.open(stream=file.read(), filetype="pdf")
+def extract_images_from_pdf(file_path):
+    pdf_document = fitz.open(file_path)
     images = []
     for page_num in range(len(pdf_document)):
         page = pdf_document.load_page(page_num)
@@ -63,7 +63,7 @@ def extract_images_from_pdf(file):
     return images
 
 def generate_embeddings(image_base64):
-    response = client.chat_completions.create(
+    response = openai.ChatCompletion.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -71,7 +71,7 @@ def generate_embeddings(image_base64):
             {"role": "user", "content": f"data:image/png;base64,{image_base64}"}
         ]
     )
-    return response.choices[0]['embedding']
+    return response.choices[0]['message']['content']
 
 def list_embeddings():
     num_entities = collection.num_entities
@@ -112,7 +112,13 @@ def main():
     uploaded_files = st.sidebar.file_uploader("Choose PDF files", type=["pdf"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
-            loader = PyPDFLoader(uploaded_file)
+            # Save the uploaded file to a temporary location
+            temp_path = Path(f"temp_{uploaded_file.name}")
+            with open(temp_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            # Load and process the PDF
+            loader = PyPDFLoader(str(temp_path))
             pages = loader.load_and_split()
             text_splitter = CharacterTextSplitter()
             docs = text_splitter.split_documents(pages)
@@ -128,6 +134,9 @@ def main():
                 collection.insert(data)
                 st.session_state.embeddings.append(f"{uploaded_file.name}_page_{i+1}")
                 st.sidebar.write(f"Processed and stored embeddings for {uploaded_file.name}_page_{i+1}")
+
+            # Remove the temporary file
+            temp_path.unlink()
 
     # List embeddings
     if st.sidebar.button("List Stored Embeddings"):

@@ -73,7 +73,7 @@ def generate_embeddings(image_base64):
             ]
         )
         print(response)  # Add this to inspect the structure
-        return response.choices[0].message['embedding']  # Adjust based on the actual structure
+        return response.choices[0].message.content # Adjust based on the actual structure
     except OpenAIError as e:
         st.error(f"OpenAI API error: {e}")
         return None

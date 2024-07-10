@@ -7,18 +7,18 @@ from pathlib import Path
 import os
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
-from langchain.vectorstores import Milvus as LangchainMilvus
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import Milvus as LangchainMilvus
+from langchain_community.embeddings import OpenAIEmbeddings
 
 # Set the OpenAI API key from Streamlit secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]
 
 # Initialize Milvus cloud connection
 connections.connect(
     alias="default",
-    uri=st.secrets["MILVUS_PUBLIC_ENDPOINT"],
+    uri=st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"],
     secure=True,
-    token=st.secrets["MILVUS_API_KEY"]
+    token=st.secrets["general"]["MILVUS_API_KEY"]
 )
 
 # Create a Milvus collection
@@ -27,7 +27,7 @@ if not utility.has_collection(collection_name):
     fields = [
         FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
         FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1536),  # Adjust dimension as per your embeddings
-        FieldSchema(name="text", dtype=DataType.STRING)
+        FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=1000)  # Use VarChar instead of STRING
     ]
     schema = CollectionSchema(fields, description="PDF embeddings collection")
     collection = Collection(name=collection_name, schema=schema)

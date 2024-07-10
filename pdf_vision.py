@@ -7,8 +7,7 @@ from pathlib import Path
 import os
 from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
-from langchain_community.document_loaders 
-import PyPDFLoader, UnstructuredMarkdownLoader
+from langchain_community.document_loaders import UnstructuredMarkdownLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_milvus.vectorstores import Milvus

@@ -1,7 +1,7 @@
 import streamlit as st
 import fitz  # PyMuPDF
-import openai
 from openai import OpenAI
+client = OpenAI()
 import base64
 from io import BytesIO
 from pathlib import Path
@@ -22,7 +22,7 @@ connections.connect(
     secure=True,
     token=st.secrets["general"]["MILVUS_API_KEY"]
 )
-client = OpenAI()
+
 # Create a Milvus collection
 collection_name = "pdf_embeddings"
 if not utility.has_collection(collection_name):

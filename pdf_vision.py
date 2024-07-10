@@ -1,6 +1,6 @@
 import streamlit as st
 import fitz  # PyMuPDF
-import openai
+from openai import OpenAI
 import base64
 from io import BytesIO
 from pathlib import Path
@@ -19,6 +19,7 @@ openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]
 
 # Initialize the OpenAI client and embeddings model
 MODEL = "gpt-4o"
+client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
 # Initialize Milvus cloud connection

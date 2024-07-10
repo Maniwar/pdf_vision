@@ -10,7 +10,7 @@ from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataTy
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_community.vectorstores import Milvus as LangchainMilvus
 from langchain_community.embeddings import OpenAIEmbeddings
-client = OpenAI()
+
 # Set the OpenAI API key from Streamlit secrets
 openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]
 
@@ -21,7 +21,7 @@ connections.connect(
     secure=True,
     token=st.secrets["general"]["MILVUS_API_KEY"]
 )
-
+client = OpenAI()
 # Create a Milvus collection
 collection_name = "pdf_embeddings"
 if not utility.has_collection(collection_name):

@@ -19,7 +19,6 @@ openai_api_key = st.secrets["general"]["OPENAI_API_KEY"]
 client = OpenAI(api_key=openai_api_key)
 embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
-
 # Initialize Milvus cloud connection
 connections.connect(
     alias="default",
@@ -43,9 +42,7 @@ else:
 
 # Constants
 SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Help me with Given Image Extraction with Given Details with Different categories!"
-USER_PROMPT = """
-Retrieve all the information provided in the image, including figures, titles, and graphs.
-"""
+USER_PROMPT = "Retrieve all the information provided in the image, including figures, titles, and graphs."
 
 def encode_image(image):
     buffered = BytesIO()
@@ -64,15 +61,19 @@ def extract_images_from_pdf(file):
     return images
 
 def generate_embeddings(image_base64):
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": USER_PROMPT},
-            {"role": "user", "content": f"data:image/png;base64,{image_base64}"}
-        ]
-    )
-    return response.choices[0]['embedding']
+    try:
+        response = client.chat_completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": USER_PROMPT},
+                {"role": "user", "content": f"data:image/png;base64,{image_base64}"}
+            ]
+        )
+        return response.choices[0].message['embedding']
+    except openai.error.OpenAIError as e:
+        st.error(f"OpenAI API error: {e}")
+        return None
 
 def list_embeddings():
     num_entities = collection.num_entities
@@ -118,14 +119,15 @@ def main():
             for i, image in enumerate(images):
                 image_base64 = encode_image(image)
                 embedding = generate_embeddings(image_base64)
-                data = [
-                    [i],  # id
-                    [embedding],
-                    [f"Page {i+1} of {uploaded_file.name}"]
-                ]
-                collection.insert(data)
-                st.session_state.embeddings.append(f"{uploaded_file.name}_page_{i+1}")
-                st.sidebar.write(f"Processed and stored embeddings for {uploaded_file.name}_page_{i+1}")
+                if embedding:
+                    data = [
+                        [i],  # id
+                        [embedding],
+                        [f"Page {i+1} of {uploaded_file.name}"]
+                    ]
+                    collection.insert(data)
+                    st.session_state.embeddings.append(f"{uploaded_file.name}_page_{i+1}")
+                    st.sidebar.write(f"Processed and stored embeddings for {uploaded_file.name}_page_{i+1}")
 
     # List embeddings
     if st.sidebar.button("List Stored Embeddings"):

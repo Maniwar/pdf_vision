@@ -10,7 +10,7 @@ from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataTy
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_community.vectorstores import Milvus as LangchainMilvus
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.text_splitter import CharacterTextSplitter
+from langchain_text_splitters import CharacterTextSplitter
 
 # Set the OpenAI API key from Streamlit secrets
 openai_api_key = st.secrets["general"]["OPENAI_API_KEY"]

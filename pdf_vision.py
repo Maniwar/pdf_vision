@@ -1,6 +1,5 @@
 import streamlit as st
 import fitz  # PyMuPDF
-from openai import OpenAI
 import openai
 import base64
 from io import BytesIO
@@ -10,6 +9,7 @@ from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_community.vectorstores import Milvus as LangchainMilvus
+from langchain_community.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 
 # Set the OpenAI API key from Streamlit secrets
@@ -17,7 +17,6 @@ openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]
 
 # Initialize the OpenAI client and embeddings model
 MODEL = "gpt-4o"
-client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
 # Initialize Milvus cloud connection
@@ -64,7 +63,7 @@ def extract_images_from_pdf(file):
     return images
 
 def generate_embeddings(image_base64):
-    response = client.chat_completions.create(
+    response = openai.Completion.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -72,7 +71,7 @@ def generate_embeddings(image_base64):
             {"role": "user", "content": f"data:image/png;base64,{image_base64}"}
         ]
     )
-    return response.choices[0]['message']['content']
+    return response.choices[0]['embedding']
 
 def list_embeddings():
     num_entities = collection.num_entities
@@ -113,9 +112,13 @@ def main():
     uploaded_files = st.sidebar.file_uploader("Choose PDF files", type=["pdf"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
-            images = extract_images_from_pdf(uploaded_file)
-            for i, image in enumerate(images):
-                image_base64 = encode_image(image)
+            loader = PyPDFLoader(uploaded_file)
+            pages = loader.load_and_split()
+            text_splitter = CharacterTextSplitter()
+            docs = text_splitter.split_documents(pages)
+
+            for i, doc in enumerate(docs):
+                image_base64 = encode_image(doc.page_content)
                 embeddings = generate_embeddings(image_base64)
                 data = [
                     [i],  # id

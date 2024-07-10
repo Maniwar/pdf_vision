@@ -7,17 +7,18 @@ from pathlib import Path
 import os
 from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
-from langchain_community.vectorstores import Milvus as LangchainMilvus
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_milvus.vectorstores import Milvus as LangchainMilvus
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
+import openai.error
 
 # Set the OpenAI API key from Streamlit secrets
 openai_api_key = st.secrets["general"]["OPENAI_API_KEY"]
 
 # Initialize the OpenAI client and embeddings model
 client = OpenAI(api_key=openai_api_key)
-embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
 # Initialize Milvus cloud connection
 connections.connect(
@@ -62,7 +63,7 @@ def extract_images_from_pdf(file):
 
 def generate_embeddings(image_base64):
     try:
-        response = client.chat.completions.create(
+        response = client.chat_completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -71,6 +72,9 @@ def generate_embeddings(image_base64):
             ]
         )
         return response.choices[0].message['embedding']
+    except openai.error.InvalidRequestError as e:
+        st.error(f"Invalid request error: {e}")
+        return None
     except openai.error.OpenAIError as e:
         st.error(f"OpenAI API error: {e}")
         return None
@@ -114,10 +118,13 @@ def main():
     uploaded_files = st.sidebar.file_uploader("Choose PDF files", type=["pdf"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
-            images = extract_images_from_pdf(uploaded_file)
+            loader = PyPDFLoader(uploaded_file)
+            pages = loader.load_and_split()
+            text_splitter = CharacterTextSplitter()
+            docs = text_splitter.split_documents(pages)
 
-            for i, image in enumerate(images):
-                image_base64 = encode_image(image)
+            for i, doc in enumerate(docs):
+                image_base64 = encode_image(doc.page_content)
                 embedding = generate_embeddings(image_base64)
                 if embedding:
                     data = [

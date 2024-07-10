@@ -7,10 +7,12 @@ from pathlib import Path
 import os
 from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
-from langchain_community.vectorstores import Milvus as LangchainMilvus
-from langchain_community.text_splitter import CharacterTextSplitter
+from langchain_community.document_loaders 
+import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_openai import OpenAIEmbeddings
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_milvus.vectorstores import Milvus
+from langchain_text_splitters import CharacterTextSplitter
 
 # Set the OpenAI API key from Streamlit secrets
 openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]

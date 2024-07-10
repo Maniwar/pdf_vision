@@ -1,7 +1,7 @@
 import streamlit as st
 import fitz  # PyMuPDF
 from openai import OpenAI
-client = OpenAI()
+import openai
 import base64
 from io import BytesIO
 from pathlib import Path
@@ -14,6 +14,11 @@ from langchain_openai import OpenAIEmbeddings
 
 # Set the OpenAI API key from Streamlit secrets
 openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]
+
+# Initialize the OpenAI client and embeddings model
+MODEL = "gpt-4o"
+client = OpenAI()
+embeddings = OpenAIEmbeddings()
 
 # Initialize Milvus cloud connection
 connections.connect(
@@ -41,7 +46,6 @@ SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Help me 
 USER_PROMPT = """
 Retrieve all the information provided in the image, including figures, titles, and graphs.
 """
-MODEL = "gpt-4o"
 
 def encode_image(image):
     buffered = BytesIO()
@@ -60,18 +64,15 @@ def extract_images_from_pdf(file):
     return images
 
 def generate_embeddings(image_base64):
-    response = openai.Completion.create(
+    response = client.chat_completions.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": [
-                {"type": "text", "text": USER_PROMPT},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}}
-            ]}
-        ],
-        temperature=0.0,
+            {"role": "user", "content": USER_PROMPT},
+            {"role": "user", "content": f"data:image/png;base64,{image_base64}"}
+        ]
     )
-    return response.choices[0]['embedding']
+    return response.choices[0]['message']['content']
 
 def list_embeddings():
     num_entities = collection.num_entities
@@ -82,7 +83,6 @@ def clear_embeddings():
     st.session_state.embeddings = []
 
 def chat_with_data(query):
-    embeddings = OpenAIEmbeddings()  # Ensure this is consistent with your embedding generation
     langchain_milvus = LangchainMilvus(collection, embeddings)
     docs = langchain_milvus.similarity_search(query, k=5)
     response_content = "Top results:\n"

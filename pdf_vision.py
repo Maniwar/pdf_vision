@@ -11,7 +11,6 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_milvus.vectorstores import Milvus as LangchainMilvus
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
-import openai.error
 
 # Set the OpenAI API key from Streamlit secrets
 openai_api_key = st.secrets["general"]["OPENAI_API_KEY"]

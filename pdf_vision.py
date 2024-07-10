@@ -1,14 +1,14 @@
 import streamlit as st
 import fitz  # PyMuPDF
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 import base64
 from io import BytesIO
 from pathlib import Path
 import os
 from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_milvus.vectorstores import Milvus as LangchainMilvus
+from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
+from langchain_community.vectorstores import Milvus as LangchainMilvus
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 
@@ -42,7 +42,9 @@ else:
 
 # Constants
 SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Help me with Given Image Extraction with Given Details with Different categories!"
-USER_PROMPT = "Retrieve all the information provided in the image, including figures, titles, and graphs."
+USER_PROMPT = """
+Retrieve all the information provided in the image, including figures, titles, and graphs.
+"""
 
 def encode_image(image):
     buffered = BytesIO()
@@ -71,12 +73,27 @@ def generate_embeddings(image_base64):
             ]
         )
         return response.choices[0].message['embedding']
-    except openai.error.InvalidRequestError as e:
-        st.error(f"Invalid request error: {e}")
-        return None
-    except openai.error.OpenAIError as e:
+    except OpenAIError as e:
         st.error(f"OpenAI API error: {e}")
         return None
+
+def get_generated_data(image_path):
+    base64_image = encode_image(image_path)
+
+    response = client.chat_completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": [
+                {"type": "text", "text": USER_PROMPT},
+                {"type": "image_url", "image_url": {
+                    "url": f"data:image/png;base64,{base64_image}"}
+                }
+            ]}
+        ],
+        temperature=0.0,
+    )
+    return response.choices[0].message.content
 
 def list_embeddings():
     num_entities = collection.num_entities
@@ -117,13 +134,11 @@ def main():
     uploaded_files = st.sidebar.file_uploader("Choose PDF files", type=["pdf"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
-            loader = PyPDFLoader(uploaded_file)
-            pages = loader.load_and_split()
-            text_splitter = CharacterTextSplitter()
-            docs = text_splitter.split_documents(pages)
+            images = extract_images_from_pdf(uploaded_file)
+            markdown_content = ""
 
-            for i, doc in enumerate(docs):
-                image_base64 = encode_image(doc.page_content)
+            for i, image in enumerate(images):
+                image_base64 = encode_image(image)
                 embedding = generate_embeddings(image_base64)
                 if embedding:
                     data = [
@@ -134,6 +149,27 @@ def main():
                     collection.insert(data)
                     st.session_state.embeddings.append(f"{uploaded_file.name}_page_{i+1}")
                     st.sidebar.write(f"Processed and stored embeddings for {uploaded_file.name}_page_{i+1}")
+
+                # Generate markdown content
+                markdown_content += "\n" + get_generated_data(image)
+
+            # Save markdown content to a file
+            output_dir = "./data/output/"
+            os.makedirs(output_dir, exist_ok=True)
+            md_file_path = os.path.join(output_dir, f"{uploaded_file.name}.md")
+            with open(md_file_path, "w") as f:
+                f.write(markdown_content)
+
+            # Load markdown file and save to Milvus database
+            loader = UnstructuredMarkdownLoader(md_file_path)
+            data = loader.load()
+
+            URI = "./db/markdown.db"
+            vector_db = LangchainMilvus.from_documents(
+                data,
+                embeddings,
+                connection_args={"uri": URI},
+            )
 
     # List embeddings
     if st.sidebar.button("List Stored Embeddings"):

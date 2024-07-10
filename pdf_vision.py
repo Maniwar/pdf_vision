@@ -64,7 +64,7 @@ def extract_images_from_pdf(file):
     return images
 
 def generate_embeddings(image_base64):
-    response = client.Completion.create(
+    response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},

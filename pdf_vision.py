@@ -1,6 +1,6 @@
 import streamlit as st
 import fitz  # PyMuPDF
-import openai
+from openai import OpenAI
 import base64
 from io import BytesIO
 from pathlib import Path
@@ -10,7 +10,7 @@ from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataTy
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_community.vectorstores import Milvus as LangchainMilvus
 from langchain_community.embeddings import OpenAIEmbeddings
-
+client = OpenAI()
 # Set the OpenAI API key from Streamlit secrets
 openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]
 

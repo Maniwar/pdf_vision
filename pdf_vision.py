@@ -8,9 +8,10 @@ import os
 from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
 from langchain_community.document_loaders import UnstructuredMarkdownLoader
-from langchain_openai import OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import TextLoader
 from langchain_milvus.vectorstores import Milvus
+from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 
 # Set the OpenAI API key from Streamlit secrets

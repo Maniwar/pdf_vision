@@ -17,7 +17,7 @@ openai_api_key = st.secrets["general"]["OPENAI_API_KEY"]
 
 # Initialize the OpenAI client and embeddings model
 client = OpenAI(api_key=openai_api_key)
-embeddings = OpenAIEmbeddings()
+embeddings = OpenAIEmbeddings(api_key=openai_api_key)
 
 # Initialize Milvus cloud connection
 connections.connect(

@@ -8,3 +8,4 @@ pypdf
 PyMuPDF # instead of fitz
 unstructured 
 markdown
+langchain-openai

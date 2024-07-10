@@ -13,11 +13,11 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 
 # Set the OpenAI API key from Streamlit secrets
-openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]
+openai_api_key = st.secrets["general"]["OPENAI_API_KEY"]
 
 # Initialize the OpenAI client and embeddings model
-MODEL = "gpt-4o"
-embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
+client = openai.OpenAI(api_key=openai_api_key)
+embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
 # Initialize Milvus cloud connection
 connections.connect(
@@ -51,8 +51,8 @@ def encode_image(image):
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-def extract_images_from_pdf(file_path):
-    pdf_document = fitz.open(file_path)
+def extract_images_from_pdf(file):
+    pdf_document = fitz.open(stream=file.read(), filetype="pdf")
     images = []
     for page_num in range(len(pdf_document)):
         page = pdf_document.load_page(page_num)
@@ -63,15 +63,15 @@ def extract_images_from_pdf(file_path):
     return images
 
 def generate_embeddings(image_base64):
-    response = openai.ChatCompletion.create(
-        model=MODEL,
+    response = client.Completion.create(
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": USER_PROMPT},
             {"role": "user", "content": f"data:image/png;base64,{image_base64}"}
         ]
     )
-    return response.choices[0]['message']['content']
+    return response.choices[0]['embedding']
 
 def list_embeddings():
     num_entities = collection.num_entities
@@ -86,9 +86,9 @@ def chat_with_data(query):
     docs = langchain_milvus.similarity_search(query, k=5)
     response_content = "Top results:\n"
     for doc in docs:
-        response_content += f"Document ID: {doc['id']}\n"
-        response_content += f"Score: {doc['score']}\n"
-        response_content += f"Content: {doc['metadata']['text']}\n\n"
+        response_content += f"Document ID: {doc.id}\n"
+        response_content += f"Score: {doc.score}\n"
+        response_content += f"Content: {doc.metadata['text']}\n\n"
     return response_content
 
 def main():
@@ -112,31 +112,19 @@ def main():
     uploaded_files = st.sidebar.file_uploader("Choose PDF files", type=["pdf"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
-            # Save the uploaded file to a temporary location
-            temp_path = Path(f"temp_{uploaded_file.name}")
-            with open(temp_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            
-            # Load and process the PDF
-            loader = PyPDFLoader(str(temp_path))
-            pages = loader.load_and_split()
-            text_splitter = CharacterTextSplitter()
-            docs = text_splitter.split_documents(pages)
+            images = extract_images_from_pdf(uploaded_file)
 
-            for i, doc in enumerate(docs):
-                image_base64 = encode_image(doc.page_content)
-                embeddings = generate_embeddings(image_base64)
+            for i, image in enumerate(images):
+                image_base64 = encode_image(image)
+                embedding = generate_embeddings(image_base64)
                 data = [
                     [i],  # id
-                    [embeddings],
+                    [embedding],
                     [f"Page {i+1} of {uploaded_file.name}"]
                 ]
                 collection.insert(data)
                 st.session_state.embeddings.append(f"{uploaded_file.name}_page_{i+1}")
                 st.sidebar.write(f"Processed and stored embeddings for {uploaded_file.name}_page_{i+1}")
-
-            # Remove the temporary file
-            temp_path.unlink()
 
     # List embeddings
     if st.sidebar.button("List Stored Embeddings"):

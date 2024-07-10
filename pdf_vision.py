@@ -80,7 +80,7 @@ def generate_embeddings(image_base64):
 def get_generated_data(image_path):
     base64_image = encode_image(image_path)
 
-    response = client.chat_completions.create(
+    response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},

@@ -5,6 +5,7 @@ import base64
 from io import BytesIO
 from pathlib import Path
 import os
+from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_community.vectorstores import Milvus as LangchainMilvus
@@ -53,7 +54,8 @@ def extract_images_from_pdf(file):
         page = pdf_document.load_page(page_num)
         pix = page.get_pixmap()
         img_data = BytesIO(pix.tobytes(output="png"))
-        images.append(img_data)
+        img = Image.open(img_data)
+        images.append(img)
     return images
 
 def generate_embeddings(image_base64):

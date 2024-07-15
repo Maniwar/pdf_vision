@@ -72,7 +72,7 @@ def generate_embeddings(image_base64):
                 {"role": "user", "content": f"data:image/png;base64,{image_base64}"}
             ]
         )
-        return response.choices[0].message['content']  # Adjust based on the actual structure
+        return response.choices[0].message.content
     except OpenAIError as e:
         st.error(f"OpenAI API error: {e}")
         return None

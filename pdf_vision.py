@@ -13,7 +13,7 @@ import pdfkit
 from PIL import Image, ImageDraw
 import hashlib
 import uuid
-from pymilvus import Collection, FieldSchema, CollectionSchema, DataType, connections
+from pymilvus import Collection, FieldSchema, CollectionSchema, DataType, connections, index
 import atexit
 
 # Set the API key using st.secrets for secure access
@@ -184,20 +184,39 @@ def create_document_vectors_schema():
     schema = CollectionSchema(fields, "Document vectors collection")
     return schema
 
+def create_index(collection, field_name="embedding"):
+    # Define the index parameters
+    index_params = {
+        "metric_type": "L2",
+        "index_type": "IVF_FLAT",
+        "params": {"nlist": 1024}
+    }
+    collection.create_index(field_name=field_name, params=index_params)
+    st.success(f"Index created on field '{field_name}' for collection '{collection.name}'.")
+    
 def get_or_create_collection(collection_name):
     try:
         collection = Collection(collection_name)
         collection.load()
+        if not collection.has_index():  # Check if the index exists
+            create_index(collection)  # Create an index if not present
         return collection
     except Exception as e:
-        if collection_name == "document_vectors":
-            collection = Collection(collection_name, create_document_vectors_schema())
-        elif collection_name == "session_info":
-            collection = Collection(collection_name, create_session_collection())
-        else:
-            raise
-        collection.load()
-        return collection
+        st.error(f"Error accessing collection {collection_name}: {str(e)}")
+        if 'Collection not exist' in str(e):  # Check if the collection does not exist
+            if collection_name == "document_vectors":
+                collection_schema = create_document_vectors_schema()
+            elif collection_name == "session_info":
+                collection_schema = create_session_collection()
+            else:
+                raise ValueError("Unknown collection name")
+            
+            collection = Collection(name=collection_name, schema=collection_schema)
+            collection.create()
+            create_index(collection)  # Create an index for new collection
+            st.success(f"Collection '{collection_name}' created and indexed.")
+            return collection
+
 
 # Initialize Milvus connection and collections
 connect_to_milvus()

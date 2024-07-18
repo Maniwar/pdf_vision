@@ -311,10 +311,10 @@ try:
                             
                             # Update the session_collection.insert call in the file processing section:
                             session_collection.insert([
-                                [st.session_state["session_key"]],
-                                [uploaded_file.name],
-                                [file_hash],
-                                [[0.0, 0.0]]  # Dummy vector
+                                st.session_state["session_key"],
+                                uploaded_file.name,
+                                file_hash,
+                                [0.0, 0.0]  # Dummy vector
                             ])
 
                             st.success(f"File processed and stored in vector database! Summary: {summary}")

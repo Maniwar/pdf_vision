@@ -107,6 +107,11 @@ if uploaded_file is not None:
         for file_path in image_files:
             markdown_content += "\n" + get_generated_data(str(file_path))
 
+        # Save extracted markdown content to a temporary file
+        temp_md_file = tempfile.NamedTemporaryFile(delete=False, suffix=".md")
+        with open(temp_md_file.name, 'w') as f:
+            f.write(markdown_content)
+
     # Display extracted markdown content
     st.text_area("Extracted Content:", markdown_content, height=300)
 
@@ -114,15 +119,14 @@ if uploaded_file is not None:
     if 'data' not in st.session_state:
         st.session_state['data'] = []
 
-    def process_pdfs_to_embeddings(uploaded_file):
-        temp_file_path = save_uploadedfile(uploaded_file)
-        loader = PyPDFLoader(temp_file_path)
-        pages = loader.load_and_split()
+    def process_markdown_to_embeddings(md_file_path):
+        loader = UnstructuredMarkdownLoader(md_file_path)
+        data = loader.load()
 
         # Create and store embeddings in Milvus
         try:
             vector_db = Milvus.from_documents(
-                pages,
+                data,
                 embeddings,
                 connection_args=MILVUS_CONNECTION_ARGS,
             )
@@ -131,7 +135,7 @@ if uploaded_file is not None:
             logging.error(f"Failed to create connection to Milvus server: {e}")
             st.error("Failed to connect to the Milvus server. Please check the connection parameters and try again.")
 
-    process_pdfs_to_embeddings(uploaded_file)
+    process_markdown_to_embeddings(temp_md_file.name)
 
 query = st.text_input("Enter your query about the PDF content:")
 if st.button("Query PDF"):

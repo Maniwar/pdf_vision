@@ -5,7 +5,6 @@ import base64
 from io import BytesIO
 from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_community.vectorstores import Milvus as LangchainMilvus
 from langchain_openai import OpenAIEmbeddings
 
@@ -37,92 +36,56 @@ if not utility.has_collection(collection_name):
 else:
     collection = Collection(name=collection_name)
 
-# Constants
-SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Help me with Given Image Extraction with Given Details with Different categories!"
-USER_PROMPT = """
-Retrieve all the information provided in the image, including figures, titles, and graphs.
-"""
-
 def encode_image(image):
     buffered = BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-def extract_images_from_pdf(file):
-    pdf_document = fitz.open(stream=file.read(), filetype="pdf")
-    images = []
-    for page_num in range(len(pdf_document)):
-        page = pdf_document.load_page(page_num)
-        pix = page.get_pixmap()
-        img_data = BytesIO(pix.tobytes(output="png"))
-        img = Image.open(img_data)
-        images.append(img)
-    return images
-
 def generate_embeddings(image_base64):
     try:
-        response = client.chat.completions.create(
+        response = client.chat_completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": USER_PROMPT},
+                {"role": "system", "content": "Extract data from image."},
                 {"role": "user", "content": f"data:image/png;base64,{image_base64}"}
             ]
         )
-        return response.choices[0].message.content  # Ensure correct field access
+        return response.choices[0].message['content']
     except OpenAIError as e:
         st.error(f"OpenAI API error: {e}")
         return None
 
 def main():
     st.title("Medical Document Assistant")
-
-    st.sidebar.header("Options")
     
-    # Instructions for doctors
-    st.write("### Instructions")
-    st.write("""
-    1. Upload your medical documents in PDF format.
-    2. The system will convert each page into an image and generate embeddings.
-    3. You can query the uploaded documents to retrieve specific information.
-    """)
+    # Ensure embeddings is initialized in session state
+    if 'embeddings' not in st.session_state:
+        st.session_state.embeddings = []
 
-    # Document upload and embedding
-    st.sidebar.subheader("Upload Documents")
-    uploaded_files = st.sidebar.file_uploader("Choose PDF files", type=["pdf"], accept_multiple_files=True)
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            images = extract_images_from_pdf(uploaded_file)
+    uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
+    if uploaded_file:
+        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
+            pix = page.get_pixmap()
+            img_data = BytesIO(pix.tobytes(output="png"))
+            img = Image.open(img_data)
+            image_base64 = encode_image(img)
+            embedding = generate_embeddings(image_base64)
+            if embedding:
+                # Ensure data matches the expected schema
+                data = [
+                    [page_num],  # ID field
+                    [embedding],  # Embedding field
+                    [f"Page {page_num + 1} of {uploaded_file.name}"]  # Text field
+                ]
+                collection.insert(data)
+                st.session_state.embeddings.append(embedding)
+                st.write(f"Processed Page {page_num + 1}")
 
-            for i, image in enumerate(images):
-                image_base64 = encode_image(image)
-                embedding = generate_embeddings(image_base64)
-                if embedding:
-                    data = [
-                        [i],  # id
-                        [embedding],  # Ensure embedding is a list if not already
-                        [f"Page {i+1} of {uploaded_file.name}"]  # Text field
-                    ]
-                    collection.insert(data)
-                    st.session_state.embeddings.append(f"{uploaded_file.name}_page_{i+1}")
-                    st.sidebar.write(f"Processed and stored embeddings for {uploaded_file.name}_page_{i+1}")
-
-    # Display current embeddings
-    st.sidebar.write("### Current Embeddings")
-    st.sidebar.write(st.session_state.embeddings)
-
-    # Chat with data
-    st.write("### Query the Documents")
-    query = st.text_input("Enter your query here:")
-    if query:
-        langchain_milvus = LangchainMilvus(collection, embeddings)
-        docs = langchain_milvus.similarity_search(query, k=5)
-        response_content = "Top results:\n"
-        for doc in docs:
-            response_content += f"Document ID: {doc.id}\n"
-            response_content += f"Score: {doc.score}\n"
-            response_content += f"Content: {doc.metadata['text']}\n\n"
-        st.write(response_content)
+    st.write("### Current Embeddings")
+    for embedding in st.session_state.embeddings:
+        st.write(embedding)
 
 if __name__ == "__main__":
     main()

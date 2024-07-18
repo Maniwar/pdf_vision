@@ -76,37 +76,45 @@ def highlight_relevant_text(text, query):
     highlighted = text.replace(query, f"**{query}**")
     return highlighted
 
-def process_pdf(uploaded_file):
+def process_file(uploaded_file):
     st.subheader(f"Processing: {uploaded_file.name}")
     
     progress_bar = st.progress(0)
     
     temp_file_path = save_uploadedfile(uploaded_file)
-    doc = fitz.open(temp_file_path)
-    output_dir = tempfile.mkdtemp()
-
-    total_pages = len(doc)
-    for page_num in range(total_pages):
-        page = doc.load_page(page_num)
-        pix = page.get_pixmap()
-        output = os.path.join(output_dir, f"page{page_num + 1}.png")
-        pix.save(output)
-        progress_bar.progress((page_num + 1) / total_pages)
-
-    doc.close()
-
-    st.success('PDF converted to images successfully!')
-
-    folder_path = Path(output_dir)
-    markdown_content = ""
-    image_paths = []
+    file_extension = Path(uploaded_file.name).suffix.lower()
     
-    for i, file_path in enumerate(sorted(folder_path.iterdir())):
-        page_num = int(file_path.stem.replace('page', ''))
+    if file_extension == '.pdf':
+        # Process PDF
+        doc = fitz.open(temp_file_path)
+        output_dir = tempfile.mkdtemp()
+
+        total_pages = len(doc)
+        image_paths = []
+        for page_num in range(total_pages):
+            page = doc.load_page(page_num)
+            pix = page.get_pixmap()
+            output = os.path.join(output_dir, f"page{page_num + 1}.png")
+            pix.save(output)
+            image_paths.append((page_num + 1, output))
+            progress_bar.progress((page_num + 1) / total_pages)
+
+        doc.close()
+        st.success('PDF converted to images successfully!')
+    elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
+        # Process single image
+        image_paths = [(1, temp_file_path)]
+        progress_bar.progress(1.0)
+        st.success('Image processed successfully!')
+    else:
+        st.error(f"Unsupported file format: {file_extension}")
+        return None, None, None, None
+
+    markdown_content = ""
+    for i, (page_num, img_path) in enumerate(image_paths):
         markdown_content += f"\n## Page {page_num}\n"
-        markdown_content += get_generated_data(str(file_path))
-        image_paths.append((page_num, str(file_path)))
-        progress_bar.progress((i + 1) / len(list(folder_path.iterdir())))
+        markdown_content += get_generated_data(img_path)
+        progress_bar.progress((i + 1) / len(image_paths))
 
     md_file_path = os.path.join(tempfile.mkdtemp(), "extracted_content.md")
     with open(md_file_path, "w") as f:
@@ -132,7 +140,7 @@ def process_pdf(uploaded_file):
     return vector_db, image_paths, markdown_content, summary
 
 # Streamlit interface
-st.title('PDF Document Query and Analysis App')
+st.title('Document Query and Analysis App')
 
 try:
     # Sidebar for advanced options
@@ -141,7 +149,7 @@ try:
         chunks_to_retrieve = st.slider("Number of chunks to retrieve", 1, 10, 5)
         similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.5)
 
-    uploaded_files = st.file_uploader("Upload PDF file(s)", type=["pdf"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             if 'processed_data' not in st.session_state:
@@ -149,14 +157,15 @@ try:
             
             if uploaded_file.name not in st.session_state['processed_data']:
                 try:
-                    vector_db, image_paths, markdown_content, summary = process_pdf(uploaded_file)
-                    st.session_state['processed_data'][uploaded_file.name] = {
-                        'vector_db': vector_db,
-                        'image_paths': image_paths,
-                        'markdown_content': markdown_content,
-                        'summary': summary
-                    }
-                    st.success(f"PDF processed and stored in vector database! Summary: {summary}")
+                    vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
+                    if vector_db is not None:
+                        st.session_state['processed_data'][uploaded_file.name] = {
+                            'vector_db': vector_db,
+                            'image_paths': image_paths,
+                            'markdown_content': markdown_content,
+                            'summary': summary
+                        }
+                        st.success(f"File processed and stored in vector database! Summary: {summary}")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
                     st.exception(e)
@@ -226,7 +235,7 @@ try:
             })
 
         else:
-            st.warning("Please upload and process at least one PDF first.")
+            st.warning("Please upload and process at least one file first.")
 
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:

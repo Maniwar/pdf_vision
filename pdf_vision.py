@@ -356,3 +356,40 @@ if __name__ == "__main__":
         "information. In the deployed version, there will be a "
         "private database to ensure security and privacy."
     )
+# CSS for styling
+st.markdown("""
+<style>
+.big-font {
+    font-size:20px !important;
+    font-weight: bold;
+}
+.stAlert > div {
+    padding-top: 20px;
+    padding-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 16px;
+}
+.stAlert .big-font {
+    margin-bottom: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Warning Banner
+st.markdown('<div class="big-font">⚠️ IMPORTANT NOTICE</div>', unsafe_allow_html=True)
+st.warning("""
+This is a prototype application. By using this application, you agree to the following terms and conditions:
+
+1. **Multi-User Environment**: Any data you upload or queries you make may be accessible to other users.
+2. **No Privacy**: Do not upload any sensitive or confidential information.
+3. **Data Storage**: All uploaded data is stored temporarily and is not secure.
+4. **Accuracy**: AI models may produce inaccurate or inconsistent results. Verify important information.
+5. **Liability**: Use this application at your own risk. We are not liable for any damages or losses.
+6. **Data Usage**: Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.
+7. **User Responsibilities**: You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.
+8. **Changes to Terms**: We reserve the right to modify these terms at any time.
+
+By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
+""")

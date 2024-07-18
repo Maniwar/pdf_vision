@@ -34,8 +34,7 @@ connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY, secure
 collection_name = "pdf_embeddings"
 try:
     collection = Collection(name=collection_name)
-    if collection.name:
-        st.write(f"Collection '{collection_name}' is available.")
+    st.write(f"Collection '{collection_name}' is available.")
 except Exception as e:
     st.error(f"Collection '{collection_name}' does not exist or could not be accessed: {str(e)}")
 
@@ -84,7 +83,7 @@ if uploaded_file is not None:
         vector_db = Milvus.from_documents(
             pages,
             embeddings,
-            connection_args={"alias": "default"},
+            connection_args={"uri": MILVUS_ENDPOINT},
         )
         st.session_state['vector_db'] = vector_db
         st.success('Embeddings stored successfully in Milvus!')
@@ -134,7 +133,7 @@ if 'vector_db' in st.session_state:
         vector_db = Milvus.from_documents(
             data,
             embeddings,
-            connection_args={"alias": "default"},
+            connection_args={"uri": MILVUS_ENDPOINT},
         )
         st.session_state['vector_db'] = vector_db
     except Exception as e:

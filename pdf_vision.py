@@ -222,7 +222,7 @@ def get_or_create_collection(collection_name):
 
 # Initialize Milvus connection and collections
 connect_to_milvus()
-vector_collection = get_or_create_collection("document_vectors")
+vector_collection = get_or_create_collection("LangChainCollection")
 session_collection = get_or_create_collection("session_info")
 
 # Streamlit interface

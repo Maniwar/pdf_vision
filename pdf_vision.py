@@ -21,6 +21,7 @@ MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 MILVUS_CONNECTION_ARGS = {
     "host": MILVUS_ENDPOINT,
     "api_key": MILVUS_API_KEY,
+    "secure": True  # Ensure the connection uses HTTPS
 }
 
 def encode_image(image_path):
@@ -106,14 +107,11 @@ def process_pdfs_to_embeddings(uploaded_file):
     loader = PyPDFLoader(temp_file_path)
     pages = loader.load_and_split()
 
-    # Define the URI for local storage
-    URI = tempfile.mkdtemp()
-
     # Create and store embeddings in Milvus
     vector_db = Milvus.from_documents(
         pages,
         embeddings,
-        connection_args={"uri": URI},
+        connection_args=MILVUS_CONNECTION_ARGS,
     )
     st.session_state['data'] = vector_db
 

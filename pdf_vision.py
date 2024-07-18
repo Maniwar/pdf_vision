@@ -4,11 +4,12 @@ import streamlit as st
 from pathlib import Path
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain_milvus.vectorstores import Milvus
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
 import logging
+from pymilvus import connections, Collection
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -41,6 +42,18 @@ MILVUS_CONNECTION_ARGS = {
 
 # Log the connection parameters
 logging.debug(f"Connecting to Milvus server at {host}:{port} with API key.")
+
+# Connect to Milvus server
+connections.connect(alias="default", host=host, port=port, token=MILVUS_API_KEY, secure=True)
+
+# Check if the collection exists
+collection_name = "pdf_embeddings"
+try:
+    collection = Collection(name=collection_name)
+    if collection.name:
+        st.write(f"Collection '{collection_name}' is available.")
+except Exception as e:
+    st.error(f"Collection '{collection_name}' does not exist or could not be accessed: {str(e)}")
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
@@ -117,4 +130,3 @@ if uploaded_file is not None:
             st.error("Vector database is not available. Please upload a PDF and try again.")
 else:
     st.write("Please upload a PDF to begin processing.")
-

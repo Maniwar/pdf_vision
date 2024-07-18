@@ -13,7 +13,8 @@ import pdfkit
 from PIL import Image, ImageDraw
 import hashlib
 import uuid
-from pymilvus import Collection, FieldSchema, CollectionSchema, DataType
+from pymilvus import Collection, FieldSchema, CollectionSchema, DataType, connections
+import atexit
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
@@ -29,6 +30,23 @@ MILVUS_CONNECTION_ARGS = {
     "token": MILVUS_API_KEY,
     "secure": True
 }
+
+def connect_to_milvus():
+    try:
+        connections.connect(**MILVUS_CONNECTION_ARGS)
+        st.success("Connected to Milvus successfully!")
+    except Exception as e:
+        st.error(f"Failed to connect to Milvus: {str(e)}")
+        raise
+
+def close_milvus_connection():
+    try:
+        connections.disconnect("default")
+        st.success("Disconnected from Milvus successfully!")
+    except Exception as e:
+        st.error(f"Failed to disconnect from Milvus: {str(e)}")
+
+atexit.register(close_milvus_connection)
 
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
@@ -145,7 +163,6 @@ def process_file(uploaded_file, session_key):
 
     return vector_db, image_paths, markdown_content, summary
 
-# Create session info collection in Milvus
 def create_session_collection():
     fields = [
         FieldSchema(name="session_key", dtype=DataType.VARCHAR, is_primary=True, auto_id=False, max_length=64),
@@ -153,14 +170,22 @@ def create_session_collection():
         FieldSchema(name="file_hash", dtype=DataType.VARCHAR, max_length=64),
     ]
     schema = CollectionSchema(fields, "Session information collection")
-    session_collection = Collection("session_info", schema)
-    return session_collection
+    return schema
 
-# Initialize Milvus collections
-vector_collection = Collection("document_vectors")  # Your existing vector collection
-session_collection = create_session_collection()
+def get_or_create_collection(collection_name, schema=None):
+    try:
+        return Collection(collection_name)
+    except Exception as e:
+        if schema:
+            return Collection(collection_name, schema)
+        else:
+            raise
 
-# Function to generate a unique session key
+# Initialize Milvus connection and collections
+connect_to_milvus()
+vector_collection = get_or_create_collection("document_vectors")
+session_collection = get_or_create_collection("session_info", create_session_collection())
+
 def generate_session_key():
     return hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()
 
@@ -320,7 +345,6 @@ try:
                     st.markdown(f"**File: {file_name}, Page {page_num}:**")
                     highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
                     st.markdown(f"```\n{highlighted_text}...\n```")
-                    
                     image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
                     if image_path:
                         with st.expander(f"View Page {page_num} Image"):
@@ -383,3 +407,7 @@ try:
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
+    st.exception(e)
+
+# Ensure Milvus connection is closed when the script ends
+atexit.register(close_milvus_connection)

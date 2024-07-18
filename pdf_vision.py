@@ -187,14 +187,18 @@ def create_document_vectors_schema():
 
 def get_or_create_collection(collection_name):
     try:
-        return Collection(collection_name)
+        collection = Collection(collection_name)
+        collection.load()
+        return collection
     except Exception as e:
         if collection_name == "document_vectors":
-            return Collection(collection_name, create_document_vectors_schema())
+            collection = Collection(collection_name, create_document_vectors_schema())
         elif collection_name == "session_info":
-            return Collection(collection_name, create_session_collection())
+            collection = Collection(collection_name, create_session_collection())
         else:
             raise
+        collection.load()
+        return collection
 
 # Initialize Milvus connection and collections
 connect_to_milvus()
@@ -228,22 +232,26 @@ try:
     # Option to enter a session key
     entered_key = st.sidebar.text_input("Enter a session key to resume:")
     if st.sidebar.button("Load Session"):
-        results = session_collection.query(
-            expr=f'session_key == "{entered_key}"',
-            output_fields=["file_name", "file_hash"]
-        )
-        if results:
-            st.session_state['session_key'] = entered_key
-            st.session_state['current_session_files'] = set()
-            st.session_state['file_hashes'] = {}
-            for result in results:
-                file_name = result['file_name']
-                file_hash = result['file_hash']
-                st.session_state['current_session_files'].add(file_name)
-                st.session_state['file_hashes'][file_hash] = file_name
-            st.success("Session loaded successfully!")
-        else:
-            st.error("Invalid session key. Please try again.")
+        try:
+            session_collection.load()
+            results = session_collection.query(
+                expr=f'session_key == "{entered_key}"',
+                output_fields=["file_name", "file_hash"]
+            )
+            if results:
+                st.session_state['session_key'] = entered_key
+                st.session_state['current_session_files'] = set()
+                st.session_state['file_hashes'] = {}
+                for result in results:
+                    file_name = result['file_name']
+                    file_hash = result['file_hash']
+                    st.session_state['current_session_files'].add(file_name)
+                    st.session_state['file_hashes'][file_hash] = file_name
+                st.success("Session loaded successfully!")
+            else:
+                st.error("Invalid session key. Please try again.")
+        except Exception as e:
+            st.error(f"An error occurred while loading the session: {str(e)}")
 
     # Sidebar for advanced options
     with st.sidebar:
@@ -260,11 +268,13 @@ try:
             st.success("Current session cleared. A new session key has been generated.")
 
     uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            file_content = uploaded_file.getvalue()
-            file_hash = get_file_hash(file_content)
-            
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        file_content = uploaded_file.getvalue()
+        file_hash = get_file_hash(file_content)
+        
+        try:
+            session_collection.load()
             # Check if file exists in the current session
             results = session_collection.query(
                 expr=f'session_key == "{st.session_state["session_key"]}" and file_hash == "{file_hash}"',

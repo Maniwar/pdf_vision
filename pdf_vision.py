@@ -178,6 +178,14 @@ try:
             with st.expander(f"View Extracted Content for {uploaded_file.name}"):
                 st.markdown(st.session_state['processed_data'][uploaded_file.name]['markdown_content'])
 
+    # Display all uploaded images
+    if 'processed_data' in st.session_state:
+        st.subheader("Uploaded Documents and Images")
+        for file_name, data in st.session_state['processed_data'].items():
+            with st.expander(f"Images from {file_name}"):
+                for page_num, image_path in data['image_paths']:
+                    st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
+
     # Query interface
     st.subheader("Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
@@ -247,6 +255,11 @@ try:
                 st.write("Sources:")
                 for source in qa['sources']:
                     st.write(f"- File: {source['file']}, Page: {source['page']}")
+        
+        # Add a button to clear the question history
+        if st.button("Clear Question History"):
+            st.session_state['qa_history'] = []
+            st.success("Question history cleared!")
 
     # Export results
     if st.button("Export Q&A Session"):

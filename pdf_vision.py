@@ -19,7 +19,7 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 MILVUS_CONNECTION_ARGS = {
-    "host": MILVUS_ENDPOINT,
+    "host": MILVUS_ENDPOINT.split("//")[-1],  # Extract the host part
     "api_key": MILVUS_API_KEY,
     "secure": True  # Ensure the connection uses HTTPS
 }

@@ -122,7 +122,7 @@ if st.button("Search"):
             docs = st.session_state['vector_db'].similarity_search(query, k=5)  # Retrieve top 5 relevant chunks
             content = "\n".join([f"Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for doc in docs])
 
-            system_content = "You are an assisting agent. Please provide the response based on the input."
+            system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including page numbers and relevant snippets."
             user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
 
             response = client.chat.completions.create(
@@ -135,15 +135,23 @@ if st.button("Search"):
             st.subheader("Answer:")
             st.write(response.choices[0].message.content)
 
-            st.subheader("Relevant Pages:")
+            st.subheader("Sources:")
             for doc in docs:
-                st.write(f"Page {doc.metadata.get('page_number', 'Unknown')}")
+                page_num = doc.metadata.get('page_number', 'Unknown')
+                st.markdown(f"**Page {page_num}:**")
+                st.markdown(f"```\n{doc.page_content[:200]}...\n```")
+                
+                # Display the corresponding image
+                image_path = next((img_path for num, img_path in st.session_state['image_paths'] if num == page_num), None)
+                if image_path:
+                    with st.expander(f"View Page {page_num} Image"):
+                        st.image(image_path, use_column_width=True)
     else:
         st.warning("Please upload and process a PDF first.")
 
-# Display images below the search box
+# Display all images below the search results
 if 'image_paths' in st.session_state:
-    st.subheader(f"Pages from: {st.session_state['document_name']}")
+    st.subheader(f"All Pages from: {st.session_state['document_name']}")
     for page_num, img_path in sorted(st.session_state['image_paths']):
         with st.expander(f"Page {page_num}"):
             st.image(img_path, use_column_width=True)

@@ -205,7 +205,7 @@ def get_or_create_collection(collection_name):
         return collection
     except Exception as e:
         if 'does not exist' in str(e):  # Better error message handling
-            if collection_name == "document_vectors":
+            if collection_name == "LangChainCollection":
                 collection_schema = create_document_vectors_schema()
             elif collection_name == "session_info":
                 collection_schema = create_session_collection()

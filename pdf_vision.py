@@ -329,7 +329,7 @@ try:
             # Save question and answer to history
             if 'qa_history' not in st.session_state:
                 st.session_state['qa_history'] = []
-st.session_state['qa_history'].append({
+            st.session_state['qa_history'].append({
                 'question': query,
                 'answer': response.choices[0].message.content,
                 'sources': [{'file': file_name, 'page': doc.metadata['page_number']} for file_name, doc in all_docs],

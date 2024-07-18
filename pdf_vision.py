@@ -7,6 +7,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_milvus.vectorstores import Milvus
 import fitz  # PyMuPDF for handling PDFs
+import tempfile
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
@@ -48,9 +49,11 @@ def get_generated_data(image_path):
     return response.choices[0].message.content
 
 def save_uploadedfile(uploadedfile):
-    with open(os.path.join("tempDir", uploadedfile.name), "wb") as f:
+    temp_dir = tempfile.mkdtemp()
+    file_path = os.path.join(temp_dir, uploadedfile.name)
+    with open(file_path, "wb") as f:
         f.write(uploadedfile.getbuffer())
-    return os.path.join("tempDir", uploadedfile.name)
+    return file_path
 
 # Streamlit interface
 st.title('PDF Document Query and Analysis App')
@@ -61,8 +64,7 @@ if uploaded_file is not None:
     temp_file_path = save_uploadedfile(uploaded_file)
     
     doc = fitz.open(temp_file_path)
-    output_dir = "./data/output/"
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = tempfile.mkdtemp()
 
     for page_num in range(len(doc)):
         page = doc.load_page(page_num)
@@ -105,7 +107,7 @@ def process_pdfs_to_embeddings(uploaded_file):
     pages = loader.load_and_split()
 
     # Define the URI for local storage
-    URI = "./db/pdf.db"
+    URI = tempfile.mkdtemp()
 
     # Create and store embeddings in Milvus
     vector_db = Milvus.from_documents(

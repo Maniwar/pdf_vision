@@ -13,7 +13,7 @@ import pdfkit
 from PIL import Image, ImageDraw
 import hashlib
 import uuid
-from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, index, utility
+from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, Index, utility
 import atexit
 
 # Set the API key using st.secrets for secure access

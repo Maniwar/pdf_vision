@@ -198,12 +198,11 @@ def get_or_create_collection(collection_name):
     try:
         collection = Collection(collection_name)
         collection.load()
-        if not collection.has_index():  # Check if the index exists
-            create_index(collection)  # Create an index if not present
+        if not collection.has_index():  # Explicitly check if the index exists
+            create_index(collection)  # Call to create the index if it does not exist
         return collection
     except Exception as e:
-        st.error(f"Error accessing collection {collection_name}: {str(e)}")
-        if 'Collection not exist' in str(e):  # Check if the collection does not exist
+        if 'does not exist' in str(e):  # Better error message handling
             if collection_name == "document_vectors":
                 collection_schema = create_document_vectors_schema()
             elif collection_name == "session_info":
@@ -213,9 +212,12 @@ def get_or_create_collection(collection_name):
             
             collection = Collection(name=collection_name, schema=collection_schema)
             collection.create()
-            create_index(collection)  # Create an index for new collection
-            st.success(f"Collection '{collection_name}' created and indexed.")
+            create_index(collection)  # Ensure index is created right after the collection
+            st.success(f"Collection '{collection_name}' created with an index.")
             return collection
+        else:
+            raise
+
 
 
 # Initialize Milvus connection and collections

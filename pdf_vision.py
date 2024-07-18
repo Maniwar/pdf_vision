@@ -4,7 +4,6 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_milvus.vectorstores import Milvus
 import fitz  # PyMuPDF
-from pathlib import Path
 import base64
 import os
 
@@ -54,7 +53,7 @@ if uploaded_file is not None:
                 {"role": "system", "content": "You are a helpful assistant that responds in Markdown."},
                 {"role": "user", "content": [
                     {"type": "text", "text": "Retrieve all information from this image."},
-                    {"type": "image_url", "image_url": f"data:image/png;base64,{base64_image}"}
+                    {"type": "image", "data": {"url": f"data:image/png;base64,{base64_image}"}}
                 ]}
             ],
             temperature=0.0,

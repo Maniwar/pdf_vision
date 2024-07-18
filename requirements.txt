@@ -9,3 +9,7 @@ PyMuPDF # instead of fitz
 unstructured 
 markdown
 langchain-openai
+Pillow
+pytesseract
+markdown2
+pdfkit

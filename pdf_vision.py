@@ -22,10 +22,6 @@ MILVUS_CONNECTION_ARGS = {
     "api_key": MILVUS_API_KEY,
 }
 
-# Initialize the OpenAI client and embeddings model
-client = OpenAI()
-embeddings = OpenAIEmbeddings()
-
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
@@ -44,7 +40,7 @@ def get_generated_data(image_path):
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": [
                 {"type": "text", "text": USER_PROMPT},
-                {"type": "image_url", "image_url": f"data:image/png;base64,{base64_image}"}
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
             ]}
         ],
         temperature=0.0,

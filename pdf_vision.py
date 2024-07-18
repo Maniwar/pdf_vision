@@ -47,13 +47,20 @@ def get_generated_data(image_path):
     )
     return response.choices[0].message.content
 
+def save_uploadedfile(uploadedfile):
+    with open(os.path.join("tempDir", uploadedfile.name), "wb") as f:
+        f.write(uploadedfile.getbuffer())
+    return os.path.join("tempDir", uploadedfile.name)
+
 # Streamlit interface
 st.title('PDF Document Query and Analysis App')
 
 uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
 if uploaded_file is not None:
     st.subheader("PDF Processing and Image Extraction")
-    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+    temp_file_path = save_uploadedfile(uploaded_file)
+    
+    doc = fitz.open(temp_file_path)
     output_dir = "./data/output/"
     os.makedirs(output_dir, exist_ok=True)
 
@@ -93,7 +100,8 @@ if 'data' not in st.session_state:
     st.session_state['data'] = []
 
 def process_pdfs_to_embeddings(uploaded_file):
-    loader = PyPDFLoader(uploaded_file)
+    temp_file_path = save_uploadedfile(uploaded_file)
+    loader = PyPDFLoader(temp_file_path)
     pages = loader.load_and_split()
 
     # Define the URI for local storage

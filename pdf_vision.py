@@ -132,12 +132,16 @@ def process_pdfs_to_embeddings(uploaded_file):
     pages = loader.load_and_split()
 
     # Create and store embeddings in Milvus
-    vector_db = Milvus.from_documents(
-        pages,
-        embeddings,
-        connection_args=MILVUS_CONNECTION_ARGS,
-    )
-    st.session_state['data'] = vector_db
+    try:
+        vector_db = Milvus.from_documents(
+            pages,
+            embeddings,
+            connection_args=MILVUS_CONNECTION_ARGS,
+        )
+        st.session_state['data'] = vector_db
+    except Exception as e:
+        logging.error(f"Failed to create connection to Milvus server: {e}")
+        st.error("Failed to connect to the Milvus server. Please check the connection parameters and try again.")
 
 if uploaded_file:
     process_pdfs_to_embeddings(uploaded_file)

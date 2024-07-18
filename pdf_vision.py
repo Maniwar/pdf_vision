@@ -11,6 +11,7 @@ import tempfile
 import markdown2
 import pdfkit
 from PIL import Image, ImageDraw
+import hashlib
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
@@ -26,6 +27,9 @@ MILVUS_CONNECTION_ARGS = {
     "token": MILVUS_API_KEY,
     "secure": True
 }
+
+def get_file_hash(file_content):
+    return hashlib.md5(file_content).hexdigest()
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
@@ -148,6 +152,8 @@ try:
         st.session_state['current_session_files'] = set()
     if 'processed_data' not in st.session_state:
         st.session_state['processed_data'] = {}
+    if 'file_hashes' not in st.session_state:
+        st.session_state['file_hashes'] = {}
 
     # Sidebar for advanced options
     with st.sidebar:
@@ -157,12 +163,22 @@ try:
 
         if st.button("Clear Current Session"):
             st.session_state['current_session_files'] = set()
+            st.session_state['file_hashes'] = {}
             st.success("Current session cleared. You can now upload new files.")
 
     uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
-            if uploaded_file.name not in st.session_state['processed_data']:
+            file_content = uploaded_file.getvalue()
+            file_hash = get_file_hash(file_content)
+            
+            if file_hash in st.session_state['file_hashes']:
+                # File has been processed before
+                existing_file_name = st.session_state['file_hashes'][file_hash]
+                st.session_state['current_session_files'].add(existing_file_name)
+                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
+            else:
+                # New file, needs processing
                 try:
                     vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
                     if vector_db is not None:
@@ -173,19 +189,17 @@ try:
                             'summary': summary
                         }
                         st.session_state['current_session_files'].add(uploaded_file.name)
+                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
                         st.success(f"File processed and stored in vector database! Summary: {summary}")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-                    st.exception(e)
-            else:
-                st.session_state['current_session_files'].add(uploaded_file.name)
-                st.success(f"Using previously processed data for {uploaded_file.name}")
 
-            with st.expander(f"View Summary for {uploaded_file.name}"):
-                st.markdown(st.session_state['processed_data'][uploaded_file.name]['summary'])
-
-            with st.expander(f"View Extracted Content for {uploaded_file.name}"):
-                st.markdown(st.session_state['processed_data'][uploaded_file.name]['markdown_content'])
+            # Display summary and extracted content
+            display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
+            with st.expander(f"View Summary for {display_name}"):
+                st.markdown(st.session_state['processed_data'][display_name]['summary'])
+            with st.expander(f"View Extracted Content for {display_name}"):
+                st.markdown(st.session_state['processed_data'][display_name]['markdown_content'])
 
     # Display all uploaded images for the current session
     if st.session_state['current_session_files']:
@@ -298,4 +312,3 @@ try:
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
- #   st.exception(e)

@@ -128,7 +128,8 @@ def process_file(uploaded_file):
     data = loader.load()
 
     for i, page in enumerate(data):
-        page.metadata['page_number'] = i + 1
+        if 'page_number' not in page.metadata:
+            page.metadata['page_number'] = i + 1
 
     vector_db = Milvus.from_documents(
         data,
@@ -218,12 +219,12 @@ try:
                 for file_name in st.session_state['current_session_files']:
                     vector_db = st.session_state['processed_data'][file_name]['vector_db']
                     docs = vector_db.similarity_search(query, k=chunks_to_retrieve)
-                    all_docs.extend([(file_name, doc) for doc in docs if doc.metadata.get('page_number') is not None])
+                    all_docs.extend([(file_name, doc) for doc in docs])
                 
-                # Sort all_docs by relevance
+                # Sort all_docs by relevance (assuming the order returned by similarity_search is from most to least relevant)
                 all_docs.sort(key=lambda x: x[1].metadata.get('relevance', 0), reverse=True)
                 
-                content = "\n".join([f"File: {file_name}, Page {doc.metadata['page_number']}: {doc.page_content}" for file_name, doc in all_docs])
+                content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc in all_docs])
 
                 system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
                 user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
@@ -244,7 +245,7 @@ try:
 
                 st.subheader("Sources:")
                 for file_name, doc in all_docs:
-                    page_num = doc.metadata['page_number']
+                    page_num = doc.metadata.get('page_number', 'Unknown')
                     st.markdown(f"**File: {file_name}, Page {page_num}:**")
                     highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
                     st.markdown(f"```\n{highlighted_text}...\n```")
@@ -260,7 +261,7 @@ try:
             st.session_state['qa_history'].append({
                 'question': query,
                 'answer': response.choices[0].message.content,
-                'sources': [{'file': file_name, 'page': doc.metadata['page_number']} for file_name, doc in all_docs],
+                'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc in all_docs],
                 'confidence': confidence_score
             })
 

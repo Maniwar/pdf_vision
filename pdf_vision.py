@@ -28,6 +28,27 @@ MILVUS_CONNECTION_ARGS = {
     "secure": True
 }
 
+# CSS for Warning Banner
+st.markdown("""
+<style>
+    .warning-banner {
+        background-color: #ffcccb;
+        border: 1px solid #ff0000;
+        padding: 10px;
+        color: #a00;
+        font-weight: bold;
+        text-align: center;
+        border-radius: 5px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# HTML for Warning Banner
+st.markdown("""
+<div class="warning-banner">
+    Warning: This is a prototype application. Do not upload sensitive information as it is accessible to anyone. In the deployed version, there will be a private database to ensure security and privacy.
+</div>
+""", unsafe_allow_html=True)
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
 

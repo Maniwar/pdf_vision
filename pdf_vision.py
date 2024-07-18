@@ -143,18 +143,25 @@ def process_file(uploaded_file):
 st.title('Document Query and Analysis App')
 
 try:
+    # Initialize session state variables
+    if 'current_session_files' not in st.session_state:
+        st.session_state['current_session_files'] = set()
+    if 'processed_data' not in st.session_state:
+        st.session_state['processed_data'] = {}
+
     # Sidebar for advanced options
     with st.sidebar:
         st.header("Advanced Options")
         chunks_to_retrieve = st.slider("Number of chunks to retrieve", 1, 10, 5)
         similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.5)
 
+        if st.button("Clear Current Session"):
+            st.session_state['current_session_files'] = set()
+            st.success("Current session cleared. You can now upload new files.")
+
     uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
-            if 'processed_data' not in st.session_state:
-                st.session_state['processed_data'] = {}
-            
             if uploaded_file.name not in st.session_state['processed_data']:
                 try:
                     vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
@@ -165,11 +172,13 @@ try:
                             'markdown_content': markdown_content,
                             'summary': summary
                         }
+                        st.session_state['current_session_files'].add(uploaded_file.name)
                         st.success(f"File processed and stored in vector database! Summary: {summary}")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
                     st.exception(e)
             else:
+                st.session_state['current_session_files'].add(uploaded_file.name)
                 st.success(f"Using previously processed data for {uploaded_file.name}")
 
             with st.expander(f"View Summary for {uploaded_file.name}"):
@@ -178,23 +187,23 @@ try:
             with st.expander(f"View Extracted Content for {uploaded_file.name}"):
                 st.markdown(st.session_state['processed_data'][uploaded_file.name]['markdown_content'])
 
-    # Display all uploaded images
-    if 'processed_data' in st.session_state:
+    # Display all uploaded images for the current session
+    if st.session_state['current_session_files']:
         st.subheader("Uploaded Documents and Images")
-        for file_name, data in st.session_state['processed_data'].items():
+        for file_name in st.session_state['current_session_files']:
             with st.expander(f"Images from {file_name}"):
-                for page_num, image_path in data['image_paths']:
+                for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
 
     # Query interface
     st.subheader("Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     if st.button("Search"):
-        if 'processed_data' in st.session_state and st.session_state['processed_data']:
+        if st.session_state['current_session_files']:
             with st.spinner('Searching...'):
                 all_docs = []
-                for file_name, data in st.session_state['processed_data'].items():
-                    vector_db = data['vector_db']
+                for file_name in st.session_state['current_session_files']:
+                    vector_db = st.session_state['processed_data'][file_name]['vector_db']
                     docs = vector_db.similarity_search(query, k=chunks_to_retrieve)
                     all_docs.extend([(file_name, doc) for doc in docs])
                 

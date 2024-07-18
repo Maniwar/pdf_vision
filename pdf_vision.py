@@ -95,6 +95,10 @@ if uploaded_file is not None:
         loader = UnstructuredMarkdownLoader(md_file_path)
         data = loader.load()
 
+        # Add page numbers to the metadata
+        for i, page in enumerate(data):
+            page.metadata['page_number'] = i + 1
+
         vector_db = Milvus.from_documents(
             data,
             embeddings,
@@ -116,7 +120,7 @@ if st.button("Search"):
     if 'vector_db' in st.session_state:
         with st.spinner('Searching...'):
             docs = st.session_state['vector_db'].similarity_search(query, k=5)  # Retrieve top 5 relevant chunks
-            content = "\n".join([f"Page {doc.metadata['page_number']}: {doc.page_content}" for doc in docs])
+            content = "\n".join([f"Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for doc in docs])
 
             system_content = "You are an assisting agent. Please provide the response based on the input."
             user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
@@ -133,7 +137,7 @@ if st.button("Search"):
 
             st.subheader("Relevant Pages:")
             for doc in docs:
-                st.write(f"Page {doc.metadata['page_number']}")
+                st.write(f"Page {doc.metadata.get('page_number', 'Unknown')}")
     else:
         st.warning("Please upload and process a PDF first.")
 

@@ -32,8 +32,8 @@ collection_name = "pdf_embeddings"
 if not utility.has_collection(collection_name):
     fields = [
         FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-        FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1536),  # Adjust dimension as per your embeddings
-        FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=1000)  # Use VarChar instead of STRING
+        FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1536),
+        FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=1000)
     ]
     schema = CollectionSchema(fields, description="PDF embeddings collection")
     collection = Collection(name=collection_name, schema=schema)
@@ -141,12 +141,12 @@ def main():
                 image_base64 = encode_image(image)
                 embedding = generate_embeddings(image_base64)
                 if embedding:
-                    data = [
-                        [i],  # id
-                        [embedding],
-                        [f"Page {i+1} of {uploaded_file.name}"]
-                    ]
-                    collection.insert(data)
+                    data = {
+                        "id": [i],
+                        "embedding": [embedding],
+                        "text": [f"Page {i+1} of {uploaded_file.name}"]
+                    }
+                    collection.insert([data])
                     st.session_state.embeddings.append(f"{uploaded_file.name}_page_{i+1}")
                     st.sidebar.write(f"Processed and stored embeddings for {uploaded_file.name}_page_{i+1}")
 

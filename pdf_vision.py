@@ -110,44 +110,30 @@ if uploaded_file is not None:
     # Display extracted markdown content
     st.text_area("Extracted Content:", markdown_content, height=300)
 
-    # Query interface based on extracted content
-    query = st.text_input("Enter your query about the extracted data:")
-    if st.button("Search"):
-        with st.spinner('Searching...'):
-            response = client.chat.completions.create(
-                model=MODEL,
-                messages=[
-                    {"role": "system", "content": "You are an assisting agent. Please provide the response based on the input."},
-                    {"role": "user", "content": f"Respond to the query '{query}' using the information from the following content: {markdown_content}"}
-                ]
+    # For embedding and storing in Milvus
+    if 'data' not in st.session_state:
+        st.session_state['data'] = []
+
+    def process_pdfs_to_embeddings(uploaded_file):
+        temp_file_path = save_uploadedfile(uploaded_file)
+        loader = PyPDFLoader(temp_file_path)
+        pages = loader.load_and_split()
+
+        # Create and store embeddings in Milvus
+        try:
+            vector_db = Milvus.from_documents(
+                pages,
+                embeddings,
+                connection_args=MILVUS_CONNECTION_ARGS,
             )
-            st.write(response.choices[0].message.content)
+            st.session_state['data'] = vector_db
+        except Exception as e:
+            logging.error(f"Failed to create connection to Milvus server: {e}")
+            st.error("Failed to connect to the Milvus server. Please check the connection parameters and try again.")
 
-# For embedding and storing in Milvus
-if 'data' not in st.session_state:
-    st.session_state['data'] = []
-
-def process_pdfs_to_embeddings(uploaded_file):
-    temp_file_path = save_uploadedfile(uploaded_file)
-    loader = PyPDFLoader(temp_file_path)
-    pages = loader.load_and_split()
-
-    # Create and store embeddings in Milvus
-    try:
-        vector_db = Milvus.from_documents(
-            pages,
-            embeddings,
-            connection_args=MILVUS_CONNECTION_ARGS,
-        )
-        st.session_state['data'] = vector_db
-    except Exception as e:
-        logging.error(f"Failed to create connection to Milvus server: {e}")
-        st.error("Failed to connect to the Milvus server. Please check the connection parameters and try again.")
-
-if uploaded_file:
     process_pdfs_to_embeddings(uploaded_file)
 
-query = st.text_input("Enter your query for the PDF document:")
+query = st.text_input("Enter your query about the PDF content:")
 if st.button("Query PDF"):
     vector_db = st.session_state.get('data')
     if vector_db:
@@ -157,7 +143,7 @@ if st.button("Query PDF"):
             content += "\n" + doc.page_content
 
         system_content = "You are a helpful assistant. Provide the response based on the input."
-        user_content = f"Answer the {query} from the {content}"
+        user_content = f"Answer the query '{query}' using the following content: {content}"
 
         response = client.chat.completions.create(
             model=MODEL,

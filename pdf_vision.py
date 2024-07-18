@@ -8,11 +8,6 @@ from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdo
 from langchain_milvus.vectorstores import Milvus
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
-import logging
-from pymilvus import connections, Collection
-
-# Setup logging
-logging.basicConfig(level=logging.DEBUG)
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
@@ -23,21 +18,11 @@ embeddings = OpenAIEmbeddings()
 # Milvus connection parameters from st.secrets
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
-
-# Log the connection parameters
-logging.debug(f"Connecting to Milvus server at {MILVUS_ENDPOINT} with API key.")
-
-# Connect to Milvus server
-connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY, secure=True)
-
-# Check if the collection exists
-collection_name = "pdf_embeddings"
-try:
-    collection = Collection(name=collection_name)
-    if collection.name:
-        st.write(f"Collection '{collection_name}' is available.")
-except Exception as e:
-    st.error(f"Collection '{collection_name}' does not exist or could not be accessed: {str(e)}")
+MILVUS_CONNECTION_ARGS = {
+    "host": MILVUS_ENDPOINT.split("//")[-1],  # Extract the host part
+    "api_key": MILVUS_API_KEY,
+    "secure": True  # Ensure the connection uses HTTPS
+}
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
@@ -51,7 +36,7 @@ Retrieve all the information provided in the image, including figures, titles, a
 def get_generated_data(image_path):
     base64_image = encode_image(image_path)
     
-    response = client.chat_completions.create(
+    response = client.chat.completions.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -71,72 +56,87 @@ def save_uploadedfile(uploadedfile):
         f.write(uploadedfile.getbuffer())
     return file_path
 
+# Streamlit interface
 st.title('PDF Document Query and Analysis App')
 
 uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
 if uploaded_file is not None:
+    st.subheader("PDF Processing and Image Extraction")
+    temp_file_path = save_uploadedfile(uploaded_file)
+    
+    doc = fitz.open(temp_file_path)
+    output_dir = tempfile.mkdtemp()
+
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
+        pix = page.get_pixmap()
+        output = os.path.join(output_dir, f"page{page_num + 1}.png")
+        pix.save(output)
+    doc.close()
+
+    st.success('PDF converted to images successfully!')
+
+    # Process each image for data extraction
+    folder_path = Path(output_dir)
+    markdown_content = ""
+    for file_path in folder_path.iterdir():
+        markdown_content += "\n" + get_generated_data(str(file_path))
+
+    # Display extracted markdown content
+    st.text_area("Extracted Content:", markdown_content, height=300)
+
+    # Query interface based on extracted content
+    query = st.text_input("Enter your query about the extracted data:")
+    if st.button("Search"):
+        with st.spinner('Searching...'):
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {"role": "system", "content": "You are an assisting agent. Please provide the response based on the input."},
+                    {"role": "user", "content": f"Respond to the query '{query}' using the information from the following content: {markdown_content}"}
+                ]
+            )
+            st.write(response.choices[0].message.content)
+
+# For embedding and storing in Milvus
+if 'data' not in st.session_state:
+    st.session_state['data'] = []
+
+def process_pdfs_to_embeddings(uploaded_file):
     temp_file_path = save_uploadedfile(uploaded_file)
     loader = PyPDFLoader(temp_file_path)
     pages = loader.load_and_split()
 
     # Create and store embeddings in Milvus
-    try:
-        vector_db = Milvus.from_documents(
-            pages,
-            embeddings,
-            connection_args={"uri": MILVUS_ENDPOINT},
+    vector_db = Milvus.from_documents(
+        pages,
+        embeddings,
+        connection_args=MILVUS_CONNECTION_ARGS,
+    )
+    st.session_state['data'] = vector_db
+
+if uploaded_file:
+    process_pdfs_to_embeddings(uploaded_file)
+
+query = st.text_input("Enter your query for the PDF document:")
+if st.button("Query PDF"):
+    vector_db = st.session_state.get('data')
+    if vector_db:
+        docs = vector_db.similarity_search(query)
+        content = ""
+        for doc in docs:
+            content += "\n" + doc.page_content
+
+        system_content = "You are a helpful assistant. Provide the response based on the input."
+        user_content = f"Answer the {query} from the {content}"
+
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ]
         )
-        st.session_state['vector_db'] = vector_db
-        st.success('Embeddings stored successfully in Milvus!')
-    except Exception as e:
-        logging.error(f"Failed to create connection to Milvus server: {e}")
-        st.error("Failed to connect to the Milvus server. Please check the connection parameters and try again.")
-
-    # Process for querying embeddings
-    query = st.text_input("Enter your query for the PDF document:")
-    if st.button("Query PDF"):
-        if 'vector_db' in st.session_state:
-            docs = st.session_state['vector_db'].similarity_search(query)
-            content = "\n".join(doc.page_content for doc in docs)
-
-            system_content = "You are a helpful assistant. Provide the response based on the input."
-            user_content = f"Answer the query '{query}' using the following content: {content}"
-
-            response = client.chat_completions.create(
-                model=MODEL,
-                messages=[
-                    {"role": "system", "content": system_content},
-                    {"role": "user", "content": user_content}
-                ]
-            )
-            st.write(response.choices[0].message.content)
-        else:
-            st.error("Vector database is not available. Please upload a PDF and try again.")
-else:
-    st.write("Please upload a PDF to begin processing.")
-
-# Further markdown processing if needed
-if 'vector_db' in st.session_state:
-    # Assuming we want to store markdown data as well
-    markdown_content = ""
-    folder_path = Path(tempfile.mkdtemp())  # Temporary folder for markdown files
-
-    # Iterate over files in the directory and extract information
-    for file_path in folder_path.iterdir():
-        markdown_content += "\n" + get_generated_data(file_path)
-
-    # Load markdown file
-    loader = UnstructuredMarkdownLoader(folder_path)
-    data = loader.load()
-
-    # Save data into Milvus database
-    try:
-        vector_db = Milvus.from_documents(
-            data,
-            embeddings,
-            connection_args={"uri": MILVUS_ENDPOINT},
-        )
-        st.session_state['vector_db'] = vector_db
-    except Exception as e:
-        logging.error(f"Failed to create connection to Milvus server: {e}")
-        st.error("Failed to connect to the Milvus server. Please check the connection parameters and try again.")
+        st.write(response.choices[0].message.content)
+    else:
+        st.error("Please upload a PDF first.")

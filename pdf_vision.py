@@ -100,10 +100,7 @@ def highlight_relevant_text(text, query):
     highlighted = text.replace(query, f"**{query}**")
     return highlighted
 
-def generate_secure_key():
-    return hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()
-
-def process_file(uploaded_file, session_key):
+def process_file(uploaded_file):
     st.subheader(f"Processing: {uploaded_file.name}")
     
     progress_bar = st.progress(0)
@@ -152,7 +149,8 @@ def process_file(uploaded_file, session_key):
 
     for i, page in enumerate(data):
         page.metadata['page_number'] = i + 1
-        page.metadata['session_key'] = session_key
+        file_hash = get_file_hash(page.page_content.encode())
+        page.metadata['file_hash'] = file_hash
 
     vector_db = Milvus.from_documents(
         data,
@@ -169,8 +167,6 @@ def process_file(uploaded_file, session_key):
 def create_document_vectors_schema():
     fields = [
         FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-        FieldSchema(name="session_key", dtype=DataType.VARCHAR, max_length=64),
-        FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=256),
         FieldSchema(name="file_hash", dtype=DataType.VARCHAR, max_length=64),
         FieldSchema(name="page_number", dtype=DataType.INT64),
         FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
@@ -226,45 +222,12 @@ with st.expander("Legal Disclaimer"):
 
 try:
     # Initialize session state variables
-    if 'session_key' not in st.session_state:
-        st.session_state['session_key'] = generate_secure_key()
     if 'current_session_files' not in st.session_state:
         st.session_state['current_session_files'] = set()
     if 'processed_data' not in st.session_state:
         st.session_state['processed_data'] = {}
     if 'file_hashes' not in st.session_state:
         st.session_state['file_hashes'] = {}
-
-    # Display current session key
-    st.sidebar.subheader("Your Session Key")
-    st.sidebar.code(st.session_state['session_key'])
-    if st.sidebar.button("Copy Session Key"):
-        st.sidebar.success("Session key copied to clipboard!")
-        st.sidebar.text("Store this key securely to resume your session later.")
-
-    # Option to enter a session key
-    entered_key = st.sidebar.text_input("Enter a session key to resume:")
-    if st.sidebar.button("Load Session"):
-        try:
-            document_collection.load()
-            results = document_collection.query(
-                expr=f'session_key == "{entered_key}"',
-                output_fields=["file_name", "file_hash"]
-            )
-            if results:
-                st.session_state['session_key'] = entered_key
-                st.session_state['current_session_files'] = set()
-                st.session_state['file_hashes'] = {}
-                for result in results:
-                    file_name = result['file_name']
-                    file_hash = result['file_hash']
-                    st.session_state['current_session_files'].add(file_name)
-                    st.session_state['file_hashes'][file_hash] = file_name
-                st.success("Session loaded successfully!")
-            else:
-                st.error("Invalid session key. Please try again.")
-        except Exception as e:
-            st.error(f"An error occurred while loading the session: {str(e)}")
 
     # Sidebar for advanced options
     with st.sidebar:
@@ -273,58 +236,47 @@ try:
         similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.5)
 
         if st.button("Clear Current Session"):
-            new_key = generate_secure_key()
-            st.session_state['session_key'] = new_key
             st.session_state['current_session_files'] = set()
-            st.session_state['processed_data'] = {}
             st.session_state['file_hashes'] = {}
-            st.success("Current session cleared. A new session key has been generated.")
+            st.success("Current session cleared. You can now upload new files.")
 
     uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             file_content = uploaded_file.getvalue()
             file_hash = get_file_hash(file_content)
-
-            document_collection.load()
-            # Check if file exists in the current session
-            results = document_collection.query(
-                expr=f'session_key == "{st.session_state["session_key"]}" and file_hash == "{file_hash}"',
-                output_fields=["file_name"]
-            )
-
-            if results:
-                # File has been processed before in this session
-                existing_file_name = results[0]['file_name']
+            
+            if file_hash in st.session_state['file_hashes']:
+                # File has been processed before
+                existing_file_name = st.session_state['file_hashes'][file_hash]
                 st.session_state['current_session_files'].add(existing_file_name)
                 st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
             else:
                 # New file, needs processing
-                vector_db, image_paths, markdown_content, summary = process_file(uploaded_file, st.session_state["session_key"])
-                if vector_db is not None:
-                    st.session_state['processed_data'][uploaded_file.name] = {
-                        'vector_db': vector_db,
-                        'image_paths': image_paths,
-                        'markdown_content': markdown_content,
-                        'summary': summary
-                    }
-                    st.session_state['current_session_files'].add(uploaded_file.name)
-                    st.session_state['file_hashes'][file_hash] = uploaded_file.name
-
-                    # Insert into document collection
-                    document_collection.insert([
-                        {
-                            "session_key": st.session_state["session_key"],
-                            "file_name": uploaded_file.name,
-                            "file_hash": file_hash,
-                            "page_number": page_num,
-                            "content": page.page_content,
-                            "embedding": page.embedding
+                try:
+                    vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
+                    if vector_db is not None:
+                        st.session_state['processed_data'][uploaded_file.name] = {
+                            'vector_db': vector_db,
+                            'image_paths': image_paths,
+                            'markdown_content': markdown_content,
+                            'summary': summary
                         }
-                        for page_num, page in enumerate(data)
-                    ])
+                        st.session_state['current_session_files'].add(uploaded_file.name)
+                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
 
-                    st.success(f"File processed and stored in vector database! Summary: {summary}")
+                        # Insert into document collection
+                        document_collection.insert([
+                            {
+                                "file_hash": file_hash,
+                                "page_number": page.metadata['page_number'],
+                                "content": page.page_content,
+                                "embedding": page.embedding
+                            }
+                            for page in data
+                        ])
+
+                        st.success(f"File processed and stored in vector database! Summary: {summary}")
 
             # Display summary and extracted content
             display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
@@ -344,18 +296,21 @@ try:
     # Query interface
     st.subheader("Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
-    user_key = st.text_input("Enter your session key:")
+    file_content = st.file_uploader("Upload the same file to access the content:", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"])
     if st.button("Search"):
-        if user_key:
-            if st.session_state['current_session_files']:
+        if file_content:
+            file_hash = get_file_hash(file_content.getvalue())
+            results = document_collection.query(
+                expr=f'file_hash == "{file_hash}"',
+                output_fields=["file_name", "page_number", "content", "embedding"]
+            )
+            if results:
                 with st.spinner('Searching...'):
                     all_docs = []
-                    for file_name in st.session_state['current_session_files']:
-                        vector_db = st.session_state['processed_data'][file_name]['vector_db']
+                    for result in results:
+                        vector_db = st.session_state['processed_data'][result['file_name']]['vector_db']
                         docs = vector_db.similarity_search(query, k=chunks_to_retrieve)
-                        # Filter docs by session key
-                        filtered_docs = [doc for doc in docs if doc.metadata.get('session_key') == user_key]
-                        all_docs.extend([(file_name, doc) for doc in filtered_docs])
+                        all_docs.extend([(result['file_name'], doc) for doc in docs])
                     
                     if all_docs:
                         content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc in all_docs])
@@ -389,11 +344,11 @@ try:
                                 with st.expander(f"View Page {page_num} Image"):
                                     st.image(image_path, use_column_width=True)
                     else:
-                        st.error("No results found or session key does not match.")
+                        st.error("No results found or file does not match.")
             else:
-                st.warning("Please upload and process at least one file first.")
+                st.error("No documents found for the uploaded file.")
         else:
-            st.error("Please enter a valid session key.")
+            st.error("Please upload a file to verify access.")
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")

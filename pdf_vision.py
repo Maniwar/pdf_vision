@@ -8,6 +8,9 @@ from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdo
 from langchain_milvus import Milvus
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
+import markdown2
+import pdfkit
+from PIL import Image, ImageDraw
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
@@ -56,73 +59,133 @@ def save_uploadedfile(uploadedfile):
         f.write(uploadedfile.getbuffer())
     return file_path
 
-# Streamlit interface
-st.title('PDF Document Query and Analysis App')
+def generate_summary(content):
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that summarizes documents."},
+            {"role": "user", "content": f"Provide a brief summary of this document, including main topics and key points:\n\n{content}"}
+        ]
+    )
+    return response.choices[0].message.content
 
-uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
-if uploaded_file is not None:
+def calculate_confidence(docs):
+    return min(len(docs) / 5 * 100, 100)  # 5 is the max number of chunks we retrieve
+
+def highlight_relevant_text(text, query):
+    highlighted = text.replace(query, f"**{query}**")
+    return highlighted
+
+def process_pdf(uploaded_file):
     st.subheader(f"Processing: {uploaded_file.name}")
     
-    with st.spinner('Converting PDF to images...'):
-        temp_file_path = save_uploadedfile(uploaded_file)
-        doc = fitz.open(temp_file_path)
-        output_dir = tempfile.mkdtemp()
+    progress_bar = st.progress(0)
+    
+    temp_file_path = save_uploadedfile(uploaded_file)
+    doc = fitz.open(temp_file_path)
+    output_dir = tempfile.mkdtemp()
 
-        for page_num in range(len(doc)):
-            page = doc.load_page(page_num)
-            pix = page.get_pixmap()
-            output = os.path.join(output_dir, f"page{page_num + 1}.png")
-            pix.save(output)
-        doc.close()
+    total_pages = len(doc)
+    for page_num in range(total_pages):
+        page = doc.load_page(page_num)
+        pix = page.get_pixmap()
+        output = os.path.join(output_dir, f"page{page_num + 1}.png")
+        pix.save(output)
+        progress_bar.progress((page_num + 1) / total_pages)
+
+    doc.close()
 
     st.success('PDF converted to images successfully!')
 
-    with st.spinner('Extracting information from images...'):
-        folder_path = Path(output_dir)
-        markdown_content = ""
-        image_paths = []
-        for file_path in sorted(folder_path.iterdir()):
-            page_num = int(file_path.stem.replace('page', ''))
-            markdown_content += f"\n## Page {page_num}\n"
-            markdown_content += get_generated_data(str(file_path))
-            image_paths.append((page_num, str(file_path)))
+    folder_path = Path(output_dir)
+    markdown_content = ""
+    image_paths = []
+    
+    for i, file_path in enumerate(sorted(folder_path.iterdir())):
+        page_num = int(file_path.stem.replace('page', ''))
+        markdown_content += f"\n## Page {page_num}\n"
+        markdown_content += get_generated_data(str(file_path))
+        image_paths.append((page_num, str(file_path)))
+        progress_bar.progress((i + 1) / len(list(folder_path.iterdir())))
 
-    with st.spinner('Storing data in vector database...'):
-        md_file_path = os.path.join(tempfile.mkdtemp(), "extracted_content.md")
-        with open(md_file_path, "w") as f:
-            f.write(markdown_content)
+    md_file_path = os.path.join(tempfile.mkdtemp(), "extracted_content.md")
+    with open(md_file_path, "w") as f:
+        f.write(markdown_content)
 
-        loader = UnstructuredMarkdownLoader(md_file_path)
-        data = loader.load()
+    loader = UnstructuredMarkdownLoader(md_file_path)
+    data = loader.load()
 
-        # Add page numbers to the metadata
-        for i, page in enumerate(data):
+    for i, page in enumerate(data):
+        if 'page_number' not in page.metadata:
             page.metadata['page_number'] = i + 1
 
-        vector_db = Milvus.from_documents(
-            data,
-            embeddings,
-            connection_args=MILVUS_CONNECTION_ARGS,
-        )
+    vector_db = Milvus.from_documents(
+        data,
+        embeddings,
+        connection_args=MILVUS_CONNECTION_ARGS,
+    )
 
-    st.session_state['vector_db'] = vector_db
-    st.session_state['image_paths'] = image_paths
-    st.session_state['document_name'] = uploaded_file.name
-    st.success("PDF processed and stored in vector database!")
+    summary = generate_summary(markdown_content)
 
-    with st.expander("View Extracted Content"):
-        st.markdown(markdown_content)
+    progress_bar.progress(100)
+
+    return vector_db, image_paths, markdown_content, summary
+
+# Streamlit interface
+st.title('PDF Document Query and Analysis App')
+
+# Sidebar for advanced options
+with st.sidebar:
+    st.header("Advanced Options")
+    chunks_to_retrieve = st.slider("Number of chunks to retrieve", 1, 10, 5)
+    similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.5)
+
+uploaded_files = st.file_uploader("Upload PDF file(s)", type=["pdf"], accept_multiple_files=True)
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        if 'processed_data' not in st.session_state:
+            st.session_state['processed_data'] = {}
+        
+        if uploaded_file.name not in st.session_state['processed_data']:
+            try:
+                vector_db, image_paths, markdown_content, summary = process_pdf(uploaded_file)
+                st.session_state['processed_data'][uploaded_file.name] = {
+                    'vector_db': vector_db,
+                    'image_paths': image_paths,
+                    'markdown_content': markdown_content,
+                    'summary': summary
+                }
+                st.success(f"PDF processed and stored in vector database! Summary: {summary}")
+            except Exception as e:
+                st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
+                st.exception(e)
+        else:
+            st.success(f"Using previously processed data for {uploaded_file.name}")
+
+        with st.expander(f"View Summary for {uploaded_file.name}"):
+            st.markdown(st.session_state['processed_data'][uploaded_file.name]['summary'])
+
+        with st.expander(f"View Extracted Content for {uploaded_file.name}"):
+            st.markdown(st.session_state['processed_data'][uploaded_file.name]['markdown_content'])
 
 # Query interface
-st.subheader("Query the Document")
-query = st.text_input("Enter your query about the document:")
+st.subheader("Query the Document(s)")
+query = st.text_input("Enter your query about the document(s):")
 if st.button("Search"):
-    if 'vector_db' in st.session_state:
+    if 'processed_data' in st.session_state and st.session_state['processed_data']:
         with st.spinner('Searching...'):
-            docs = st.session_state['vector_db'].similarity_search(query, k=5)  # Retrieve top 5 relevant chunks
-            content = "\n".join([f"Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for doc in docs])
+            all_docs = []
+            for file_name, data in st.session_state['processed_data'].items():
+                vector_db = data['vector_db']
+                docs = vector_db.similarity_search(query, k=chunks_to_retrieve)
+                all_docs.extend([(file_name, doc) for doc in docs])
+            
+            # Sort all_docs by relevance (assuming the order returned by similarity_search is from most to least relevant)
+            all_docs.sort(key=lambda x: x[1].metadata.get('relevance', 0), reverse=True)
+            
+            content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc in all_docs])
 
-            system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including page numbers and relevant snippets."
+            system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
             user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
 
             response = client.chat.completions.create(
@@ -132,28 +195,71 @@ if st.button("Search"):
                     {"role": "user", "content": user_content}
                 ]
             )
+            
             st.subheader("Answer:")
             st.write(response.choices[0].message.content)
 
+            confidence_score = calculate_confidence(all_docs)
+            st.write(f"Confidence Score: {confidence_score}%")
+
             st.subheader("Sources:")
-            for doc in docs:
+            for file_name, doc in all_docs:
                 page_num = doc.metadata.get('page_number', 'Unknown')
-                st.markdown(f"**Page {page_num}:**")
-                st.markdown(f"```\n{doc.page_content[:200]}...\n```")
+                st.markdown(f"**File: {file_name}, Page {page_num}:**")
+                highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
+                st.markdown(f"```\n{highlighted_text}...\n```")
                 
-                # Display the corresponding image
-                image_path = next((img_path for num, img_path in st.session_state['image_paths'] if num == page_num), None)
+                image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
                 if image_path:
                     with st.expander(f"View Page {page_num} Image"):
                         st.image(image_path, use_column_width=True)
-    else:
-        st.warning("Please upload and process a PDF first.")
 
-# Display all images below the search results
-if 'image_paths' in st.session_state:
-    st.subheader(f"All Pages from: {st.session_state['document_name']}")
-    for page_num, img_path in sorted(st.session_state['image_paths']):
-        with st.expander(f"Page {page_num}"):
-            st.image(img_path, use_column_width=True)
-else:
-    st.info("Upload a PDF to see extracted images.")
+        # Save question and answer to history
+        if 'qa_history' not in st.session_state:
+            st.session_state['qa_history'] = []
+        st.session_state['qa_history'].append({
+            'question': query,
+            'answer': response.choices[0].message.content,
+            'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc in all_docs],
+            'confidence': confidence_score
+        })
+
+    else:
+        st.warning("Please upload and process at least one PDF first.")
+
+# Display question history
+if 'qa_history' in st.session_state and st.session_state['qa_history']:
+    st.subheader("Question History")
+    for i, qa in enumerate(st.session_state['qa_history']):
+        with st.expander(f"Q{i+1}: {qa['question']}"):
+            st.write(f"A: {qa['answer']}")
+            st.write(f"Confidence: {qa['confidence']}%")
+            st.write("Sources:")
+            for source in qa['sources']:
+                st.write(f"- File: {source['file']}, Page: {source['page']}")
+
+# Export results
+if st.button("Export Q&A Session"):
+    qa_session = ""
+    for qa in st.session_state.get('qa_history', []):
+        qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
+        for source in qa['sources']:
+            qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+        qa_session += "\n---\n\n"
+    
+    # Convert markdown to HTML
+    html = markdown2.markdown(qa_session)
+    
+    # Convert HTML to PDF
+    pdf = pdfkit.from_string(html, False)
+    
+    # Provide the PDF for download
+    st.download_button(
+        label="Download Q&A Session as PDF",
+        data=pdf,
+        file_name="qa_session.pdf",
+        mime="application/pdf"
+    )
+
+# Error handling
+st.exception()

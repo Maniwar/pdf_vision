@@ -49,7 +49,7 @@ def encode_image(image_path):
 
 SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Help me with Given Image Extraction with Given Details with Different categories!"
 USER_PROMPT = """
-Retrieve all the information provided in the image, including figures, titles, highlighted items, circled words, charts, and graphs, as well as all the values from graphs and charts as well, so users can ask questions about these items as needed.
+Retrieve all the information provided in the image, including figures, titles, highlighted items, circled words, charts, and graphs, as well as all the values from graphs and charts and or relationships between entities, so users can ask questions about these items as needed.
 """
 
 def get_generated_data(image_path):

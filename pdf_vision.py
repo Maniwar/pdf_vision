@@ -154,6 +154,7 @@ def process_file(uploaded_file, session_key):
     vector_db = Milvus.from_documents(
         data,
         embeddings,
+        collection_name="document_vectors",
         connection_args=MILVUS_CONNECTION_ARGS,
     )
 
@@ -172,12 +173,24 @@ def create_session_collection():
     schema = CollectionSchema(fields, "Session information collection")
     return schema
 
+def create_document_vectors_schema():
+    fields = [
+        FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+        FieldSchema(name="session_key", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
+        FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1536)  # Adjust dim based on your embedding size
+    ]
+    schema = CollectionSchema(fields, "Document vectors collection")
+    return schema
+
 def get_or_create_collection(collection_name, schema=None):
     try:
         return Collection(collection_name)
     except Exception as e:
         if schema:
             return Collection(collection_name, schema)
+        elif collection_name == "document_vectors":
+            return Collection(collection_name, create_document_vectors_schema())
         else:
             raise
 

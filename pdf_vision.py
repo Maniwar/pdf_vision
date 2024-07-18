@@ -164,11 +164,13 @@ def process_file(uploaded_file, session_key):
 
     return vector_db, image_paths, markdown_content, summary
 
+
 def create_session_collection():
     fields = [
         FieldSchema(name="session_key", dtype=DataType.VARCHAR, is_primary=True, auto_id=False, max_length=64),
         FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=256),
         FieldSchema(name="file_hash", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="dummy_vector", dtype=DataType.FLOAT_VECTOR, dim=2)  # Add a dummy vector field
     ]
     schema = CollectionSchema(fields, "Session information collection")
     return schema
@@ -183,21 +185,21 @@ def create_document_vectors_schema():
     schema = CollectionSchema(fields, "Document vectors collection")
     return schema
 
-def get_or_create_collection(collection_name, schema=None):
+def get_or_create_collection(collection_name):
     try:
         return Collection(collection_name)
     except Exception as e:
-        if schema:
-            return Collection(collection_name, schema)
-        elif collection_name == "document_vectors":
+        if collection_name == "document_vectors":
             return Collection(collection_name, create_document_vectors_schema())
+        elif collection_name == "session_info":
+            return Collection(collection_name, create_session_collection())
         else:
             raise
 
 # Initialize Milvus connection and collections
 connect_to_milvus()
 vector_collection = get_or_create_collection("document_vectors")
-session_collection = get_or_create_collection("session_info", create_session_collection())
+session_collection = get_or_create_collection("session_info")
 
 def generate_session_key():
     return hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()
@@ -288,13 +290,14 @@ try:
                         st.session_state['current_session_files'].add(uploaded_file.name)
                         st.session_state['file_hashes'][file_hash] = uploaded_file.name
                         
-                        # Store session information
+                        # Update the session_collection.insert call in the file processing section:
                         session_collection.insert([
                             [st.session_state["session_key"]],
                             [uploaded_file.name],
-                            [file_hash]
+                            [file_hash],
+                            [[0.0, 0.0]]  # Dummy vector
                         ])
-                        
+
                         st.success(f"File processed and stored in vector database! Summary: {summary}")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")

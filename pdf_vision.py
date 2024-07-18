@@ -43,7 +43,7 @@ def encode_image(image):
 
 def generate_embeddings(image_base64):
     try:
-        response = client.chat_completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Extract data from image."},

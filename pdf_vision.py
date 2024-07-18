@@ -4,29 +4,19 @@ import streamlit as st
 from pathlib import Path
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
-from langchain_milvus import Milvus
+from langchain_community.vectorstores import FAISS
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
 import markdown2
 import pdfkit
-from PIL import Image, ImageDraw
+from PIL import Image
 import hashlib
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4o"
+MODEL = "gpt-4-vision-preview"
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
-
-# Milvus connection parameters
-MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
-MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
-MILVUS_CONNECTION_ARGS = {
-    "uri": MILVUS_ENDPOINT,
-    "token": MILVUS_API_KEY,
-    "secure": True
-}
 
 # CSS for Warning Banner
 st.markdown("""
@@ -49,6 +39,7 @@ st.markdown("""
     Warning: This is a prototype application. Do not upload sensitive information as it is accessible to anyone. In the deployed version, there will be a private database to ensure security and privacy.
 </div>
 """, unsafe_allow_html=True)
+
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
 
@@ -73,7 +64,7 @@ def get_generated_data(image_path):
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
             ]}
         ],
-        temperature=0.0,
+        max_tokens=1000,
     )
     return response.choices[0].message.content
 
@@ -86,7 +77,7 @@ def save_uploadedfile(uploadedfile):
 
 def generate_summary(content):
     response = client.chat.completions.create(
-        model=MODEL,
+        model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a helpful assistant that summarizes documents."},
             {"role": "user", "content": f"Provide a brief summary of this document, including main topics and key points:\n\n{content}"}
@@ -100,6 +91,10 @@ def calculate_confidence(docs):
 def highlight_relevant_text(text, query):
     highlighted = text.replace(query, f"**{query}**")
     return highlighted
+
+def split_markdown_by_pages(markdown_content):
+    pages = markdown_content.split('\n## Page ')
+    return [page.strip() for page in pages if page.strip()]
 
 def process_file(uploaded_file):
     st.subheader(f"Processing: {uploaded_file.name}")
@@ -141,21 +136,18 @@ def process_file(uploaded_file):
         markdown_content += get_generated_data(img_path)
         progress_bar.progress((i + 1) / len(image_paths))
 
-    md_file_path = os.path.join(tempfile.mkdtemp(), "extracted_content.md")
-    with open(md_file_path, "w") as f:
-        f.write(markdown_content)
+    pages = split_markdown_by_pages(markdown_content)
+    data = []
+    for i, page_content in enumerate(pages):
+        data.append({
+            'content': page_content,
+            'metadata': {'page_number': i + 1}
+        })
 
-    loader = UnstructuredMarkdownLoader(md_file_path)
-    data = loader.load()
-
-    for i, page in enumerate(data):
-        if 'page_number' not in page.metadata:
-            page.metadata['page_number'] = i + 1
-
-    vector_db = Milvus.from_documents(
-        data,
+    vector_db = FAISS.from_texts(
+        [item['content'] for item in data],
         embeddings,
-        connection_args=MILVUS_CONNECTION_ARGS,
+        metadatas=[item['metadata'] for item in data]
     )
 
     summary = generate_summary(markdown_content)
@@ -239,19 +231,19 @@ try:
                 all_docs = []
                 for file_name in st.session_state['current_session_files']:
                     vector_db = st.session_state['processed_data'][file_name]['vector_db']
-                    docs = vector_db.similarity_search(query, k=chunks_to_retrieve)
-                    all_docs.extend([(file_name, doc) for doc in docs])
+                    docs = vector_db.similarity_search_with_score(query, k=chunks_to_retrieve)
+                    all_docs.extend([(file_name, doc, score) for doc, score in docs])
                 
-                # Sort all_docs by relevance (assuming the order returned by similarity_search is from most to least relevant)
-                all_docs.sort(key=lambda x: x[1].metadata.get('relevance', 0), reverse=True)
+                # Sort all_docs by relevance score
+                all_docs.sort(key=lambda x: x[2])
                 
-                content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc in all_docs])
+                content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
 
                 system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
                 user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
 
                 response = client.chat.completions.create(
-                    model=MODEL,
+                    model="gpt-4",
                     messages=[
                         {"role": "system", "content": system_content},
                         {"role": "user", "content": user_content}
@@ -265,9 +257,9 @@ try:
                 st.write(f"Confidence Score: {confidence_score}%")
 
                 st.subheader("Sources:")
-                for file_name, doc in all_docs:
+                for file_name, doc, score in all_docs:
                     page_num = doc.metadata.get('page_number', 'Unknown')
-                    st.markdown(f"**File: {file_name}, Page {page_num}:**")
+                    st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
                     highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
                     st.markdown(f"```\n{highlighted_text}...\n```")
                     
@@ -276,13 +268,18 @@ try:
                         with st.expander(f"View Page {page_num} Image"):
                             st.image(image_path, use_column_width=True)
 
+                st.write(f"Debug - Total documents retrieved: {len(all_docs)}")
+                for file_name, doc, score in all_docs:
+                    st.write(f"Debug - File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
+                    st.write(f"Debug - Content snippet: {doc.page_content[:50]}...")
+
             # Save question and answer to history
             if 'qa_history' not in st.session_state:
                 st.session_state['qa_history'] = []
             st.session_state['qa_history'].append({
                 'question': query,
                 'answer': response.choices[0].message.content,
-                'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc in all_docs],
+                'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
                 'confidence': confidence_score
             })
 
@@ -333,3 +330,29 @@ try:
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    st.sidebar.markdown("## About")
+    st.sidebar.info(
+        "This app allows you to upload PDF documents or images, "
+        "extract information from them, and query the content. "
+        "It uses OpenAI's GPT model for text generation and "
+        "FAISS for efficient similarity search."
+    )
+    
+    st.sidebar.markdown("## How to use")
+    st.sidebar.info(
+        "1. Upload one or more PDF or image files.\n"
+        "2. Wait for the processing to complete.\n"
+        "3. Enter your query in the text box.\n"
+        "4. Click 'Search' to get answers based on the document content.\n"
+        "5. View the answer, confidence score, and sources.\n"
+        "6. Optionally, export the Q&A session as a PDF."
+    )
+
+    st.sidebar.markdown("## Note")
+    st.sidebar.warning(
+        "This is a prototype application. Do not upload sensitive "
+        "information. In the deployed version, there will be a "
+        "private database to ensure security and privacy."
+    )

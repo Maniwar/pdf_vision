@@ -80,31 +80,32 @@ st.title('PDF Document Query and Analysis App')
 uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
 if uploaded_file is not None:
     st.subheader("PDF Processing and Image Extraction")
-    temp_file_path = save_uploadedfile(uploaded_file)
-    
-    # Show the uploaded PDF
-    with open(temp_file_path, "rb") as f:
-        base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="800" type="application/pdf"></iframe>'
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    with st.spinner('Processing PDF...'):
+        temp_file_path = save_uploadedfile(uploaded_file)
+        
+        doc = fitz.open(temp_file_path)
+        output_dir = tempfile.mkdtemp()
 
-    doc = fitz.open(temp_file_path)
-    output_dir = tempfile.mkdtemp()
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
+            pix = page.get_pixmap()
+            output = os.path.join(output_dir, f"page{page_num + 1}.png")
+            pix.save(output)
+        doc.close()
 
-    for page_num in range(len(doc)):
-        page = doc.load_page(page_num)
-        pix = page.get_pixmap()
-        output = os.path.join(output_dir, f"page{page_num + 1}.png")
-        pix.save(output)
-    doc.close()
+        st.success('PDF converted to images successfully!')
 
-    st.success('PDF converted to images successfully!')
+        # Display the generated images
+        st.subheader("Generated Images from PDF")
+        folder_path = Path(output_dir)
+        image_files = list(folder_path.iterdir())
+        for image_file in sorted(image_files):
+            st.image(str(image_file), caption=f"Page {image_file.stem.split('page')[1]}")
 
-    # Process each image for data extraction
-    folder_path = Path(output_dir)
-    markdown_content = ""
-    for file_path in folder_path.iterdir():
-        markdown_content += "\n" + get_generated_data(str(file_path))
+        # Process each image for data extraction
+        markdown_content = ""
+        for file_path in image_files:
+            markdown_content += "\n" + get_generated_data(str(file_path))
 
     # Display extracted markdown content
     st.text_area("Extracted Content:", markdown_content, height=300)

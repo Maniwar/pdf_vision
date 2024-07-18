@@ -28,7 +28,10 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Extract information from the given image, including figures, titles, and graphs."
+SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Help me with Given Image Extraction with Given Details with Different categories!"
+USER_PROMPT = """
+Retrieve all the information provided in the image, including figures, titles, and graphs.
+"""
 
 def get_generated_data(image_path):
     base64_image = encode_image(image_path)
@@ -38,10 +41,11 @@ def get_generated_data(image_path):
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": [
-                {"type": "text", "text": "Describe the contents of this image in detail."},
+                {"type": "text", "text": USER_PROMPT},
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
             ]}
-        ]
+        ],
+        temperature=0.0,
     )
     return response.choices[0].message.content
 
@@ -112,11 +116,14 @@ if st.button("Search"):
             docs = st.session_state['vector_db'].similarity_search(query)
             content = "\n".join([doc.page_content for doc in docs])
 
+            system_content = "You are an assisting agent. Please provide the response based on the input."
+            user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+
             response = client.chat.completions.create(
                 model=MODEL,
                 messages=[
-                    {"role": "system", "content": "You are an assisting agent. Please provide a concise response based on the input."},
-                    {"role": "user", "content": f"Respond to the query '{query}' using the information from the following content: {content}"}
+                    {"role": "system", "content": system_content},
+                    {"role": "user", "content": user_content}
                 ]
             )
             st.write("Answer:")

@@ -4,7 +4,7 @@ import streamlit as st
 from pathlib import Path
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_milvus.vectorstores import Milvus
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
@@ -24,16 +24,17 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
+# Log the connection parameters
+logging.debug(f"Connecting to Milvus server at {MILVUS_ENDPOINT} with API key.")
+
 # Connect to Milvus server
-connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY)
+connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY, secure=True)
 
 # Check if the collection exists
 collection_name = "pdf_embeddings"
 try:
-    collection = Collection(collection_name)
-    if collection.is_empty:
-        st.write(f"Collection '{collection_name}' is available but empty.")
-    else:
+    collection = Collection(name=collection_name)
+    if collection.name:
         st.write(f"Collection '{collection_name}' is available.")
 except Exception as e:
     st.error(f"Collection '{collection_name}' does not exist or could not be accessed: {str(e)}")
@@ -113,3 +114,29 @@ if uploaded_file is not None:
             st.error("Vector database is not available. Please upload a PDF and try again.")
 else:
     st.write("Please upload a PDF to begin processing.")
+
+# Further markdown processing if needed
+if 'vector_db' in st.session_state:
+    # Assuming we want to store markdown data as well
+    markdown_content = ""
+    folder_path = Path(tempfile.mkdtemp())  # Temporary folder for markdown files
+
+    # Iterate over files in the directory and extract information
+    for file_path in folder_path.iterdir():
+        markdown_content += "\n" + get_generated_data(file_path)
+
+    # Load markdown file
+    loader = UnstructuredMarkdownLoader(folder_path)
+    data = loader.load()
+
+    # Save data into Milvus database
+    try:
+        vector_db = Milvus.from_documents(
+            data,
+            embeddings,
+            connection_args={"alias": "default"},
+        )
+        st.session_state['vector_db'] = vector_db
+    except Exception as e:
+        logging.error(f"Failed to create connection to Milvus server: {e}")
+        st.error("Failed to connect to the Milvus server. Please check the connection parameters and try again.")

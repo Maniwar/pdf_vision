@@ -14,3 +14,4 @@ pytesseract
 markdown2
 pdfkit
 wkhtmltopdf
+faiss-cpu

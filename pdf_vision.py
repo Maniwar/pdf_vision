@@ -8,6 +8,10 @@ from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdo
 from langchain_milvus.vectorstores import Milvus
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
@@ -34,6 +38,9 @@ MILVUS_CONNECTION_ARGS = {
     "api_key": MILVUS_API_KEY,
     "secure": True  # Ensure the connection uses HTTPS
 }
+
+# Log the connection parameters
+logging.debug(f"Connecting to Milvus server at {host}:{port} with API key.")
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:

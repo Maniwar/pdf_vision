@@ -5,6 +5,7 @@ import base64
 from io import BytesIO
 from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
+from langchain_community.document_loaders import UnstructuredMarkdownLoader
 from langchain_community.vectorstores import Milvus as LangchainMilvus
 from langchain_openai import OpenAIEmbeddings
 
@@ -41,9 +42,29 @@ def encode_image(image):
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
+def process_pdf_and_extract_embeddings(file):
+    doc = fitz.open(stream=file.read(), filetype="pdf")
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
+        pix = page.get_pixmap()
+        img_data = BytesIO(pix.tobytes(output="png"))
+        img = Image.open(img_data)
+        image_base64 = encode_image(img)
+        embedding = generate_embeddings(image_base64)
+        if embedding:
+            # Prepare data for Milvus
+            data = {
+                "id": page_num,
+                "embedding": [embedding],
+                "text": f"Page {page_num + 1} of {file.name}"
+            }
+            # Insert data into Milvus
+            collection.insert([data])
+            st.session_state.embeddings.append(data)
+
 def generate_embeddings(image_base64):
     try:
-        response = client.chat.completions.create(
+        response = client.chat_completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Extract data from image."},
@@ -56,33 +77,18 @@ def generate_embeddings(image_base64):
         return None
 
 def main():
-    st.title("Medical Document Assistant")
+    st.title("Document Processing with AI")
+    st.sidebar.header("Options")
     
-    # Ensure embeddings is initialized in session state
+    # Initialize session state
     if 'embeddings' not in st.session_state:
         st.session_state.embeddings = []
 
-    uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
+    uploaded_file = st.file_uploader("Choose PDF files", type=["pdf"])
     if uploaded_file:
-        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-        for page_num in range(len(doc)):
-            page = doc.load_page(page_num)
-            pix = page.get_pixmap()
-            img_data = BytesIO(pix.tobytes(output="png"))
-            img = Image.open(img_data)
-            image_base64 = encode_image(img)
-            embedding = generate_embeddings(image_base64)
-            if embedding:
-                # Ensure data matches the expected schema
-                data = [
-                    [page_num],  # ID field
-                    [embedding],  # Embedding field
-                    [f"Page {page_num + 1} of {uploaded_file.name}"]  # Text field
-                ]
-                collection.insert(data)
-                st.session_state.embeddings.append(embedding)
-                st.write(f"Processed Page {page_num + 1}")
+        process_pdf_and_extract_embeddings(uploaded_file)
 
+    # Display embeddings and other data
     st.write("### Current Embeddings")
     for embedding in st.session_state.embeddings:
         st.write(embedding)

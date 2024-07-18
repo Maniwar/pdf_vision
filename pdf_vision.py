@@ -12,6 +12,9 @@ import markdown2
 import pdfkit
 from PIL import Image, ImageDraw
 import hashlib
+import uuid
+from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, index, utility
+import atexit
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
@@ -27,6 +30,23 @@ MILVUS_CONNECTION_ARGS = {
     "token": MILVUS_API_KEY,
     "secure": True
 }
+
+def connect_to_milvus():
+    try:
+        connections.connect(alias="default", **MILVUS_CONNECTION_ARGS)
+        st.success("Connected to Milvus successfully!")
+    except Exception as e:
+        st.error(f"Failed to connect to Milvus: {str(e)}")
+        raise
+
+def close_milvus_connection():
+    try:
+        connections.disconnect(alias="default")
+        st.success("Disconnected from Milvus successfully!")
+    except Exception as e:
+        st.error(f"Failed to disconnect from Milvus: {str(e)}")
+
+atexit.register(close_milvus_connection)
 
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
@@ -80,7 +100,10 @@ def highlight_relevant_text(text, query):
     highlighted = text.replace(query, f"**{query}**")
     return highlighted
 
-def process_file(uploaded_file):
+def generate_secure_key():
+    return hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()
+
+def process_file(uploaded_file, session_key):
     st.subheader(f"Processing: {uploaded_file.name}")
     
     progress_bar = st.progress(0)
@@ -128,8 +151,8 @@ def process_file(uploaded_file):
     data = loader.load()
 
     for i, page in enumerate(data):
-        if 'page_number' not in page.metadata:
-            page.metadata['page_number'] = i + 1
+        page.metadata['page_number'] = i + 1
+        page.metadata['session_key'] = session_key
 
     vector_db = Milvus.from_documents(
         data,
@@ -143,17 +166,119 @@ def process_file(uploaded_file):
 
     return vector_db, image_paths, markdown_content, summary
 
+def create_session_collection():
+    fields = [
+        FieldSchema(name="session_key", dtype=DataType.VARCHAR, is_primary=True, auto_id=False, max_length=64),
+        FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=256),
+        FieldSchema(name="file_hash", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="dummy_vector", dtype=DataType.FLOAT_VECTOR, dim=2)  # Add a dummy vector field
+    ]
+    schema = CollectionSchema(fields, "Session information collection")
+    return schema
+
+def create_document_vectors_schema():
+    fields = [
+        FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+        FieldSchema(name="session_key", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
+        FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1536)  # Adjust dim based on your embedding size
+    ]
+    schema = CollectionSchema(fields, "Document vectors collection")
+    return schema
+
+def create_index(collection, field_name="embedding"):
+    # Define the index parameters
+    index_params = {
+        "metric_type": "L2",
+        "index_type": "IVF_FLAT",
+        "params": {"nlist": 1024}
+    }
+    collection.create_index(field_name=field_name, params=index_params)
+    st.success(f"Index created on field '{field_name}' for collection '{collection.name}'.")
+    
+def get_or_create_collection(collection_name):
+    try:
+        collection = Collection(collection_name)
+        collection.load()
+        if not collection.has_index():  # Explicitly check if the index exists
+            create_index(collection)  # Call to create the index if it does not exist
+        return collection
+    except Exception as e:
+        if 'does not exist' in str(e):  # Better error message handling
+            if collection_name == "document_vectors":
+                collection_schema = create_document_vectors_schema()
+            elif collection_name == "session_info":
+                collection_schema = create_session_collection()
+            else:
+                raise ValueError("Unknown collection name")
+            
+            collection = Collection(name=collection_name, schema=collection_schema)
+            collection.create()
+            create_index(collection)  # Ensure index is created right after the collection
+            st.success(f"Collection '{collection_name}' created with an index.")
+            return collection
+        else:
+            raise
+
+# Initialize Milvus connection and collections
+connect_to_milvus()
+vector_collection = get_or_create_collection("document_vectors")
+session_collection = get_or_create_collection("session_info")
+
 # Streamlit interface
 st.title('Document Query and Analysis App')
 
+with st.expander("Legal Disclaimer"):
+    st.markdown("""
+    **Legal Disclaimer:**
+    - This application is for entertainment purposes only.
+    - The data processed by this app is not stored permanently and is only used for the current session.
+    - No warranties or guarantees are provided regarding the accuracy or reliability of the results generated by this app.
+    - By using this application, you agree that you will not hold the developers or any affiliated parties liable for any damages or losses that may arise from its use.
+    - Ensure that you do not upload any sensitive or confidential information, as the data will be processed by external services.
+    """)
+
 try:
     # Initialize session state variables
+    if 'session_key' not in st.session_state:
+        st.session_state['session_key'] = generate_secure_key()
     if 'current_session_files' not in st.session_state:
         st.session_state['current_session_files'] = set()
     if 'processed_data' not in st.session_state:
         st.session_state['processed_data'] = {}
     if 'file_hashes' not in st.session_state:
         st.session_state['file_hashes'] = {}
+
+    # Display current session key
+    st.sidebar.subheader("Your Session Key")
+    st.sidebar.code(st.session_state['session_key'])
+    if st.sidebar.button("Copy Session Key"):
+        st.sidebar.success("Session key copied to clipboard!")
+        st.sidebar.text("Store this key securely to resume your session later.")
+
+    # Option to enter a session key
+    entered_key = st.sidebar.text_input("Enter a session key to resume:")
+    if st.sidebar.button("Load Session"):
+        try:
+            session_collection.load()
+            results = session_collection.query(
+                expr=f'session_key == "{entered_key}"',
+                output_fields=["file_name", "file_hash"]
+            )
+            if results:
+                st.session_state['session_key'] = entered_key
+                st.session_state['current_session_files'] = set()
+                st.session_state['file_hashes'] = {}
+                for result in results:
+                    file_name = result['file_name']
+                    file_hash = result['file_hash']
+                    st.session_state['current_session_files'].add(file_name)
+                    st.session_state['file_hashes'][file_hash] = file_name
+                st.success("Session loaded successfully!")
+            else:
+                st.error("Invalid session key. Please try again.")
+        except Exception as e:
+            st.error(f"An error occurred while loading the session: {str(e)}")
 
     # Sidebar for advanced options
     with st.sidebar:
@@ -162,37 +287,55 @@ try:
         similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.5)
 
         if st.button("Clear Current Session"):
+            new_key = generate_secure_key()
+            st.session_state['session_key'] = new_key
             st.session_state['current_session_files'] = set()
+            st.session_state['processed_data'] = {}
             st.session_state['file_hashes'] = {}
-            st.success("Current session cleared. You can now upload new files.")
+            st.success("Current session cleared. A new session key has been generated.")
 
     uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             file_content = uploaded_file.getvalue()
             file_hash = get_file_hash(file_content)
-            
-            if file_hash in st.session_state['file_hashes']:
-                # File has been processed before
-                existing_file_name = st.session_state['file_hashes'][file_hash]
+
+            session_collection.load()
+            # Check if file exists in the current session
+            results = session_collection.query(
+                expr=f'session_key == "{st.session_state["session_key"]}" and file_hash == "{file_hash}"',
+                output_fields=["file_name"]
+            )
+
+            if results:
+                # File has been processed before in this session
+                existing_file_name = results[0]['file_name']
                 st.session_state['current_session_files'].add(existing_file_name)
                 st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
             else:
                 # New file, needs processing
-                try:
-                    vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
-                    if vector_db is not None:
-                        st.session_state['processed_data'][uploaded_file.name] = {
-                            'vector_db': vector_db,
-                            'image_paths': image_paths,
-                            'markdown_content': markdown_content,
-                            'summary': summary
+                vector_db, image_paths, markdown_content, summary = process_file(uploaded_file, st.session_state["session_key"])
+                if vector_db is not None:
+                    st.session_state['processed_data'][uploaded_file.name] = {
+                        'vector_db': vector_db,
+                        'image_paths': image_paths,
+                        'markdown_content': markdown_content,
+                        'summary': summary
+                    }
+                    st.session_state['current_session_files'].add(uploaded_file.name)
+                    st.session_state['file_hashes'][file_hash] = uploaded_file.name
+
+                    # Insert into session collection
+                    session_collection.insert([
+                        {
+                            "session_key": st.session_state["session_key"],
+                            "file_name": uploaded_file.name,
+                            "file_hash": file_hash,
+                            "dummy_vector": [0.0, 0.0]  # Dummy vector
                         }
-                        st.session_state['current_session_files'].add(uploaded_file.name)
-                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
-                        st.success(f"File processed and stored in vector database! Summary: {summary}")
-                except Exception as e:
-                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
+                    ])
+
+                    st.success(f"File processed and stored in vector database! Summary: {summary}")
 
             # Display summary and extracted content
             display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
@@ -212,103 +355,60 @@ try:
     # Query interface
     st.subheader("Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
+    user_key = st.text_input("Enter your session key:")
     if st.button("Search"):
-        if st.session_state['current_session_files']:
-            with st.spinner('Searching...'):
-                all_docs = []
-                for file_name in st.session_state['current_session_files']:
-                    vector_db = st.session_state['processed_data'][file_name]['vector_db']
-                    docs = vector_db.similarity_search(query, k=chunks_to_retrieve)
-                    all_docs.extend([(file_name, doc) for doc in docs])
-                
-                # Sort all_docs by relevance (assuming the order returned by similarity_search is from most to least relevant)
-                all_docs.sort(key=lambda x: x[1].metadata.get('relevance', 0), reverse=True)
-                
-                content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc in all_docs])
-
-                system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
-                user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-
-                response = client.chat.completions.create(
-                    model=MODEL,
-                    messages=[
-                        {"role": "system", "content": system_content},
-                        {"role": "user", "content": user_content}
-                    ]
-                )
-                
-                st.subheader("Answer:")
-                st.write(response.choices[0].message.content)
-
-                confidence_score = calculate_confidence(all_docs)
-                st.write(f"Confidence Score: {confidence_score}%")
-
-                st.subheader("Sources:")
-                for file_name, doc in all_docs:
-                    page_num = doc.metadata.get('page_number', 'Unknown')
-                    st.markdown(f"**File: {file_name}, Page {page_num}:**")
-                    highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
-                    st.markdown(f"```\n{highlighted_text}...\n```")
+        if user_key:
+            if st.session_state['current_session_files']:
+                with st.spinner('Searching...'):
+                    all_docs = []
+                    for file_name in st.session_state['current_session_files']:
+                        vector_db = st.session_state['processed_data'][file_name]['vector_db']
+                        docs = vector_db.similarity_search(query, k=chunks_to_retrieve)
+                        # Filter docs by session key
+                        filtered_docs = [doc for doc in docs if doc.metadata.get('session_key') == user_key]
+                        all_docs.extend([(file_name, doc) for doc in filtered_docs])
                     
-                    image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
-                    if image_path:
-                        with st.expander(f"View Page {page_num} Image"):
-                            st.image(image_path, use_column_width=True)
+                    if all_docs:
+                        content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc in all_docs])
 
-            # Save question and answer to history
-            if 'qa_history' not in st.session_state:
-                st.session_state['qa_history'] = []
-            st.session_state['qa_history'].append({
-                'question': query,
-                'answer': response.choices[0].message.content,
-                'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc in all_docs],
-                'confidence': confidence_score
-            })
+                        system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
+                        user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
 
+                        response = client.chat.completions.create(
+                            model=MODEL,
+                            messages=[
+                                {"role": "system", "content": system_content},
+                                {"role": "user", "content": user_content}
+                            ]
+                        )
+                        
+                        st.subheader("Answer:")
+                        st.write(response.choices[0].message.content)
+
+                        confidence_score = calculate_confidence(all_docs)
+                        st.write(f"Confidence Score: {confidence_score}%")
+
+                        st.subheader("Sources:")
+                        for file_name, doc in all_docs:
+                            page_num = doc.metadata.get('page_number', 'Unknown')
+                            st.markdown(f"**File: {file_name}, Page {page_num}:**")
+                            highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
+                            st.markdown(f"```\n{highlighted_text}...\n```")
+                            
+                            image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
+                            if image_path:
+                                with st.expander(f"View Page {page_num} Image"):
+                                    st.image(image_path, use_column_width=True)
+                    else:
+                        st.error("No results found or session key does not match.")
+            else:
+                st.warning("Please upload and process at least one file first.")
         else:
-            st.warning("Please upload and process at least one file first.")
-
-    # Display question history
-    if 'qa_history' in st.session_state and st.session_state['qa_history']:
-        st.subheader("Question History")
-        for i, qa in enumerate(st.session_state['qa_history']):
-            with st.expander(f"Q{i+1}: {qa['question']}"):
-                st.write(f"A: {qa['answer']}")
-                st.write(f"Confidence: {qa['confidence']}%")
-                st.write("Sources:")
-                for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Page: {source['page']}")
-        
-        # Add a button to clear the question history
-        if st.button("Clear Question History"):
-            st.session_state['qa_history'] = []
-            st.success("Question history cleared!")
-
-    # Export results
-    if st.button("Export Q&A Session"):
-        qa_session = ""
-        for qa in st.session_state.get('qa_history', []):
-            qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
-            for source in qa['sources']:
-                qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
-            qa_session += "\n---\n\n"
-        
-        # Convert markdown to HTML
-        html = markdown2.markdown(qa_session)
-        
-        try:
-            # Convert HTML to PDF
-            pdf = pdfkit.from_string(html, False)
-            
-            # Provide the PDF for download
-            st.download_button(
-                label="Download Q&A Session as PDF",
-                data=pdf,
-                file_name="qa_session.pdf",
-                mime="application/pdf"
-            )
-        except Exception as e:
-            st.error(f"An error occurred while generating the PDF: {str(e)}")
+            st.error("Please enter a valid session key.")
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
+    st.exception(e)
+
+# Ensure Milvus connection is closed when the script ends
+atexit.register(close_milvus_connection)

@@ -298,4 +298,4 @@ try:
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
-    st.exception(e)
+ #   st.exception(e)

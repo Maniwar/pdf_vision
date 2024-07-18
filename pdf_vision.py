@@ -34,7 +34,8 @@ connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY, secure
 collection_name = "pdf_embeddings"
 try:
     collection = Collection(name=collection_name)
-    st.write(f"Collection '{collection_name}' is available.")
+    if collection.name:
+        st.write(f"Collection '{collection_name}' is available.")
 except Exception as e:
     st.error(f"Collection '{collection_name}' does not exist or could not be accessed: {str(e)}")
 

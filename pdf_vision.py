@@ -24,33 +24,16 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
-# Extract the host and port from the endpoint
-host_port = MILVUS_ENDPOINT.split("//")[-1]
-if ":" in host_port:
-    host, port = host_port.split(":")
-    port = int(port)
-else:
-    host = host_port
-    port = 19530  # Default port
-
-MILVUS_CONNECTION_ARGS = {
-    "host": host,
-    "port": port,
-    "api_key": MILVUS_API_KEY,
-    "secure": True  # Ensure the connection uses HTTPS
-}
-
-# Log the connection parameters
-logging.debug(f"Connecting to Milvus server at {host}:{port} with API key.")
-
 # Connect to Milvus server
-connections.connect(alias="default", host=host, port=port, token=MILVUS_API_KEY, secure=True)
+connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY)
 
 # Check if the collection exists
 collection_name = "pdf_embeddings"
 try:
-    collection = Collection(name=collection_name)
-    if collection.name:
+    collection = Collection(collection_name)
+    if collection.is_empty:
+        st.write(f"Collection '{collection_name}' is available but empty.")
+    else:
         st.write(f"Collection '{collection_name}' is available.")
 except Exception as e:
     st.error(f"Collection '{collection_name}' does not exist or could not be accessed: {str(e)}")
@@ -67,7 +50,7 @@ Retrieve all the information provided in the image, including figures, titles, a
 def get_generated_data(image_path):
     base64_image = encode_image(image_path)
     
-    response = client.chat.completions.create(
+    response = client.chat_completions.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -100,7 +83,7 @@ if uploaded_file is not None:
         vector_db = Milvus.from_documents(
             pages,
             embeddings,
-            connection_args=MILVUS_CONNECTION_ARGS,
+            connection_args={"alias": "default"},
         )
         st.session_state['vector_db'] = vector_db
         st.success('Embeddings stored successfully in Milvus!')
@@ -116,9 +99,9 @@ if uploaded_file is not None:
             content = "\n".join(doc.page_content for doc in docs)
 
             system_content = "You are a helpful assistant. Provide the response based on the input."
-            user_content = f"Answer the {query} from the {content}"
+            user_content = f"Answer the query '{query}' using the following content: {content}"
 
-            response = client.chat.completions.create(
+            response = client.chat_completions.create(
                 model=MODEL,
                 messages=[
                     {"role": "system", "content": system_content},

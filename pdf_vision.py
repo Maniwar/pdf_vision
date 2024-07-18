@@ -3,14 +3,11 @@ import fitz  # PyMuPDF
 from openai import OpenAI, OpenAIError
 import base64
 from io import BytesIO
-from pathlib import Path
-import os
 from PIL import Image  # Import PIL for image handling
 from pymilvus import connections, utility, FieldSchema, CollectionSchema, DataType, Collection
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_community.vectorstores import Milvus as LangchainMilvus
 from langchain_openai import OpenAIEmbeddings
-from langchain_text_splitters import CharacterTextSplitter
 
 # Set the OpenAI API key from Streamlit secrets
 openai_api_key = st.secrets["general"]["OPENAI_API_KEY"]
@@ -72,55 +69,16 @@ def generate_embeddings(image_base64):
                 {"role": "user", "content": f"data:image/png;base64,{image_base64}"}
             ]
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content  # Ensure correct field access
     except OpenAIError as e:
         st.error(f"OpenAI API error: {e}")
         return None
-
-def get_generated_data(image_path):
-    base64_image = encode_image(image_path)
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": [
-                {"type": "text", "text": USER_PROMPT},
-                {"type": "image_url", "image_url": {
-                    "url": f"data:image/png;base64,{base64_image}"}
-                }
-            ]}
-        ],
-        temperature=0.0,
-    )
-    return response.choices[0].message.content
-
-def list_embeddings():
-    num_entities = collection.num_entities
-    return f"Number of entities in the collection: {num_entities}"
-
-def clear_embeddings():
-    utility.drop_collection(collection_name)
-    st.session_state.embeddings = []
-
-def chat_with_data(query):
-    langchain_milvus = LangchainMilvus(collection, embeddings)
-    docs = langchain_milvus.similarity_search(query, k=5)
-    response_content = "Top results:\n"
-    for doc in docs:
-        response_content += f"Document ID: {doc.id}\n"
-        response_content += f"Score: {doc.score}\n"
-        response_content += f"Content: {doc.metadata['text']}\n\n"
-    return response_content
 
 def main():
     st.title("Medical Document Assistant")
 
     st.sidebar.header("Options")
     
-    if 'embeddings' not in st.session_state:
-        st.session_state.embeddings = []
-
     # Instructions for doctors
     st.write("### Instructions")
     st.write("""
@@ -135,51 +93,19 @@ def main():
     if uploaded_files:
         for uploaded_file in uploaded_files:
             images = extract_images_from_pdf(uploaded_file)
-            markdown_content = ""
 
             for i, image in enumerate(images):
                 image_base64 = encode_image(image)
                 embedding = generate_embeddings(image_base64)
                 if embedding:
-                    data = {
-                        "id": [i],
-                        "embedding": [embedding],
-                        "text": [f"Page {i+1} of {uploaded_file.name}"]
-                    }
-                    collection.insert([data])
+                    data = [
+                        [i],  # id
+                        [embedding],  # Ensure embedding is a list if not already
+                        [f"Page {i+1} of {uploaded_file.name}"]  # Text field
+                    ]
+                    collection.insert(data)
                     st.session_state.embeddings.append(f"{uploaded_file.name}_page_{i+1}")
                     st.sidebar.write(f"Processed and stored embeddings for {uploaded_file.name}_page_{i+1}")
-
-                # Generate markdown content
-                markdown_content += "\n" + get_generated_data(image)
-
-            # Save markdown content to a file
-            output_dir = "./data/output/"
-            os.makedirs(output_dir, exist_ok=True)
-            md_file_path = os.path.join(output_dir, f"{uploaded_file.name}.md")
-            with open(md_file_path, "w") as f:
-                f.write(markdown_content)
-
-            # Load markdown file and save to Milvus database
-            loader = UnstructuredMarkdownLoader(md_file_path)
-            data = loader.load()
-
-            URI = "./db/markdown.db"
-            vector_db = LangchainMilvus.from_documents(
-                data,
-                embeddings,
-                connection_args={"uri": URI},
-            )
-
-    # List embeddings
-    if st.sidebar.button("List Stored Embeddings"):
-        embeddings = list_embeddings()
-        st.sidebar.write(embeddings)
-
-    # Clear embeddings
-    if st.sidebar.button("Clear All Embeddings"):
-        clear_embeddings()
-        st.sidebar.write("All embeddings cleared.")
 
     # Display current embeddings
     st.sidebar.write("### Current Embeddings")
@@ -189,8 +115,14 @@ def main():
     st.write("### Query the Documents")
     query = st.text_input("Enter your query here:")
     if query:
-        response = chat_with_data(query)
-        st.write(response)
+        langchain_milvus = LangchainMilvus(collection, embeddings)
+        docs = langchain_milvus.similarity_search(query, k=5)
+        response_content = "Top results:\n"
+        for doc in docs:
+            response_content += f"Document ID: {doc.id}\n"
+            response_content += f"Score: {doc.score}\n"
+            response_content += f"Content: {doc.metadata['text']}\n\n"
+        st.write(response_content)
 
 if __name__ == "__main__":
     main()

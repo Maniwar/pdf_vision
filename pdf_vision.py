@@ -43,22 +43,6 @@ if uploaded_file is not None:
     markdown_content = ""
     for file_path in folder_path.iterdir():
         markdown_content += "\n" + get_generated_data(str(file_path))
-
-    st.text_area("Extracted Content:", markdown_content, height=300)
-
-    # Query interface based on extracted content
-    query = st.text_input("Enter your query about the extracted data:")
-    if st.button("Search"):
-        with st.spinner('Searching...'):
-            response = client.chat.completions.create(
-                model=MODEL,
-                messages=[
-                    {"role": "system", "content": "You are an assisting agent. Please provide the response based on the input."},
-                    {"role": "user", "content": f"Respond to the query '{query}' using the information from the following content: {markdown_content}"}
-                ]
-            )
-            st.write(response.choices[0].message.content)
-
 def get_generated_data(image_path):
     """Encode image and send request to OpenAI for content extraction."""
     with open(image_path, "rb") as image_file:
@@ -79,3 +63,19 @@ def get_generated_data(image_path):
         temperature=0.0,
     )
     return response.choices[0].message.content
+
+    st.text_area("Extracted Content:", markdown_content, height=300)
+
+    # Query interface based on extracted content
+    query = st.text_input("Enter your query about the extracted data:")
+    if st.button("Search"):
+        with st.spinner('Searching...'):
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {"role": "system", "content": "You are an assisting agent. Please provide the response based on the input."},
+                    {"role": "user", "content": f"Respond to the query '{query}' using the information from the following content: {markdown_content}"}
+                ]
+            )
+            st.write(response.choices[0].message.content)
+

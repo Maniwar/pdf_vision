@@ -166,20 +166,13 @@ def process_file(uploaded_file, session_key):
 
     return vector_db, image_paths, markdown_content, summary
 
-def create_session_collection():
-    fields = [
-        FieldSchema(name="session_key", dtype=DataType.VARCHAR, is_primary=True, auto_id=False, max_length=64),
-        FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=256),
-        FieldSchema(name="file_hash", dtype=DataType.VARCHAR, max_length=64),
-        FieldSchema(name="dummy_vector", dtype=DataType.FLOAT_VECTOR, dim=2)  # Add a dummy vector field
-    ]
-    schema = CollectionSchema(fields, "Session information collection")
-    return schema
-
 def create_document_vectors_schema():
     fields = [
         FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
         FieldSchema(name="session_key", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=256),
+        FieldSchema(name="file_hash", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="page_number", dtype=DataType.INT64),
         FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
         FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1536)  # Adjust dim based on your embedding size
     ]
@@ -195,7 +188,7 @@ def create_index(collection, field_name="embedding"):
     }
     collection.create_index(field_name=field_name, params=index_params)
     st.success(f"Index created on field '{field_name}' for collection '{collection.name}'.")
-    
+
 def get_or_create_collection(collection_name):
     try:
         collection = Collection(collection_name)
@@ -205,13 +198,7 @@ def get_or_create_collection(collection_name):
         return collection
     except Exception as e:
         if 'does not exist' in str(e):  # Better error message handling
-            if collection_name == "LangChainCollection":
-                collection_schema = create_document_vectors_schema()
-            elif collection_name == "session_info":
-                collection_schema = create_session_collection()
-            else:
-                raise ValueError("Unknown collection name")
-            
+            collection_schema = create_document_vectors_schema()
             collection = Collection(name=collection_name, schema=collection_schema)
             collection.create()
             create_index(collection)  # Ensure index is created right after the collection
@@ -222,8 +209,7 @@ def get_or_create_collection(collection_name):
 
 # Initialize Milvus connection and collections
 connect_to_milvus()
-vector_collection = get_or_create_collection("LangChainCollection")
-session_collection = get_or_create_collection("session_info")
+document_collection = get_or_create_collection("LangChainCollection")
 
 # Streamlit interface
 st.title('Document Query and Analysis App')
@@ -260,8 +246,8 @@ try:
     entered_key = st.sidebar.text_input("Enter a session key to resume:")
     if st.sidebar.button("Load Session"):
         try:
-            session_collection.load()
-            results = session_collection.query(
+            document_collection.load()
+            results = document_collection.query(
                 expr=f'session_key == "{entered_key}"',
                 output_fields=["file_name", "file_hash"]
             )
@@ -300,9 +286,9 @@ try:
             file_content = uploaded_file.getvalue()
             file_hash = get_file_hash(file_content)
 
-            session_collection.load()
+            document_collection.load()
             # Check if file exists in the current session
-            results = session_collection.query(
+            results = document_collection.query(
                 expr=f'session_key == "{st.session_state["session_key"]}" and file_hash == "{file_hash}"',
                 output_fields=["file_name"]
             )
@@ -325,14 +311,17 @@ try:
                     st.session_state['current_session_files'].add(uploaded_file.name)
                     st.session_state['file_hashes'][file_hash] = uploaded_file.name
 
-                    # Insert into session collection
-                    session_collection.insert([
+                    # Insert into document collection
+                    document_collection.insert([
                         {
                             "session_key": st.session_state["session_key"],
                             "file_name": uploaded_file.name,
                             "file_hash": file_hash,
-                            "dummy_vector": [0.0, 0.0]  # Dummy vector
+                            "page_number": page_num,
+                            "content": page.page_content,
+                            "embedding": page.embedding
                         }
+                        for page_num, page in enumerate(data)
                     ])
 
                     st.success(f"File processed and stored in vector database! Summary: {summary}")

@@ -19,52 +19,53 @@ MODEL = "gpt-4o"
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
-# Extract and set Milvus connection parameters
+# Milvus connection parameters from st.secrets
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
-host_port = MILVUS_ENDPOINT.split("//")[-1]
-host, port = (host_port.split(":") + [19530])[:2]  # Default port is 19530
-port = int(port)
-MILVUS_CONNECTION_ARGS = {"host": host, "port": port, "api_key": MILVUS_API_KEY, "secure": True}
 
-# Log connection parameters
+# Extract the host and port from the endpoint
+host_port = MILVUS_ENDPOINT.split("//")[-1]
+if ":" in host_port:
+    host, port = host_port.split(":")
+    port = int(port)
+else:
+    host = host_port
+    port = 19530  # Default port
+
+MILVUS_CONNECTION_ARGS = {
+    "host": host,
+    "port": port,
+    "api_key": MILVUS_API_KEY,
+    "secure": True  # Ensure the connection uses HTTPS
+}
+
+# Log the connection parameters
 logging.debug(f"Connecting to Milvus server at {host}:{port} with API key.")
 
-# Function to encode images to base64
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-# Define prompts
 SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Help me with Given Image Extraction with Given Details with Different categories!"
-USER_PROMPT = "Retrieve all the information provided in the image, including figures, titles, and graphs."
+USER_PROMPT = """
+Retrieve all the information provided in the image, including figures, titles, and graphs.
+"""
 
-# Initialize Streamlit UI
-st.title('PDF Document Query and Analysis App')
-uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
-
-# Process PDF and display images
-if uploaded_file:
-    if 'output_dir' not in st.session_state or st.session_state.uploaded_file_name != uploaded_file.name:
-        st.session_state.uploaded_file_name = uploaded_file.name
-        with st.spinner('Processing PDF...'):
-            temp_file_path = save_uploadedfile(uploaded_file)
-            doc = fitz.open(temp_file_path)
-            output_dir = tempfile.mkdtemp()
-            st.session_state.output_dir = output_dir
-
-            for page_num in range(len(doc)):
-                page = doc.load_page(page_num)
-                pix = page.get_pixmap()
-                output = os.path.join(output_dir, f"page{page_num + 1}.png")
-                pix.save(output)
-            doc.close()
-            st.success('PDF converted to images successfully!')
-
-    if 'data' not in st.session_state:
-        process_markdown_to_embeddings(st.session_state.output_dir)
-
-    display_pdf_images_and_content()
+def get_generated_data(image_path):
+    base64_image = encode_image(image_path)
+    
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": [
+                {"type": "text", "text": USER_PROMPT},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+            ]}
+        ],
+        temperature=0.0,
+    )
+    return response.choices[0].message.content
 
 def save_uploadedfile(uploadedfile):
     temp_dir = tempfile.mkdtemp()
@@ -73,46 +74,88 @@ def save_uploadedfile(uploadedfile):
         f.write(uploadedfile.getbuffer())
     return file_path
 
-def process_markdown_to_embeddings(output_dir):
-    markdown_content = ""
-    image_files = list(Path(output_dir).iterdir())
-    for file_path in sorted(image_files):
-        markdown_content += "\n" + get_generated_data(str(file_path))
+# Streamlit interface
+st.title('PDF Document Query and Analysis App')
 
-    temp_md_file = tempfile.NamedTemporaryFile(delete=False, suffix=".md")
-    with open(temp_md_file.name, 'w') as f:
-        f.write(markdown_content)
+uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
+if uploaded_file is not None:
+    st.subheader("PDF Processing and Image Extraction")
+    with st.spinner('Processing PDF...'):
+        temp_file_path = save_uploadedfile(uploaded_file)
+        
+        doc = fitz.open(temp_file_path)
+        output_dir = tempfile.mkdtemp()
 
-    loader = UnstructuredMarkdownLoader(temp_md_file.name)
-    data = loader.load()
-    try:
-        vector_db = Milvus.from_documents(data, embeddings, connection_args=MILVUS_CONNECTION_ARGS)
-        st.session_state['data'] = vector_db
-    except Exception as e:
-        logging.error(f"Failed to connect to Milvus server: {e}")
-        st.error(f"Connection error: {str(e)}")
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
+            pix = page.get_pixmap()
+            output = os.path.join(output_dir, f"page{page_num + 1}.png")
+            pix.save(output)
+        doc.close()
 
-def display_pdf_images_and_content():
-    # Display the query interface and extracted markdown content above the images
-    query = st.text_input("Enter your query about the PDF content:")
-    if st.button("Query PDF"):
-        if 'data' in st.session_state and st.session_state['data']:
-            vector_db = st.session_state['data']
-            docs = vector_db.similarity_search(query)
-            content = "\n".join(doc.page_content for doc in docs)
-            response = client.chat.completions.create(
-                model=MODEL,
-                messages=[{"role": "system", "content": "You are a helpful assistant. Provide the response based on the input."},
-                          {"role": "user", "content": f"Answer the query '{query}' using the following content: {content}"}],
-                temperature=0.0
+        st.success('PDF converted to images successfully!')
+
+        # Display the generated images
+        st.subheader("Generated Images from PDF")
+        folder_path = Path(output_dir)
+        image_files = list(folder_path.iterdir())
+        for image_file in sorted(image_files):
+            st.image(str(image_file), caption=f"Page {image_file.stem.split('page')[1]}")
+
+        # Process each image for data extraction
+        markdown_content = ""
+        for file_path in image_files:
+            markdown_content += "\n" + get_generated_data(str(file_path))
+
+        # Save extracted markdown content to a temporary file
+        temp_md_file = tempfile.NamedTemporaryFile(delete=False, suffix=".md")
+        with open(temp_md_file.name, 'w') as f:
+            f.write(markdown_content)
+
+    # Display extracted markdown content
+    st.text_area("Extracted Content:", markdown_content, height=300)
+
+    # For embedding and storing in Milvus
+    if 'data' not in st.session_state:
+        st.session_state['data'] = []
+
+    def process_markdown_to_embeddings(md_file_path):
+        loader = UnstructuredMarkdownLoader(md_file_path)
+        data = loader.load()
+
+        # Create and store embeddings in Milvus
+        try:
+            vector_db = Milvus.from_documents(
+                data,
+                embeddings,
+                connection_args=MILVUS_CONNECTION_ARGS,
             )
-            st.write(response.choices[0].message.content)
-        else:
-            st.error("Please upload a PDF first and wait for the embeddings to be processed.")
+            st.session_state['data'] = vector_db
+        except Exception as e:
+            logging.error(f"Failed to create connection to Milvus server: {e}")
+            st.error("Failed to connect to the Milvus server. Please check the connection parameters and try again.")
 
-    # Display images from PDF
-    st.subheader("Generated Images from PDF")
-    folder_path = Path(st.session_state.output_dir)
-    image_files = list(folder_path.iterdir())
-    for image_file in sorted(image_files):
-        st.image(str(image_file), caption=f"Page {image_file.stem.split('page')[1]}")
+    process_markdown_to_embeddings(temp_md_file.name)
+
+query = st.text_input("Enter your query about the PDF content:")
+if st.button("Query PDF"):
+    vector_db = st.session_state.get('data')
+    if vector_db:
+        docs = vector_db.similarity_search(query)
+        content = ""
+        for doc in docs:
+            content += "\n" + doc.page_content
+
+        system_content = "You are a helpful assistant. Provide the response based on the input."
+        user_content = f"Answer the query '{query}' using the following content: {content}"
+
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ]
+        )
+        st.write(response.choices[0].message.content)
+    else:
+        st.error("Please upload a PDF first.")

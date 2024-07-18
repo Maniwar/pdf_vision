@@ -14,7 +14,7 @@ import hashlib
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4-vision-preview"
+MODEL = "gpt-4o"
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
@@ -77,7 +77,7 @@ def save_uploadedfile(uploadedfile):
 
 def generate_summary(content):
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": "You are a helpful assistant that summarizes documents."},
             {"role": "user", "content": f"Provide a brief summary of this document, including main topics and key points:\n\n{content}"}
@@ -243,7 +243,7 @@ try:
                 user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
 
                 response = client.chat.completions.create(
-                    model="gpt-4",
+                    model="gpt-4o",
                     messages=[
                         {"role": "system", "content": system_content},
                         {"role": "user", "content": user_content}

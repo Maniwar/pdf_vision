@@ -352,96 +352,96 @@ try:
                     highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
                     st.markdown(f"```\n{highlighted_text}...\n```")
                                         
-                                        image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
-                                        if image_path:
-                                            with st.expander(f"🖼️ View Page {page_num} Image"):
-                                                st.image(image_path, use_column_width=True)
-
-                                    st.write(f"Debug - Total documents retrieved: {len(all_docs)}")
-                                    for file_name, doc, score in all_docs:
-                                        st.write(f"Debug - File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
-                                        st.write(f"Debug - Content snippet: {doc.page_content[:50]}...")
-
-                                # Save question and answer to history
-                                if 'qa_history' not in st.session_state:
-                                    st.session_state['qa_history'] = []
-                                st.session_state['qa_history'].append({
-                                    'question': query,
-                                    'answer': response.choices[0].message.content,
-                                    'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
-                                    'confidence': confidence_score
-                                })
-
-                            else:
-                                st.warning("Please upload and process at least one file first.")
-
-                        # Display question history
-                        if 'qa_history' in st.session_state and st.session_state['qa_history']:
-                            st.subheader("📜 Question History")
-                            for i, qa in enumerate(st.session_state['qa_history']):
-                                with st.expander(f"Q{i+1}: {qa['question']}"):
-                                    st.write(f"A: {qa['answer']}")
-                                    st.write(f"Confidence: {qa['confidence']}%")
-                                    st.write("Sources:")
-                                    for source in qa['sources']:
-                                        st.write(f"- File: {source['file']}, Page: {source['page']}")
-                            
-                            # Add a button to clear the question history
-                            if st.button("🗑️ Clear Question History"):
-                                st.session_state['qa_history'] = []
-                                st.success("Question history cleared!")
-
-                        # Export results
-                        if st.button("📤 Export Q&A Session"):
-                            qa_session = ""
-                            for qa in st.session_state.get('qa_history', []):
-                                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
-                                for source in qa['sources']:
-                                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
-                                qa_session += "\n---\n\n"
-                            
-                            # Convert markdown to HTML
-                            html = markdown2.markdown(qa_session)
-                            
-                            try:
-                                # Convert HTML to PDF
-                                pdf = pdfkit.from_string(html, False)
-                                
-                                # Provide the PDF for download
-                                st.download_button(
-                                    label="Download Q&A Session as PDF",
-                                    data=pdf,
-                                    file_name="qa_session.pdf",
-                                    mime="application/pdf"
-                                )
-                            except Exception as e:
-                                st.error(f"An error occurred while generating the PDF: {str(e)}")
-
-                    except Exception as e:
-                        st.error(f"An unexpected error occurred: {str(e)}")
-
-                    if __name__ == "__main__":
-                        st.sidebar.markdown("## ℹ️ About")
-                        st.sidebar.info(
-                            "This app allows you to upload PDF documents or images, "
-                            "extract information from them, and query the content. "
-                            "It uses OpenAI's GPT model for text generation and "
-                            "FAISS for efficient similarity search."
-                        )
-                        
-                        st.sidebar.markdown("## 📖 How to use")
-                        st.sidebar.info(
-                            "1. Upload one or more PDF or image files.\n"
-                            "2. Wait for the processing to complete.\n"
-                            "3. Enter your query in the text box.\n"
-                            "4. Click 'Search' to get answers based on the document content.\n"
-                            "5. View the answer, confidence score, and sources.\n"
-                            "6. Optionally, export the Q&A session as a PDF."
-                        )
-
-                        st.sidebar.markdown("## ⚠️ Note")
-                        st.sidebar.warning(
-                            "This is a prototype application. Do not upload sensitive "
-                            "information. In the deployed version, there will be a "
-                            "private database to ensure security and privacy."
-                        )
+                    image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
+                    if image_path:
+                        with st.expander(f"🖼️ View Page {page_num} Image"):
+                            st.image(image_path, use_column_width=True)
+    
+                st.write(f"Debug - Total documents retrieved: {len(all_docs)}")
+                for file_name, doc, score in all_docs:
+                    st.write(f"Debug - File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
+                    st.write(f"Debug - Content snippet: {doc.page_content[:50]}...")
+    
+            # Save question and answer to history
+            if 'qa_history' not in st.session_state:
+                st.session_state['qa_history'] = []
+            st.session_state['qa_history'].append({
+                'question': query,
+                'answer': response.choices[0].message.content,
+                'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
+                'confidence': confidence_score
+            })
+    
+        else:
+            st.warning("Please upload and process at least one file first.")
+    
+    # Display question history
+    if 'qa_history' in st.session_state and st.session_state['qa_history']:
+        st.subheader("📜 Question History")
+        for i, qa in enumerate(st.session_state['qa_history']):
+            with st.expander(f"Q{i+1}: {qa['question']}"):
+                st.write(f"A: {qa['answer']}")
+                st.write(f"Confidence: {qa['confidence']}%")
+                st.write("Sources:")
+                for source in qa['sources']:
+                    st.write(f"- File: {source['file']}, Page: {source['page']}")
+        
+        # Add a button to clear the question history
+        if st.button("🗑️ Clear Question History"):
+            st.session_state['qa_history'] = []
+            st.success("Question history cleared!")
+    
+    # Export results
+    if st.button("📤 Export Q&A Session"):
+        qa_session = ""
+        for qa in st.session_state.get('qa_history', []):
+            qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
+            for source in qa['sources']:
+                qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+            qa_session += "\n---\n\n"
+        
+        # Convert markdown to HTML
+        html = markdown2.markdown(qa_session)
+        
+        try:
+            # Convert HTML to PDF
+            pdf = pdfkit.from_string(html, False)
+            
+            # Provide the PDF for download
+            st.download_button(
+                label="Download Q&A Session as PDF",
+                data=pdf,
+                file_name="qa_session.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error(f"An error occurred while generating the PDF: {str(e)}")
+    
+    except Exception as e:
+    st.error(f"An unexpected error occurred: {str(e)}")
+    
+    if __name__ == "__main__":
+    st.sidebar.markdown("## ℹ️ About")
+    st.sidebar.info(
+        "This app allows you to upload PDF documents or images, "
+        "extract information from them, and query the content. "
+        "It uses OpenAI's GPT model for text generation and "
+        "FAISS for efficient similarity search."
+    )
+    
+    st.sidebar.markdown("## 📖 How to use")
+    st.sidebar.info(
+        "1. Upload one or more PDF or image files.\n"
+        "2. Wait for the processing to complete.\n"
+        "3. Enter your query in the text box.\n"
+        "4. Click 'Search' to get answers based on the document content.\n"
+        "5. View the answer, confidence score, and sources.\n"
+        "6. Optionally, export the Q&A session as a PDF."
+    )
+    
+    st.sidebar.markdown("## ⚠️ Note")
+    st.sidebar.warning(
+        "This is a prototype application. Do not upload sensitive "
+        "information. In the deployed version, there will be a "
+        "private database to ensure security and privacy."
+    )

@@ -121,7 +121,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Rest of your functions remain the same
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
 
@@ -129,7 +128,7 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Help me with Given Image Extraction with Given Details with Different categories!"
+SYSTEM_PROMPT = "You are a helpful assistant that responds in Markdown. Help me with Given Image Extraction with Given Details with Different categories! Use all tokens in your response to focus on relevant details on the page only. Do not waste tokens on polite language like asking if there are other things you can help with."
 USER_PROMPT = """
 Retrieve all the information provided in the image, including figures, titles, highlighted items, circled words, charts, and graphs, as well as all the values from graphs and charts and or relationships between entities, so users can ask questions about these items as needed.
 """

@@ -304,113 +304,111 @@ try:
                 for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
 
-# ... (previous code remains the same)
-
-# Query interface
-st.subheader("🔍 Query the Document(s)")
-query = st.text_input("Enter your query about the document(s):")
-if st.button("🔎 Search"):
-    if st.session_state['current_session_files']:
-        with st.spinner('Searching...'):
-            all_docs = []
-            for file_name in st.session_state['current_session_files']:
-                vector_db = st.session_state['processed_data'][file_name]['vector_db']
-                docs = vector_db.similarity_search_with_score(query, k=chunks_to_retrieve)
-                all_docs.extend([(file_name, doc, score) for doc, score in docs])
-            
-            # Sort all_docs by relevance score
-            all_docs.sort(key=lambda x: x[2])
-            
-            content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
-
-            system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
-            user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": system_content},
-                    {"role": "user", "content": user_content}
-                ]
-            )
-            
-            st.subheader("💬 Answer:")
-            st.write(response.choices[0].message.content)
-
-            confidence_score = calculate_confidence(all_docs)
-            st.write(f"Confidence Score: {confidence_score}%")
-
-            st.subheader("📚 Sources:")
-            for file_name, doc, score in all_docs:
-                page_num = doc.metadata.get('page_number', 'Unknown')
-                st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
-                highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
-                st.markdown(f"```\n{highlighted_text}...\n```")
+    # Query interface
+    st.subheader("🔍 Query the Document(s)")
+    query = st.text_input("Enter your query about the document(s):")
+    if st.button("🔎 Search"):
+        if st.session_state['current_session_files']:
+            with st.spinner('Searching...'):
+                all_docs = []
+                for file_name in st.session_state['current_session_files']:
+                    vector_db = st.session_state['processed_data'][file_name]['vector_db']
+                    docs = vector_db.similarity_search_with_score(query, k=chunks_to_retrieve)
+                    all_docs.extend([(file_name, doc, score) for doc, score in docs])
                 
-                image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
-                if image_path:
-                    with st.expander(f"🖼️ View Page {page_num} Image"):
-                        st.image(image_path, use_column_width=True)
+                # Sort all_docs by relevance score
+                all_docs.sort(key=lambda x: x[2])
+                
+                content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
 
-            st.write(f"Debug - Total documents retrieved: {len(all_docs)}")
-            for file_name, doc, score in all_docs:
-                st.write(f"Debug - File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
-                st.write(f"Debug - Content snippet: {doc.page_content[:50]}...")
+                system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
+                user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
 
-        # Save question and answer to history
-        if 'qa_history' not in st.session_state:
-            st.session_state['qa_history'] = []
-        st.session_state['qa_history'].append({
-            'question': query,
-            'answer': response.choices[0].message.content,
-            'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
-            'confidence': confidence_score
-        })
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": system_content},
+                        {"role": "user", "content": user_content}
+                    ]
+                )
+                
+                st.subheader("💬 Answer:")
+                st.write(response.choices[0].message.content)
 
-    else:
-        st.warning("Please upload and process at least one file first.")
+                confidence_score = calculate_confidence(all_docs)
+                st.write(f"Confidence Score: {confidence_score}%")
 
-# Display question history
-if 'qa_history' in st.session_state and st.session_state['qa_history']:
-    st.subheader("📜 Question History")
-    for i, qa in enumerate(st.session_state['qa_history']):
-        with st.expander(f"Q{i+1}: {qa['question']}"):
-            st.write(f"A: {qa['answer']}")
-            st.write(f"Confidence: {qa['confidence']}%")
-            st.write("Sources:")
-            for source in qa['sources']:
-                st.write(f"- File: {source['file']}, Page: {source['page']}")
-    
-    # Add a button to clear the question history
-    if st.button("🗑️ Clear Question History"):
-        st.session_state['qa_history'] = []
-        st.success("Question history cleared!")
+                st.subheader("📚 Sources:")
+                for file_name, doc, score in all_docs:
+                    page_num = doc.metadata.get('page_number', 'Unknown')
+                    st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
+                    highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
+                    st.markdown(f"```\n{highlighted_text}...\n```")
+                    
+                    image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
+                    if image_path:
+                        with st.expander(f"🖼️ View Page {page_num} Image"):
+                            st.image(image_path, use_column_width=True)
 
-# Export results
-if st.button("📤 Export Q&A Session"):
-    qa_session = ""
-    for qa in st.session_state.get('qa_history', []):
-        qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
-        for source in qa['sources']:
-            qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
-        qa_session += "\n---\n\n"
-    
-    # Convert markdown to HTML
-    html = markdown2.markdown(qa_session)
-    
-    try:
-        # Convert HTML to PDF
-        pdf = pdfkit.from_string(html, False)
+                st.write(f"Debug - Total documents retrieved: {len(all_docs)}")
+                for file_name, doc, score in all_docs:
+                    st.write(f"Debug - File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
+                    st.write(f"Debug - Content snippet: {doc.page_content[:50]}...")
+
+            # Save question and answer to history
+            if 'qa_history' not in st.session_state:
+                st.session_state['qa_history'] = []
+            st.session_state['qa_history'].append({
+                'question': query,
+                'answer': response.choices[0].message.content,
+                'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
+                'confidence': confidence_score
+            })
+
+        else:
+            st.warning("Please upload and process at least one file first.")
+
+    # Display question history
+    if 'qa_history' in st.session_state and st.session_state['qa_history']:
+        st.subheader("📜 Question History")
+        for i, qa in enumerate(st.session_state['qa_history']):
+            with st.expander(f"Q{i+1}: {qa['question']}"):
+                st.write(f"A: {qa['answer']}")
+                st.write(f"Confidence: {qa['confidence']}%")
+                st.write("Sources:")
+                for source in qa['sources']:
+                    st.write(f"- File: {source['file']}, Page: {source['page']}")
         
-        # Provide the PDF for download
-        st.download_button(
-            label="Download Q&A Session as PDF",
-            data=pdf,
-            file_name="qa_session.pdf",
-            mime="application/pdf"
-        )
-    except Exception as e:
-        st.error(f"An error occurred while generating the PDF: {str(e)}")
+        # Add a button to clear the question history
+        if st.button("🗑️ Clear Question History"):
+            st.session_state['qa_history'] = []
+            st.success("Question history cleared!")
+
+    # Export results
+    if st.button("📤 Export Q&A Session"):
+        qa_session = ""
+        for qa in st.session_state.get('qa_history', []):
+            qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
+            for source in qa['sources']:
+                qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+            qa_session += "\n---\n\n"
+        
+        # Convert markdown to HTML
+        html = markdown2.markdown(qa_session)
+        
+        try:
+            # Convert HTML to PDF
+            pdf = pdfkit.from_string(html, False)
+            
+            # Provide the PDF for download
+            st.download_button(
+                label="Download Q&A Session as PDF",
+                data=pdf,
+                file_name="qa_session.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error(f"An error occurred while generating the PDF: {str(e)}")
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")

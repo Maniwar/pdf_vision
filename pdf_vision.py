@@ -18,28 +18,110 @@ MODEL = "gpt-4o-mini"
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
-# CSS for Warning Banner
+# iOS-like CSS styling
 st.markdown("""
 <style>
-    .warning-banner {
-        background-color: #ffcccb;
-        border: 1px solid #ff0000;
+    /* iOS-like color palette */
+    :root {
+        --ios-blue: #007AFF;
+        --ios-gray: #8E8E93;
+        --ios-light-gray: #F2F2F7;
+        --ios-white: #FFFFFF;
+        --ios-red: #FF3B30;
+    }
+
+    /* General styling */
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+        color: #000000;
+        background-color: var(--ios-light-gray);
+    }
+
+    /* Headings */
+    h1, h2, h3 {
+        font-weight: 600;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        border-radius: 10px;
+        background-color: var(--ios-blue);
+        color: var(--ios-white);
+        border: none;
+        padding: 10px 20px;
+        font-size: 16px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .stButton > button:hover {
+        background-color: #0056b3;
+    }
+
+    /* Input fields */
+    .stTextInput > div > div > input {
+        border-radius: 10px;
+        border: 1px solid var(--ios-gray);
         padding: 10px;
-        color: #a00;
-        font-weight: bold;
+    }
+
+    /* Sliders */
+    .stSlider > div > div > div > div {
+        background-color: var(--ios-blue);
+    }
+
+    /* Expanders */
+    .streamlit-expanderHeader {
+        background-color: var(--ios-white);
+        border-radius: 10px;
+        border: 1px solid var(--ios-gray);
+    }
+
+    /* Warning banner */
+    .warning-banner {
+        background-color: #FFDAB9;
+        border: 1px solid #FFA500;
+        padding: 15px;
+        color: #8B4513;
+        font-weight: 600;
         text-align: center;
-        border-radius: 5px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+
+    /* Big font for important notices */
+    .big-font {
+        font-size: 24px !important;
+        font-weight: 700;
+        color: var(--ios-red);
+    }
+
+    /* Custom styling for alerts */
+    .stAlert > div {
+        padding: 15px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-size: 16px;
+    }
+
+    .stAlert .big-font {
+        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# HTML for Warning Banner
+# Warning Banner
 st.markdown("""
 <div class="warning-banner">
-    Warning: This is a prototype application. Do not upload sensitive information as it is accessible to anyone. In the deployed version, there will be a private database to ensure security and privacy.
+    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
+    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
+    In the deployed version, there will be a private database to ensure security and privacy.
 </div>
 """, unsafe_allow_html=True)
 
+# Rest of your functions remain the same
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
 
@@ -157,7 +239,7 @@ def process_file(uploaded_file):
     return vector_db, image_paths, markdown_content, summary
 
 # Streamlit interface
-st.title('Document Query and Analysis App')
+st.title('📄 Document Query and Analysis App')
 
 try:
     # Initialize session state variables
@@ -170,16 +252,16 @@ try:
 
     # Sidebar for advanced options
     with st.sidebar:
-        st.header("Advanced Options")
+        st.header("⚙️ Advanced Options")
         chunks_to_retrieve = st.slider("Number of chunks to retrieve", 1, 10, 5)
         similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.5)
 
-        if st.button("Clear Current Session"):
+        if st.button("🗑️ Clear Current Session"):
             st.session_state['current_session_files'] = set()
             st.session_state['file_hashes'] = {}
             st.success("Current session cleared. You can now upload new files.")
 
-    uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("📤 Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             file_content = uploaded_file.getvalue()
@@ -209,130 +291,132 @@ try:
 
             # Display summary and extracted content
             display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
-            with st.expander(f"View Summary for {display_name}"):
+            with st.expander(f"📑 View Summary for {display_name}"):
                 st.markdown(st.session_state['processed_data'][display_name]['summary'])
-            with st.expander(f"View Extracted Content for {display_name}"):
+            with st.expander(f"📄 View Extracted Content for {display_name}"):
                 st.markdown(st.session_state['processed_data'][display_name]['markdown_content'])
 
     # Display all uploaded images for the current session
     if st.session_state['current_session_files']:
-        st.subheader("Uploaded Documents and Images")
+        st.subheader("📁 Uploaded Documents and Images")
         for file_name in st.session_state['current_session_files']:
-            with st.expander(f"Images from {file_name}"):
+            with st.expander(f"🖼️ Images from {file_name}"):
                 for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
 
-    # Query interface
-    st.subheader("Query the Document(s)")
-    query = st.text_input("Enter your query about the document(s):")
-    if st.button("Search"):
-        if st.session_state['current_session_files']:
-            with st.spinner('Searching...'):
-                all_docs = []
-                for file_name in st.session_state['current_session_files']:
-                    vector_db = st.session_state['processed_data'][file_name]['vector_db']
-                    docs = vector_db.similarity_search_with_score(query, k=chunks_to_retrieve)
-                    all_docs.extend([(file_name, doc, score) for doc, score in docs])
-                
-                # Sort all_docs by relevance score
-                all_docs.sort(key=lambda x: x[2])
-                
-                content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
+# ... (previous code remains the same)
 
-                system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
-                user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": system_content},
-                        {"role": "user", "content": user_content}
-                    ]
-                )
-                
-                st.subheader("Answer:")
-                st.write(response.choices[0].message.content)
-
-                confidence_score = calculate_confidence(all_docs)
-                st.write(f"Confidence Score: {confidence_score}%")
-
-                st.subheader("Sources:")
-                for file_name, doc, score in all_docs:
-                    page_num = doc.metadata.get('page_number', 'Unknown')
-                    st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
-                    highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
-                    st.markdown(f"```\n{highlighted_text}...\n```")
-                    
-                    image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
-                    if image_path:
-                        with st.expander(f"View Page {page_num} Image"):
-                            st.image(image_path, use_column_width=True)
-
-                st.write(f"Debug - Total documents retrieved: {len(all_docs)}")
-                for file_name, doc, score in all_docs:
-                    st.write(f"Debug - File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
-                    st.write(f"Debug - Content snippet: {doc.page_content[:50]}...")
-
-            # Save question and answer to history
-            if 'qa_history' not in st.session_state:
-                st.session_state['qa_history'] = []
-            st.session_state['qa_history'].append({
-                'question': query,
-                'answer': response.choices[0].message.content,
-                'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
-                'confidence': confidence_score
-            })
-
-        else:
-            st.warning("Please upload and process at least one file first.")
-
-    # Display question history
-    if 'qa_history' in st.session_state and st.session_state['qa_history']:
-        st.subheader("Question History")
-        for i, qa in enumerate(st.session_state['qa_history']):
-            with st.expander(f"Q{i+1}: {qa['question']}"):
-                st.write(f"A: {qa['answer']}")
-                st.write(f"Confidence: {qa['confidence']}%")
-                st.write("Sources:")
-                for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Page: {source['page']}")
-        
-        # Add a button to clear the question history
-        if st.button("Clear Question History"):
-            st.session_state['qa_history'] = []
-            st.success("Question history cleared!")
-
-    # Export results
-    if st.button("Export Q&A Session"):
-        qa_session = ""
-        for qa in st.session_state.get('qa_history', []):
-            qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
-            for source in qa['sources']:
-                qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
-            qa_session += "\n---\n\n"
-        
-        # Convert markdown to HTML
-        html = markdown2.markdown(qa_session)
-        
-        try:
-            # Convert HTML to PDF
-            pdf = pdfkit.from_string(html, False)
+# Query interface
+st.subheader("🔍 Query the Document(s)")
+query = st.text_input("Enter your query about the document(s):")
+if st.button("🔎 Search"):
+    if st.session_state['current_session_files']:
+        with st.spinner('Searching...'):
+            all_docs = []
+            for file_name in st.session_state['current_session_files']:
+                vector_db = st.session_state['processed_data'][file_name]['vector_db']
+                docs = vector_db.similarity_search_with_score(query, k=chunks_to_retrieve)
+                all_docs.extend([(file_name, doc, score) for doc, score in docs])
             
-            # Provide the PDF for download
-            st.download_button(
-                label="Download Q&A Session as PDF",
-                data=pdf,
-                file_name="qa_session.pdf",
-                mime="application/pdf"
+            # Sort all_docs by relevance score
+            all_docs.sort(key=lambda x: x[2])
+            
+            content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
+
+            system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
+            user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_content},
+                    {"role": "user", "content": user_content}
+                ]
             )
-        except Exception as e:
-            st.error(f"An error occurred while generating the PDF: {str(e)}")
+            
+            st.subheader("💬 Answer:")
+            st.write(response.choices[0].message.content)
+
+            confidence_score = calculate_confidence(all_docs)
+            st.write(f"Confidence Score: {confidence_score}%")
+
+            st.subheader("📚 Sources:")
+            for file_name, doc, score in all_docs:
+                page_num = doc.metadata.get('page_number', 'Unknown')
+                st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
+                highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
+                st.markdown(f"```\n{highlighted_text}...\n```")
+                
+                image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
+                if image_path:
+                    with st.expander(f"🖼️ View Page {page_num} Image"):
+                        st.image(image_path, use_column_width=True)
+
+            st.write(f"Debug - Total documents retrieved: {len(all_docs)}")
+            for file_name, doc, score in all_docs:
+                st.write(f"Debug - File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
+                st.write(f"Debug - Content snippet: {doc.page_content[:50]}...")
+
+        # Save question and answer to history
+        if 'qa_history' not in st.session_state:
+            st.session_state['qa_history'] = []
+        st.session_state['qa_history'].append({
+            'question': query,
+            'answer': response.choices[0].message.content,
+            'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
+            'confidence': confidence_score
+        })
+
+    else:
+        st.warning("Please upload and process at least one file first.")
+
+# Display question history
+if 'qa_history' in st.session_state and st.session_state['qa_history']:
+    st.subheader("📜 Question History")
+    for i, qa in enumerate(st.session_state['qa_history']):
+        with st.expander(f"Q{i+1}: {qa['question']}"):
+            st.write(f"A: {qa['answer']}")
+            st.write(f"Confidence: {qa['confidence']}%")
+            st.write("Sources:")
+            for source in qa['sources']:
+                st.write(f"- File: {source['file']}, Page: {source['page']}")
+    
+    # Add a button to clear the question history
+    if st.button("🗑️ Clear Question History"):
+        st.session_state['qa_history'] = []
+        st.success("Question history cleared!")
+
+# Export results
+if st.button("📤 Export Q&A Session"):
+    qa_session = ""
+    for qa in st.session_state.get('qa_history', []):
+        qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
+        for source in qa['sources']:
+            qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+        qa_session += "\n---\n\n"
+    
+    # Convert markdown to HTML
+    html = markdown2.markdown(qa_session)
+    
+    try:
+        # Convert HTML to PDF
+        pdf = pdfkit.from_string(html, False)
+        
+        # Provide the PDF for download
+        st.download_button(
+            label="Download Q&A Session as PDF",
+            data=pdf,
+            file_name="qa_session.pdf",
+            mime="application/pdf"
+        )
+    except Exception as e:
+        st.error(f"An error occurred while generating the PDF: {str(e)}")
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    st.sidebar.markdown("## About")
+    st.sidebar.markdown("## ℹ️ About")
     st.sidebar.info(
         "This app allows you to upload PDF documents or images, "
         "extract information from them, and query the content. "
@@ -340,7 +424,7 @@ if __name__ == "__main__":
         "FAISS for efficient similarity search."
     )
     
-    st.sidebar.markdown("## How to use")
+    st.sidebar.markdown("## 📖 How to use")
     st.sidebar.info(
         "1. Upload one or more PDF or image files.\n"
         "2. Wait for the processing to complete.\n"
@@ -350,46 +434,25 @@ if __name__ == "__main__":
         "6. Optionally, export the Q&A session as a PDF."
     )
 
-    st.sidebar.markdown("## Note")
+    st.sidebar.markdown("## ⚠️ Note")
     st.sidebar.warning(
         "This is a prototype application. Do not upload sensitive "
         "information. In the deployed version, there will be a "
         "private database to ensure security and privacy."
     )
-# CSS for styling
-st.markdown("""
-<style>
-.big-font {
-    font-size:20px !important;
-    font-weight: bold;
-}
-.stAlert > div {
-    padding-top: 20px;
-    padding-bottom: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    font-size: 16px;
-}
-.stAlert .big-font {
-    margin-bottom: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
 
-# Warning Banner
-st.markdown('<div class="big-font">⚠️ IMPORTANT NOTICE</div>', unsafe_allow_html=True)
-st.warning("""
-This is a prototype application. By using this application, you agree to the following terms and conditions:
+    st.markdown("""
+    <div class="big-font">⚠️ IMPORTANT NOTICE</div>
+    This is a prototype application. By using this application, you agree to the following terms and conditions:
 
-1. **Multi-User Environment**: Any data you upload or queries you make may be accessible to other users.
-2. **No Privacy**: Do not upload any sensitive or confidential information.
-3. **Data Storage**: All uploaded data is stored temporarily and is not secure.
-4. **Accuracy**: AI models may produce inaccurate or inconsistent results. Verify important information.
-5. **Liability**: Use this application at your own risk. We are not liable for any damages or losses.
-6. **Data Usage**: Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.
-7. **User Responsibilities**: You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.
-8. **Changes to Terms**: We reserve the right to modify these terms at any time.
+    1. **Multi-User Environment**: Any data you upload or queries you make may be accessible to other users.
+    2. **No Privacy**: Do not upload any sensitive or confidential information.
+    3. **Data Storage**: All uploaded data is stored temporarily and is not secure.
+    4. **Accuracy**: AI models may produce inaccurate or inconsistent results. Verify important information.
+    5. **Liability**: Use this application at your own risk. We are not liable for any damages or losses.
+    6. **Data Usage**: Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.
+    7. **User Responsibilities**: You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.
+    8. **Changes to Terms**: We reserve the right to modify these terms at any time.
 
-By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
-""")
+    By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
+    """, unsafe_allow_html=True)

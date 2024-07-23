@@ -142,7 +142,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Bottom warning section with expander
-with st.expander("⚠️ IMPORTANT NOTICE - Terms and Conditions", expanded=False):
+with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=False):
     st.markdown("""
     <div class="bottom-warning">
         By using this application, you agree to the following terms and conditions:

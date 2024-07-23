@@ -135,39 +135,40 @@ SYSTEM_PROMPT = """You are an AI assistant specialized in extracting and organiz
 USER_PROMPT = """
 Analyze the image and extract all relevant information, adhering to these guidelines:
 
-1. Page Number:
+1. **Page Number:**
    - Begin your response by clearly stating the page number: "## Page [Number]"
 
-2. Charts and Graphs:
+2. **Page Context:**
+   - Briefly mention how this page relates to the overall document structure (e.g., "Introduction page", "Chapter 3 summary", "Appendix B")
+
+3. **Charts and Graphs:**
    - Identify the type of chart or graph
    - List all data points, values, and labels
    - Describe trends, patterns, or notable features
    - Include axis labels, units, and scales
    - Note any legends or color-coding systems
 
-3. Text and Annotations:
+4. **Text and Annotations:**
    - Transcribe all text, including titles, captions, and labels
    - Note any highlighted, underlined, or circled text
    - Describe any arrows, lines, or other visual connectors
 
-4. Figures and Diagrams:
+5. **Figures and Diagrams:**
    - Describe the overall structure and components
    - List any numerical data or measurements
    - Explain relationships between elements
 
-5. Tables:
+6. **Tables:**
    - Reproduce the entire table in markdown format
    - Include all headers, row labels, and cell values
 
-6. General Image Content:
+7. **General Image Content:**
    - Describe any relevant images, logos, or visual elements
    - Note color schemes if they convey meaning
 
-7. Page Context:
-   - Briefly mention how this page relates to the overall document structure (e.g., "Introduction page", "Chapter 3 summary", "Appendix B")
-
 Organize the information in a clear, hierarchical structure using markdown headers and lists. Prioritize accuracy and completeness of data extraction. Do not interpret or analyze the data beyond describing obvious trends or patterns. Ensure all extracted information is queryable for future reference. Always refer to elements by their page number when describing them.
 """
+
 
 def get_generated_data(image_path):
     base64_image = encode_image(image_path)

@@ -131,46 +131,47 @@ st.markdown("""
     }
 
     /* Glass-like panel styling */
-.glass-panel {
-    background: rgba(255, 255, 255, 0.25);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    padding: 20px;
-    margin-bottom: 20px;
-}
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.25);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
 
-/* Section headers */
-.section-header {
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--ios-blue);
-    margin-bottom: 15px;
-}
+    /* Section headers */
+    .section-header {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--ios-blue);
+        margin-bottom: 15px;
+    }
 
-/* Improved layout */
-.stApp {
-    max-width: 100%;
-    margin: 0 auto;
-}
-/* Sub-panel styling */
-.sub-panel {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 15px;
-    margin-top: 10px;
-    margin-bottom: 10px;
-}
+    /* Improved layout */
+    .stApp {
+        max-width: 100%;
+        margin: 0 auto;
+    }
 
-/* Sub-header styling */
-.sub-header {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--ios-blue);
-    margin-bottom: 10px;
-}
+    /* Sub-panel styling */
+    .sub-panel {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    /* Sub-header styling */
+    .sub-header {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--ios-blue);
+        margin-bottom: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -183,8 +184,23 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
-
+# Bottom warning section with expander
+with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
+    st.markdown("""
+    <div class="bottom-warning">
+        <ol style="text-align: left;">
+            <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
+            <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>
+            <li><strong>Data Storage:</strong> All uploaded data is stored temporarily and is not secure.</li>
+            <li><strong>Accuracy:</strong> AI models may produce inaccurate or inconsistent results. Verify important information.</li>
+            <li><strong>Liability:</strong> Use this application at your own risk. We are not liable for any damages or losses.</li>
+            <li><strong>Data Usage:</strong> Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.</li>
+            <li><strong>User Responsibilities:</strong> You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.</li>
+            <li><strong>Changes to Terms:</strong> We reserve the right to modify these terms at any time.</li>
+        </ol>
+        By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
+    </div>
+    """, unsafe_allow_html=True)
 
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
@@ -192,6 +208,7 @@ def get_file_hash(file_content):
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
+
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
@@ -550,6 +567,7 @@ if __name__ == "__main__":
         "information. In the deployed version, there will be a "
         "private database to ensure security and privacy."
     )
+
 
 # Bottom warning section with expander
 with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):

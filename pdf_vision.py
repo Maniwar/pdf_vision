@@ -131,16 +131,20 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-SYSTEM_PROMPT = """You are an AI assistant specialized in extracting and organizing information from images, particularly those containing charts, graphs, and data visualizations. Respond in Markdown format. Focus on providing comprehensive, structured data that can be easily queried.  Do not include any extraneous language or pleasantries."""
+SYSTEM_PROMPT = """You are an AI assistant specialized in extracting and organizing information from images like a scanner that turns documents markdown, particularly those containing charts, graphs, and data visualizations. Your primary role is to assist users, such as doctors uploading patient files, in extracting detailed and structured information from these documents. Respond in Markdown format. Focus on providing comprehensive, structured data that can be easily queried. Always include the page number at the beginning of your response. Do not include any extraneous language or pleasantries.
+"""
 USER_PROMPT = """ Analyze the image and extract all relevant information, adhering to these guidelines:
+
 1. **Page Context:**
    - Briefly mention how this page relates to the overall document structure (e.g., "Introduction page", "Chapter 3 summary", "Appendix B")
+
 2. **Charts and Graphs:**
-   - Identify the type of chart or graph
-   - List all data points, values, and labels
-   - Describe trends, patterns, or notable features
-   - Include axis labels, units, and scales
-   - Note any legends or color-coding systems
+   - If any charts or graphs are present:
+     - Identify the type of chart or graph
+     - List all data points, values, and labels
+     - Describe trends, patterns, or notable features
+     - Include axis labels, units, and scales
+     - Note any legends or color-coding systems
 
 3. **Text and Annotations:**
    - Transcribe all text, including titles, captions, and labels
@@ -149,19 +153,22 @@ USER_PROMPT = """ Analyze the image and extract all relevant information, adheri
    - Mark any redacted sections and ensure all unredacted parts are fully transcribed
 
 4. **Figures and Diagrams:**
-   - Describe the overall structure and components
-   - List any numerical data or measurements
-   - Explain relationships between elements
+   - If any figures or diagrams are present:
+     - Describe the overall structure and components
+     - List any numerical data or measurements
+     - Explain relationships between elements
 
 5. **Tables:**
-   - Reproduce the entire table in markdown format
-   - Include all headers, row labels, and cell values
+   - If any tables are present:
+     - Reproduce the entire table in markdown format
+     - Include all headers, row labels, and cell values
 
 6. **General Image Content:**
    - Describe any relevant images, logos, or visual elements
    - Note color schemes if they convey meaning
 
-Organize the information in a clear, hierarchical structure using markdown headers and lists. Prioritize accuracy and completeness of data extraction. Do not interpret or analyze the data beyond describing obvious trends or patterns. Ensure all extracted information is queryable for future reference. Always refer to elements by their page number when describing them.
+Organize the information in a clear, hierarchical structure using markdown headers and lists. Prioritize accuracy and completeness of data extraction. Do not interpret or analyze the data beyond describing obvious trends or patterns. Ensure all extracted information is queryable for future reference.
+
 """
 
 

@@ -142,6 +142,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+
+
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
 
@@ -327,7 +329,6 @@ try:
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-
             # Display summary and extracted content
             display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
             with st.expander(f"📑 View Summary for {display_name}"):
@@ -337,16 +338,13 @@ try:
 
     # Display all uploaded images for the current session
     if st.session_state['current_session_files']:
-        st.divider()
-        st.subheader("📁 Uploads")
+        st.subheader("📁 Uploaded Documents and Images")
         for file_name in st.session_state['current_session_files']:
             with st.expander(f"🖼️ Images from {file_name}"):
                 for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
-    
 
     # Query interface
-    st.divider()
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     if st.button("🔎 Search"):
@@ -373,14 +371,13 @@ try:
                         {"role": "user", "content": user_content}
                     ]
                 )
-                st.divider()
+                
                 st.subheader("💬 Answer:")
                 st.write(response.choices[0].message.content)
 
                 confidence_score = calculate_confidence(all_docs)
                 st.write(f"Confidence Score: {confidence_score}%")
 
-                st.divider()
                 st.subheader("📚 Sources:")
                 for file_name, doc, score in all_docs:
                     page_num = doc.metadata.get('page_number', 'Unknown')
@@ -392,12 +389,11 @@ try:
                     if image_path:
                         with st.expander(f"🖼️ View Page {page_num} Image"):
                             st.image(image_path, use_column_width=True)
-                            
-                with st.expander("📊 Document Statistics", expanded=False):
-                    st.write(f"Total documents retrieved: {len(all_docs)}")
-                    for file_name, doc, score in all_docs:
-                        st.write(f"File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
-                        st.write(f"Content snippet: {doc.page_content[:100]}...")
+
+                st.write(f"Total documents retrieved: {len(all_docs)}")
+                for file_name, doc, score in all_docs:
+                    st.write(f"File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
+                    st.write(f"Content snippet: {doc.page_content[:100]}...")
 
             # Save question and answer to history
             if 'qa_history' not in st.session_state:
@@ -411,11 +407,9 @@ try:
 
         else:
             st.warning("Please upload and process at least one file first.")
-            
 
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:
-        st.divider() 
         st.subheader("📜 Question History")
         for i, qa in enumerate(st.session_state['qa_history']):
             with st.expander(f"Q{i+1}: {qa['question']}"):
@@ -429,32 +423,32 @@ try:
         if st.button("🗑️ Clear Question History"):
             st.session_state['qa_history'] = []
             st.success("Question history cleared!")
-            st.divider() 
-        # Export results
-        if st.button("📤 Export Q&A Session"):
-            qa_session = ""
-            for qa in st.session_state.get('qa_history', []):
-                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
-                for source in qa['sources']:
-                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
-                qa_session += "\n---\n\n"
+
+    # Export results
+    if st.button("📤 Export Q&A Session"):
+        qa_session = ""
+        for qa in st.session_state.get('qa_history', []):
+            qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
+            for source in qa['sources']:
+                qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+            qa_session += "\n---\n\n"
+        
+        # Convert markdown to HTML
+        html = markdown2.markdown(qa_session)
+        
+        try:
+            # Convert HTML to PDF
+            pdf = pdfkit.from_string(html, False)
             
-            # Convert markdown to HTML
-            html = markdown2.markdown(qa_session)
-            
-            try:
-                # Convert HTML to PDF
-                pdf = pdfkit.from_string(html, False)
-                
-                # Provide the PDF for download
-                st.download_button(
-                    label="Download Q&A Session as PDF",
-                    data=pdf,
-                    file_name="qa_session.pdf",
-                    mime="application/pdf"
-                )
-            except Exception as e:
-                st.error(f"An error occurred while generating the PDF: {str(e)}")
+            # Provide the PDF for download
+            st.download_button(
+                label="Download Q&A Session as PDF",
+                data=pdf,
+                file_name="qa_session.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error(f"An error occurred while generating the PDF: {str(e)}")
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
@@ -486,7 +480,6 @@ if __name__ == "__main__":
     )
 
 # Bottom warning section with expander
-st.divider()
 with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
     st.markdown("""
     <div class="bottom-warning">

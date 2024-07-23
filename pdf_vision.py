@@ -485,6 +485,7 @@ if __name__ == "__main__":
     )
 
 # Bottom warning section with expander
+st.divider()
 with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
     st.markdown("""
     <div class="bottom-warning">

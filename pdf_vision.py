@@ -130,47 +130,46 @@ st.markdown("""
         color: #FF4500;
     }
 
-    /* Glass-like panel styling */
+   /* Glass-like panel styling */
     .glass-panel {
-        background: rgba(255, 255, 255, 0.25);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        backdrop-filter: blur(4px);
-        -webkit-backdrop-filter: blur(4px);
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        padding: 20px;
-        margin-bottom: 20px;
-    }
-
-    /* Section headers */
-    .section-header {
-        font-size: 24px;
-        font-weight: 600;
-        color: var(--ios-blue);
-        margin-bottom: 15px;
-    }
-
-    /* Improved layout */
-    .stApp {
-        max-width: 100%;
-        margin: 0 auto;
+        background: rgba(255, 255, 255, 0.25) !important;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37) !important;
+        backdrop-filter: blur(4px) !important;
+        -webkit-backdrop-filter: blur(4px) !important;
+        border-radius: 10px !important;
+        border: 1px solid rgba(255, 255, 255, 0.18) !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
     }
 
     /* Sub-panel styling */
     .sub-panel {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        padding: 15px;
-        margin-top: 10px;
-        margin-bottom: 10px;
+        background: rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        padding: 15px !important;
+        margin-top: 10px !important;
+        margin-bottom: 10px !important;
+    }
+
+    /* Ensure content is visible */
+    .glass-panel *, .sub-panel * {
+        color: black !important;
+    }
+
+    /* Section headers */
+    .section-header {
+        font-size: 24px !important;
+        font-weight: 600 !important;
+        color: var(--ios-blue) !important;
+        margin-bottom: 15px !important;
     }
 
     /* Sub-header styling */
     .sub-header {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--ios-blue);
-        margin-bottom: 10px;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        color: var(--ios-blue) !important;
+        margin-bottom: 10px !important;
     }
 </style>
 """, unsafe_allow_html=True)

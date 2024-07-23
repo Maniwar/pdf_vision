@@ -429,31 +429,31 @@ try:
             st.session_state['qa_history'] = []
             st.success("Question history cleared!")
             st.divider() 
-    # Export results
-    if st.button("📤 Export Q&A Session"):
-        qa_session = ""
-        for qa in st.session_state.get('qa_history', []):
-            qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
-            for source in qa['sources']:
-                qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
-            qa_session += "\n---\n\n"
-        
-        # Convert markdown to HTML
-        html = markdown2.markdown(qa_session)
-        
-        try:
-            # Convert HTML to PDF
-            pdf = pdfkit.from_string(html, False)
+        # Export results
+        if st.button("📤 Export Q&A Session"):
+            qa_session = ""
+            for qa in st.session_state.get('qa_history', []):
+                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
+                for source in qa['sources']:
+                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+                qa_session += "\n---\n\n"
             
-            # Provide the PDF for download
-            st.download_button(
-                label="Download Q&A Session as PDF",
-                data=pdf,
-                file_name="qa_session.pdf",
-                mime="application/pdf"
-            )
-        except Exception as e:
-            st.error(f"An error occurred while generating the PDF: {str(e)}")
+            # Convert markdown to HTML
+            html = markdown2.markdown(qa_session)
+            
+            try:
+                # Convert HTML to PDF
+                pdf = pdfkit.from_string(html, False)
+                
+                # Provide the PDF for download
+                st.download_button(
+                    label="Download Q&A Session as PDF",
+                    data=pdf,
+                    file_name="qa_session.pdf",
+                    mime="application/pdf"
+                )
+            except Exception as e:
+                st.error(f"An error occurred while generating the PDF: {str(e)}")
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")

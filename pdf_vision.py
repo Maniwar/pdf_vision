@@ -329,13 +329,14 @@ try:
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
+
             # Display summary and extracted content
             display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
             with st.expander(f"📑 View Summary for {display_name}"):
                 st.markdown(st.session_state['processed_data'][display_name]['summary'])
             with st.expander(f"📄 View Extracted Content for {display_name}"):
                 st.markdown(st.session_state['processed_data'][display_name]['markdown_content'])
-
+    st.divider() 
     # Display all uploaded images for the current session
     if st.session_state['current_session_files']:
         st.subheader("📁 Uploaded Documents and Images")
@@ -343,7 +344,8 @@ try:
             with st.expander(f"🖼️ Images from {file_name}"):
                 for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
-
+    
+    st.divider() 
     # Query interface
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
@@ -371,13 +373,13 @@ try:
                         {"role": "user", "content": user_content}
                     ]
                 )
-                
+                st.divider() 
                 st.subheader("💬 Answer:")
                 st.write(response.choices[0].message.content)
+
                 confidence_score = calculate_confidence(all_docs)
                 st.write(f"Confidence Score: {confidence_score}%")
-                st.divider() 
-                
+
                 st.subheader("📚 Sources:")
                 for file_name, doc, score in all_docs:
                     page_num = doc.metadata.get('page_number', 'Unknown')
@@ -394,7 +396,7 @@ try:
                 for file_name, doc, score in all_docs:
                     st.write(f"File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
                     st.write(f"Content snippet: {doc.page_content[:100]}...")
-                    st.divider() 
+
             # Save question and answer to history
             if 'qa_history' not in st.session_state:
                 st.session_state['qa_history'] = []
@@ -407,7 +409,8 @@ try:
 
         else:
             st.warning("Please upload and process at least one file first.")
-
+            
+    st.divider() 
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:
         st.subheader("📜 Question History")
@@ -418,12 +421,12 @@ try:
                 st.write("Sources:")
                 for source in qa['sources']:
                     st.write(f"- File: {source['file']}, Page: {source['page']}")
-        st.divider() 
+        
         # Add a button to clear the question history
         if st.button("🗑️ Clear Question History"):
             st.session_state['qa_history'] = []
             st.success("Question history cleared!")
-
+    st.divider() 
     # Export results
     if st.button("📤 Export Q&A Session"):
         qa_session = ""

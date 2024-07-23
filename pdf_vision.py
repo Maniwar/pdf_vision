@@ -183,24 +183,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Bottom warning section with expander
-with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
-    st.markdown("""
-    <div class="bottom-warning">
-        <ol style="text-align: left;">
-            <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
-            <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>
-            <li><strong>Data Storage:</strong> All uploaded data is stored temporarily and is not secure.</li>
-            <li><strong>Accuracy:</strong> AI models may produce inaccurate or inconsistent results. Verify important information.</li>
-            <li><strong>Liability:</strong> Use this application at your own risk. We are not liable for any damages or losses.</li>
-            <li><strong>Data Usage:</strong> Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.</li>
-            <li><strong>User Responsibilities:</strong> You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.</li>
-            <li><strong>Changes to Terms:</strong> We reserve the right to modify these terms at any time.</li>
-        </ol>
-        By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
-    </div>
-    """, unsafe_allow_html=True)
-
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
 

@@ -148,6 +148,7 @@ def get_file_hash(file_content):
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
+
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
@@ -296,6 +297,7 @@ try:
 
         if st.button("🗑️ Clear Current Session"):
             st.session_state['current_session_files'] = set()
+            st.session_state['processed_data'] = {}
             st.session_state['file_hashes'] = {}
             st.success("Current session cleared. You can now upload new files.")
 
@@ -327,7 +329,6 @@ try:
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-
             # Display summary and extracted content
             display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
             with st.expander(f"📑 View Summary for {display_name}"):
@@ -343,7 +344,6 @@ try:
             with st.expander(f"🖼️ Images from {file_name}"):
                 for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
-    
 
     # Query interface
     st.divider()
@@ -381,17 +381,17 @@ try:
                 st.write(f"Confidence Score: {confidence_score}%")
 
                 st.divider()
-                st.subheader("📚 Sources:")
-                for file_name, doc, score in all_docs:
-                    page_num = doc.metadata.get('page_number', 'Unknown')
-                    st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
-                    highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
-                    st.markdown(f"```\n{highlighted_text}...\n```")
-                    
-                    image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
-                    if image_path:
-                        with st.expander(f"🖼️ View Page {page_num} Image"):
-                            st.image(image_path, use_column_width=True)
+                with st.expander("📚 Sources"):
+                    for file_name, doc, score in all_docs:
+                        page_num = doc.metadata.get('page_number', 'Unknown')
+                        st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
+                        highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
+                        st.markdown(f"```\n{highlighted_text}...\n```")
+                        
+                        image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
+                        if image_path:
+                            with st.expander(f"🖼️ View Page {page_num} Image"):
+                                st.image(image_path, use_column_width=True)
                             
                 with st.expander("📊 Document Statistics", expanded=False):
                     st.write(f"Total documents retrieved: {len(all_docs)}")
@@ -412,7 +412,6 @@ try:
         else:
             st.warning("Please upload and process at least one file first.")
             
-
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:
         st.divider() 

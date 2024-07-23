@@ -405,12 +405,11 @@ try:
         st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
         st.markdown('<h2 class="section-header">📁 Uploaded Documents and Images</h2>', unsafe_allow_html=True)
         for file_name in st.session_state['current_session_files']:
-            st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
-            st.markdown(f'<h3 class="sub-header">🖼️ Images from {file_name}</h3>', unsafe_allow_html=True)
-            for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
-                with st.expander(f"Page {page_num}"):
+            with st.expander(f"🖼️ Images from {file_name}"):
+                st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
+                for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Query interface

@@ -142,8 +142,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-
-
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
 
@@ -348,6 +346,7 @@ try:
     
 
     # Query interface
+    st.divider()
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     if st.button("🔎 Search"):

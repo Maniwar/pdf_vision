@@ -119,7 +119,7 @@ st.markdown("""
     padding: 15px;
     color: #8B0000;
     font-weight: 600;
-    text-align: center;
+    text-align: left;
     border-radius: 10px;
     margin-top: 20px;
 }
@@ -143,7 +143,7 @@ st.markdown("""
 # Bottom warning section
 st.markdown("""
 <div class="bottom-warning">
-    This is a prototype application. By using this application, you agree to the following terms and conditions:
+    By using this application, you agree to the following terms and conditions:
     <ol style="text-align: left;">
         <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
         <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>

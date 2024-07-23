@@ -178,7 +178,7 @@ def get_generated_data(image_path):
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
             ]}
         ],
-        max_tokens=1000,
+        max_tokens=3000,
     )
     return response.choices[0].message.content
 

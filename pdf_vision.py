@@ -379,18 +379,19 @@ try:
 
                 confidence_score = calculate_confidence(all_docs)
                 st.write(f"Confidence Score: {confidence_score}%")
-
-                st.subheader("📚 Sources:")
-                for file_name, doc, score in all_docs:
-                    page_num = doc.metadata.get('page_number', 'Unknown')
-                    st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
-                    highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
-                    st.markdown(f"```\n{highlighted_text}...\n```")
-                    
-                    image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
-                    if image_path:
-                        with st.expander(f"🖼️ View Page {page_num} Image"):
-                            st.image(image_path, use_column_width=True)
+                with st.expander(st.subheader("📚 Sources:"), expanded=False):
+                
+                    for file_name, doc, score in all_docs:
+                        page_num = doc.metadata.get('page_number', 'Unknown')
+                        st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
+                        highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
+                        st.markdown(f"```\n{highlighted_text}...\n```")
+                        
+                        image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
+                        if image_path:
+                            with st.expander(f"🖼️ View Page {page_num} Image"):
+                                st.image(image_path, use_column_width=True)
+                                
                 with st.expander("📊 Document Statistics", expanded=False):
                     st.write(f"Total documents retrieved: {len(all_docs)}")
                     for file_name, doc, score in all_docs:

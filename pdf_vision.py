@@ -184,6 +184,23 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Bottom warning section with expander
+with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
+    st.markdown("""
+    <div class="bottom-warning">
+        <ol style="text-align: left;">
+            <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
+            <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>
+            <li><strong>Data Storage:</strong> All uploaded data is stored temporarily and is not secure.</li>
+            <li><strong>Accuracy:</strong> AI models may produce inaccurate or inconsistent results. Verify important information.</li>
+            <li><strong>Liability:</strong> Use this application at your own risk. We are not liable for any damages or losses.</li>
+            <li><strong>Data Usage:</strong> Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.</li>
+            <li><strong>User Responsibilities:</strong> You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.</li>
+            <li><strong>Changes to Terms:</strong> We reserve the right to modify these terms at any time.</li>
+        </ol>
+        By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
+    </div>
+    """, unsafe_allow_html=True)
 
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
@@ -343,184 +360,180 @@ try:
             st.success("Current session cleared. You can now upload new files.")
 
     # File Upload Section
-    with st.container():
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-header">📤 Upload and Process Documents</h2>', unsafe_allow_html=True)
-        uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
-        
-        if uploaded_files:
-            st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
-            st.markdown('<h3 class="sub-header">📊 Processed Files</h3>', unsafe_allow_html=True)
-            for uploaded_file in uploaded_files:
-                file_content = uploaded_file.getvalue()
-                file_hash = get_file_hash(file_content)
-                
-                if file_hash in st.session_state['file_hashes']:
-                    existing_file_name = st.session_state['file_hashes'][file_hash]
-                    st.session_state['current_session_files'].add(existing_file_name)
-                    st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
-                else:
-                    try:
-                        vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
-                        if vector_db is not None:
-                            st.session_state['processed_data'][uploaded_file.name] = {
-                                'vector_db': vector_db,
-                                'image_paths': image_paths,
-                                'markdown_content': markdown_content,
-                                'summary': summary
-                            }
-                            st.session_state['current_session_files'].add(uploaded_file.name)
-                            st.session_state['file_hashes'][file_hash] = uploaded_file.name
-                            st.success(f"File processed and stored in vector database! Summary: {summary}")
-                    except Exception as e:
-                        st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
+    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">📤 Upload and Process Documents</h2>', unsafe_allow_html=True)
+    uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
+    
+    if uploaded_files:
+        st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
+        st.markdown('<h3 class="sub-header">📊 Processed Files</h3>', unsafe_allow_html=True)
+        for uploaded_file in uploaded_files:
+            file_content = uploaded_file.getvalue()
+            file_hash = get_file_hash(file_content)
+            
+            if file_hash in st.session_state['file_hashes']:
+                existing_file_name = st.session_state['file_hashes'][file_hash]
+                st.session_state['current_session_files'].add(existing_file_name)
+                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
+            else:
+                try:
+                    vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
+                    if vector_db is not None:
+                        st.session_state['processed_data'][uploaded_file.name] = {
+                            'vector_db': vector_db,
+                            'image_paths': image_paths,
+                            'markdown_content': markdown_content,
+                            'summary': summary
+                        }
+                        st.session_state['current_session_files'].add(uploaded_file.name)
+                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
+                        st.success(f"File processed and stored in vector database! Summary: {summary}")
+                except Exception as e:
+                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-                # Display summary and extracted content
-                display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
-                with st.expander(f"📑 View Summary for {display_name}"):
-                    st.markdown(st.session_state['processed_data'][display_name]['summary'])
-                with st.expander(f"📄 View Extracted Content for {display_name}"):
-                    st.markdown(st.session_state['processed_data'][display_name]['markdown_content'])
-            st.markdown('</div>', unsafe_allow_html=True)
+            # Display summary and extracted content
+            display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
+            with st.expander(f"📑 View Summary for {display_name}"):
+                st.markdown(st.session_state['processed_data'][display_name]['summary'])
+            with st.expander(f"📄 View Extracted Content for {display_name}"):
+                st.markdown(st.session_state['processed_data'][display_name]['markdown_content'])
         st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # Display all uploaded images for the current session
     if st.session_state['current_session_files']:
-        with st.container():
-            st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-            st.markdown('<h2 class="section-header">📁 Uploaded Documents and Images</h2>', unsafe_allow_html=True)
-            for file_name in st.session_state['current_session_files']:
-                st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
-                st.markdown(f'<h3 class="sub-header">🖼️ Images from {file_name}</h3>', unsafe_allow_html=True)
-                for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        st.markdown('<h2 class="section-header">📁 Uploaded Documents and Images</h2>', unsafe_allow_html=True)
+        for file_name in st.session_state['current_session_files']:
+            st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
+            st.markdown(f'<h3 class="sub-header">🖼️ Images from {file_name}</h3>', unsafe_allow_html=True)
+            for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
+                with st.expander(f"Page {page_num}"):
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # Query interface
-    with st.container():
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-header">🔍 Query the Document(s)</h2>', unsafe_allow_html=True)
-        query = st.text_input("Enter your query about the document(s):")
-        if st.button("🔎 Search"):
-            if st.session_state['current_session_files']:
-                with st.spinner('Searching...'):
-                    all_docs = []
-                    for file_name in st.session_state['current_session_files']:
-                        vector_db = st.session_state['processed_data'][file_name]['vector_db']
-                        docs = vector_db.similarity_search_with_score(query, k=chunks_to_retrieve)
-                        all_docs.extend([(file_name, doc, score) for doc, score in docs])
+    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">🔍 Query the Document(s)</h2>', unsafe_allow_html=True)
+    query = st.text_input("Enter your query about the document(s):")
+    if st.button("🔎 Search"):
+        if st.session_state['current_session_files']:
+            with st.spinner('Searching...'):
+                all_docs = []
+                for file_name in st.session_state['current_session_files']:
+                    vector_db = st.session_state['processed_data'][file_name]['vector_db']
+                    docs = vector_db.similarity_search_with_score(query, k=chunks_to_retrieve)
+                    all_docs.extend([(file_name, doc, score) for doc, score in docs])
+                
+                # Sort all_docs by relevance score
+                all_docs.sort(key=lambda x: x[2])
+                
+                content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
+
+                system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
+                user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": system_content},
+                        {"role": "user", "content": user_content}
+                    ]
+                )
+                
+                st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
+                st.markdown('<h3 class="sub-header">💬 Answer</h3>', unsafe_allow_html=True)
+                st.write(response.choices[0].message.content)
+
+                confidence_score = calculate_confidence(all_docs)
+                st.write(f"Confidence Score: {confidence_score}%")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
+                st.markdown('<h3 class="sub-header">📚 Sources</h3>', unsafe_allow_html=True)
+                for file_name, doc, score in all_docs:
+                    page_num = doc.metadata.get('page_number', 'Unknown')
+                    st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
+                    highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
+                    st.markdown(f"```\n{highlighted_text}...\n```")
                     
-                    # Sort all_docs by relevance score
-                    all_docs.sort(key=lambda x: x[2])
-                    
-                    content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
+                    image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
+                    if image_path:
+                        with st.expander(f"🖼️ View Page {page_num} Image"):
+                            st.image(image_path, use_column_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
-                    system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
-                    user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+                st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
+                st.markdown('<h3 class="sub-header">📊 Document Statistics</h3>', unsafe_allow_html=True)
+                st.write(f"Total documents retrieved: {len(all_docs)}")
+                for file_name, doc, score in all_docs:
+                    st.write(f"File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
+                    st.write(f"Content snippet: {doc.page_content[:100]}...")
+                st.markdown('</div>', unsafe_allow_html=True)
 
-                    response = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[
-                            {"role": "system", "content": system_content},
-                            {"role": "user", "content": user_content}
-                        ]
-                    )
-                    
-                    st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
-                    st.markdown('<h3 class="sub-header">💬 Answer</h3>', unsafe_allow_html=True)
-                    st.write(response.choices[0].message.content)
+            # Save question and answer to history
+            if 'qa_history' not in st.session_state:
+                st.session_state['qa_history'] = []
+            st.session_state['qa_history'].append({
+                'question': query,
+                'answer': response.choices[0].message.content,
+                'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
+                'confidence': confidence_score
+            })
 
-                    confidence_score = calculate_confidence(all_docs)
-                    st.write(f"Confidence Score: {confidence_score}%")
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
-                    st.markdown('<h3 class="sub-header">📚 Sources</h3>', unsafe_allow_html=True)
-                    for file_name, doc, score in all_docs:
-                        page_num = doc.metadata.get('page_number', 'Unknown')
-                        st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
-                        highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
-                        st.markdown(f"```\n{highlighted_text}...\n```")
-                        
-                        image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
-                        if image_path:
-                            with st.expander(f"🖼️ View Page {page_num} Image"):
-                                st.image(image_path, use_column_width=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
-                    st.markdown('<h3 class="sub-header">📊 Document Statistics</h3>', unsafe_allow_html=True)
-                    st.write(f"Total documents retrieved: {len(all_docs)}")
-                    for file_name, doc, score in all_docs:
-                        st.write(f"File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
-                        st.write(f"Content snippet: {doc.page_content[:100]}...")
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                # Save question and answer to history
-                if 'qa_history' not in st.session_state:
-                    st.session_state['qa_history'] = []
-                st.session_state['qa_history'].append({
-                    'question': query,
-                    'answer': response.choices[0].message.content,
-                    'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
-                    'confidence': confidence_score
-                })
-
-            else:
-                st.warning("Please upload and process at least one file first.")
-        st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.warning("Please upload and process at least one file first.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:
-        with st.container():
-            st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-            st.markdown('<h2 class="section-header">📜 Question History</h2>', unsafe_allow_html=True)
-            for i, qa in enumerate(st.session_state['qa_history']):
-                st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
-                st.markdown(f'<h3 class="sub-header">Q{i+1}: {qa["question"]}</h3>', unsafe_allow_html=True)
-                st.write(f"A: {qa['answer']}")
-                st.write(f"Confidence: {qa['confidence']}%")
-                st.write("Sources:")
-                for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Page: {source['page']}")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Add a button to clear the question history
-            if st.button("🗑️ Clear Question History"):
-                st.session_state['qa_history'] = []
-                st.success("Question history cleared!")
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        st.markdown('<h2 class="section-header">📜 Question History</h2>', unsafe_allow_html=True)
+        for i, qa in enumerate(st.session_state['qa_history']):
+            st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
+            st.markdown(f'<h3 class="sub-header">Q{i+1}: {qa["question"]}</h3>', unsafe_allow_html=True)
+            st.write(f"A: {qa['answer']}")
+            st.write(f"Confidence: {qa['confidence']}%")
+            st.write("Sources:")
+            for source in qa['sources']:
+                st.write(f"- File: {source['file']}, Page: {source['page']}")
             st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Add a button to clear the question history
+        if st.button("🗑️ Clear Question History"):
+            st.session_state['qa_history'] = []
+            st.success("Question history cleared!")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # Export results
-    with st.container():
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-header">📤 Export Results</h2>', unsafe_allow_html=True)
-        if st.button("Export Q&A Session"):
-            qa_session = ""
-            for qa in st.session_state.get('qa_history', []):
-                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
-                for source in qa['sources']:
-                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
-                qa_session += "\n---\n\n"
+    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">📤 Export Results</h2>', unsafe_allow_html=True)
+    if st.button("Export Q&A Session"):
+        qa_session = ""
+        for qa in st.session_state.get('qa_history', []):
+            qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
+            for source in qa['sources']:
+                qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+            qa_session += "\n---\n\n"
+        
+        # Convert markdown to HTML
+        html = markdown2.markdown(qa_session)
+        
+        try:
+            # Convert HTML to PDF
+            pdf = pdfkit.from_string(html, False)
             
-            # Convert markdown to HTML
-            html = markdown2.markdown(qa_session)
-            
-            try:
-                # Convert HTML to PDF
-                pdf = pdfkit.from_string(html, False)
-                
-                # Provide the PDF for download
-                st.download_button(
-                    label="Download Q&A Session as PDF",
-                    data=pdf,
-                    file_name="qa_session.pdf",
-                    mime="application/pdf"
-                )
-            except Exception as e:
-                st.error(f"An error occurred while generating the PDF: {str(e)}")
-        st.markdown('</div>', unsafe_allow_html=True)
+            # Provide the PDF for download
+            st.download_button(
+                label="Download Q&A Session as PDF",
+                data=pdf,
+                file_name="qa_session.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error(f"An error occurred while generating the PDF: {str(e)}")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")

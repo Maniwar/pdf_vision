@@ -380,6 +380,7 @@ try:
                 confidence_score = calculate_confidence(all_docs)
                 st.write(f"Confidence Score: {confidence_score}%")
 
+                st.divider()
                 st.subheader("📚 Sources:")
                 for file_name, doc, score in all_docs:
                     page_num = doc.metadata.get('page_number', 'Unknown')

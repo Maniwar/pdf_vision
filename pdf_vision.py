@@ -142,10 +142,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Bottom warning section with expander
-with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=False):
+with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
     st.markdown("""
     <div class="bottom-warning">
-        By using this application, you agree to the following terms and conditions:
         <ol style="text-align: left;">
             <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
             <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>

@@ -336,16 +336,17 @@ try:
                 st.markdown(st.session_state['processed_data'][display_name]['summary'])
             with st.expander(f"📄 View Extracted Content for {display_name}"):
                 st.markdown(st.session_state['processed_data'][display_name]['markdown_content'])
-    st.divider() 
+
     # Display all uploaded images for the current session
     if st.session_state['current_session_files']:
-        st.subheader("📁 Uploaded Documents and Images")
+        st.divider()
+        st.subheader("📁 Uploads")
         for file_name in st.session_state['current_session_files']:
             with st.expander(f"🖼️ Images from {file_name}"):
                 for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
     
-    st.divider() 
+
     # Query interface
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
@@ -373,7 +374,7 @@ try:
                         {"role": "user", "content": user_content}
                     ]
                 )
-                st.divider() 
+                st.divider()
                 st.subheader("💬 Answer:")
                 st.write(response.choices[0].message.content)
 
@@ -410,9 +411,10 @@ try:
         else:
             st.warning("Please upload and process at least one file first.")
             
-    st.divider() 
+
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:
+        st.divider() 
         st.subheader("📜 Question History")
         for i, qa in enumerate(st.session_state['qa_history']):
             with st.expander(f"Q{i+1}: {qa['question']}"):
@@ -426,7 +428,7 @@ try:
         if st.button("🗑️ Clear Question History"):
             st.session_state['qa_history'] = []
             st.success("Question history cleared!")
-    st.divider() 
+            st.divider() 
     # Export results
     if st.button("📤 Export Q&A Session"):
         qa_session = ""

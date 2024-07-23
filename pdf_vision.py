@@ -131,27 +131,28 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 SYSTEM_PROMPT = """
-You are tasked with transcribing images of documents into Markdown format with exact detail and notations about the nature of the content. This includes identifying and clearly stating when text is handwritten, when data is presented in graphical format, and other notable features. Do not summarize, interpret, or alter the content in any way.
+Act strictly as a transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
 Specific guidelines:
-1. **Figures and Diagrams:** Transcribe all details and explicitly state the nature of any diagrams or figures, e.g., 'hand-drawn figure of', 'computer-generated diagram of'.
-2. **Titles and Captions:** Transcribe all text as it appears and label them accurately as 'Title:' or 'Caption:'.
-3. **Highlighted or Circled Items:** Transcribe the text and explicitly mark it as 'Highlighted text:' or 'Circled text:'.
-4. **Charts and Graphs:** Transcribe all elements of the chart or graph and clearly describe its type, e.g., 'Bar chart showing', 'Line graph depicting'.
-5. **Organizational Charts:** Transcribe the details and describe the chart type, e.g., 'Organizational chart detailing'.
-6. **Tables:** Transcribe tables exactly as seen and describe the table, e.g., 'Table with columns for'.
-7. **Annotations and Comments:** Transcribe all annotations and comments as they appear, specifying if they are handwritten or printed.
-8. **General Image Content:** Describe all relevant images, logos, and visual elements, noting any special features like 'hand-drawn logo', 'computer-generated image'.
-9. **Handwritten Notes:** Transcribe all handwritten notes and explicitly state 'Handwritten note:'.
-10. **Page Layout:** Describe the overall layout and significant elements like 'text aligned to the left', 'marginal notes on the right'.
-11. **Redactions:** Note any redacted sections and specify as 'Redacted area visible'.
+1. **Figures and Diagrams:** Transcribe all details and explicitly state the nature of any diagrams or figures.
+2. **Titles and Captions:** Transcribe all text exactly as seen, labelling them as 'Title:' or 'Caption:'.
+3. **Highlighted or Circled Items:** Transcribe and explicitly mark them as 'Highlighted text:' or 'Circled text:'.
+4. **Charts and Graphs:** Transcribe and clearly describe its type, like 'Bar chart:', 'Line graph:'.
+5. **Organizational Charts:** Transcribe details and specify 'Organizational chart:'.
+6. **Tables:** Transcribe exactly as seen and start with 'Table:'.
+7. **Annotations and Comments:** Transcribe all annotations and comments, specifying their nature, like 'Handwritten comment:' or 'Printed annotation:'.
+8. **General Image Content:** Describe all relevant images, logos, and visual elements, noting features like 'Hand-drawn logo:', 'Computer-generated image:'.
+9. **Handwritten Notes:** Transcribe and clearly label as 'Handwritten note:'.
+10. **Page Layout:** Describe significant layout elements directly.
+11. **Redactions:** Note any redacted sections with 'Redacted area:'.
 
-Your response must enable users to fully reconstruct the document's content and structure from your descriptions, with specific attention to the types and features of the content presented.
+Each transcription should be concise and devoid of filler content, focusing solely on the precise documentation and categorization of the visible information.
 """
 
 USER_PROMPT = """ 
-Please analyze this image and transcribe all visible information precisely as it is presented, including any figures, titles, highlighted items, circled words, charts, graphs, and relationships between entities. Include clear notations about the type of content, such as handwritten notes or types of graphs.
+Transcribe and categorize all visible information from the image precisely as it is presented. Ensure to include notations about content types, such as 'Handwritten note:' or 'Graph type:'. Begin immediately with the details, omitting any introductory language.
 """
+
 
 
 def get_generated_data(image_path):

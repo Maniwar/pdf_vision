@@ -152,6 +152,7 @@ Analyze the image and extract all relevant information, adhering to these guidel
    - Transcribe all text, including titles, captions, and labels
    - Note any highlighted, underlined, or circled text
    - Describe any arrows, lines, or other visual connectors
+   - Mark any redacted sections and ensure all unredacted parts are fully transcribed
 
 5. **Figures and Diagrams:**
    - Describe the overall structure and components
@@ -168,6 +169,7 @@ Analyze the image and extract all relevant information, adhering to these guidel
 
 Organize the information in a clear, hierarchical structure using markdown headers and lists. Prioritize accuracy and completeness of data extraction. Do not interpret or analyze the data beyond describing obvious trends or patterns. Ensure all extracted information is queryable for future reference. Always refer to elements by their page number when describing them.
 """
+
 
 
 def get_generated_data(image_path):

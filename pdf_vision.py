@@ -130,46 +130,46 @@ st.markdown("""
         color: #FF4500;
     }
 
-   /* Glass-like panel styling */
+ /* Glass-like panel styling */
     .glass-panel {
-        background: rgba(255, 255, 255, 0.25) !important;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37) !important;
-        backdrop-filter: blur(4px) !important;
-        -webkit-backdrop-filter: blur(4px) !important;
-        border-radius: 10px !important;
-        border: 1px solid rgba(255, 255, 255, 0.18) !important;
-        padding: 20px !important;
-        margin-bottom: 20px !important;
+        background: rgba(255, 255, 255, 0.25);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 20px;
+        margin-bottom: 20px;
     }
 
     /* Sub-panel styling */
     .sub-panel {
-        background: rgba(255, 255, 255, 0.1) !important;
-        border-radius: 8px !important;
-        padding: 15px !important;
-        margin-top: 10px !important;
-        margin-bottom: 10px !important;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 10px;
+        margin-bottom: 10px;
     }
 
     /* Ensure content is visible */
     .glass-panel *, .sub-panel * {
-        color: black !important;
+        color: black;
     }
 
     /* Section headers */
     .section-header {
-        font-size: 24px !important;
-        font-weight: 600 !important;
-        color: var(--ios-blue) !important;
-        margin-bottom: 15px !important;
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--ios-blue);
+        margin-bottom: 15px;
     }
 
     /* Sub-header styling */
     .sub-header {
-        font-size: 18px !important;
-        font-weight: 600 !important;
-        color: var(--ios-blue) !important;
-        margin-bottom: 10px !important;
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--ios-blue);
+        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -340,58 +340,48 @@ try:
             st.session_state['file_hashes'] = {}
             st.success("Current session cleared. You can now upload new files.")
 
-    # File Upload Section
-    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-header">📤 Upload and Process Documents</h2>', unsafe_allow_html=True)
-    uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
-    
-    if uploaded_files:
-        st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
-        st.markdown('<h3 class="sub-header">📊 Processed Files</h3>', unsafe_allow_html=True)
-        for uploaded_file in uploaded_files:
-            file_content = uploaded_file.getvalue()
-            file_hash = get_file_hash(file_content)
+        # File Upload Section
+        file_upload_container = st.container()
+        with file_upload_container:
+            st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+            st.markdown('<h2 class="section-header">📤 Upload and Process Documents</h2>', unsafe_allow_html=True)
+            uploaded_files = st.file_uploader("Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
             
-            if file_hash in st.session_state['file_hashes']:
-                existing_file_name = st.session_state['file_hashes'][file_hash]
-                st.session_state['current_session_files'].add(existing_file_name)
-                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
-            else:
-                try:
-                    vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
-                    if vector_db is not None:
-                        st.session_state['processed_data'][uploaded_file.name] = {
-                            'vector_db': vector_db,
-                            'image_paths': image_paths,
-                            'markdown_content': markdown_content,
-                            'summary': summary
-                        }
-                        st.session_state['current_session_files'].add(uploaded_file.name)
-                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
-                        st.success(f"File processed and stored in vector database! Summary: {summary}")
-                except Exception as e:
-                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-
-            # Display summary and extracted content
-            display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
-            with st.expander(f"📑 View Summary for {display_name}"):
-                st.markdown(st.session_state['processed_data'][display_name]['summary'])
-            with st.expander(f"📄 View Extracted Content for {display_name}"):
-                st.markdown(st.session_state['processed_data'][display_name]['markdown_content'])
-        st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Display all uploaded images for the current session
-    if st.session_state['current_session_files']:
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-header">📁 Uploaded Documents and Images</h2>', unsafe_allow_html=True)
-        for file_name in st.session_state['current_session_files']:
-            with st.expander(f"🖼️ Images from {file_name}"):
+            if uploaded_files:
                 st.markdown('<div class="sub-panel">', unsafe_allow_html=True)
-                for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
-                    st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
+                st.markdown('<h3 class="sub-header">📊 Processed Files</h3>', unsafe_allow_html=True)
+                for uploaded_file in uploaded_files:
+                    file_content = uploaded_file.getvalue()
+                    file_hash = get_file_hash(file_content)
+                    
+                    if file_hash in st.session_state['file_hashes']:
+                        existing_file_name = st.session_state['file_hashes'][file_hash]
+                        st.session_state['current_session_files'].add(existing_file_name)
+                        st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
+                    else:
+                        try:
+                            vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
+                            if vector_db is not None:
+                                st.session_state['processed_data'][uploaded_file.name] = {
+                                    'vector_db': vector_db,
+                                    'image_paths': image_paths,
+                                    'markdown_content': markdown_content,
+                                    'summary': summary
+                                }
+                                st.session_state['current_session_files'].add(uploaded_file.name)
+                                st.session_state['file_hashes'][file_hash] = uploaded_file.name
+                                st.success(f"File processed and stored in vector database! Summary: {summary}")
+                        except Exception as e:
+                            st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
+
+                    # Display summary and extracted content
+                    display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
+                    with st.expander(f"📑 View Summary for {display_name}"):
+                        st.markdown(st.session_state['processed_data'][display_name]['summary'])
+                    with st.expander(f"📄 View Extracted Content for {display_name}"):
+                        st.markdown(st.session_state['processed_data'][display_name]['markdown_content'])
                 st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
     # Query interface
     st.markdown('<div class="glass-panel">', unsafe_allow_html=True)

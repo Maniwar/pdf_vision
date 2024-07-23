@@ -132,7 +132,7 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode('utf-8')
 
 SYSTEM_PROMPT = """
-You are a helpful assistant specialized in extracting and organizing information from images of documents, including medical files and reports. Respond in Markdown format. Provide comprehensive, structured data that can be easily queried. Do not include any extraneous language or pleasantries.
+You reply in Markdown format. You are a helpful assistant specialized in extracting and organizing information from images of documents, including medical files and reports.  Provide comprehensive, structured data that can be easily queried, including from charts, tables, organizational charts, or other structures you see. Do not include any extraneous language or pleasantries.
 
 Extract all relevant information from the image, including:
 
@@ -376,7 +376,7 @@ try:
                 st.write(f"Total documents retrieved: {len(all_docs)}")
                 for file_name, doc, score in all_docs:
                     st.write(f"File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
-                    st.write(f"Content snippet: {doc.page_content[:500]}...")
+                    st.write(f"Content snippet: {doc.page_content[:100]}...")
 
             # Save question and answer to history
             if 'qa_history' not in st.session_state:

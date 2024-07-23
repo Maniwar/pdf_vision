@@ -131,8 +131,7 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-SYSTEM_PROMPT = 
-"""
+SYSTEM_PROMPT = """
 You are a helpful assistant specialized in extracting and organizing information from images of documents, including medical files and reports. Respond in Markdown format. Provide comprehensive, structured data that can be easily queried. Do not include any extraneous language or pleasantries.
 
 Extract all relevant information from the image, including:
@@ -152,8 +151,7 @@ Extract all relevant information from the image, including:
 Organize the information clearly in Markdown format. Ensure all details are included for users to query.
 """
 
-USER_PROMPT = 
-""" 
+USER_PROMPT = """ 
 Analyze the image and extract all relevant information, including figures, titles, highlighted items, circled words, charts, graphs, and relationships between entities.
 """
 

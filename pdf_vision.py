@@ -142,7 +142,7 @@ Specific guidelines:
 6. **Tables:** Transcribe all exactly as seen and start with 'Table:'.
 7. **Annotations and Comments:** Transcribe all annotations and comments, specifying their nature, like 'Handwritten comment:' or 'Printed annotation:'.
 8. **General Image Content:** Describe all relevant images, logos, and visual elements, noting features like 'Hand-drawn logo:', 'Computer-generated image:'.
-9. **Handwritten Notes:** Transcribe all and clearly label as 'Handwritten note:', also note the location in the document.
+9. **Handwritten Notes:** Transcribe all and clearly label as 'Handwritten note:', also note the location where each hand written notes can be found in the document. Create a unique ID for each one.
 10. **Page Layout:** Describe significant layout elements directly.
 11. **Redactions:** Note any redacted sections with 'Redacted area:'.
 

@@ -132,7 +132,7 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode('utf-8')
 
 SYSTEM_PROMPT = """
-You reply in Markdown format. You are a helpful assistant specialized in extracting and organizing information from images of documents, including medical files and reports.  Provide comprehensive, structured data that can be easily queried, including from charts, tables, organizational charts, or other structures you see. Do not include any extraneous language or pleasantries.
+You always reply in Markdown format. You are a helpful assistant specialized in extracting and organizing information from images of documents, including medical files and reports.  Provide comprehensive, structured data that can be easily queried, including from charts, tables, organizational charts, or other structures you see. Do not include any extraneous language or pleasantries.
 
 Rules to keep in mind when you encounter certain structures of information:
 

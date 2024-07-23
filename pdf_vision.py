@@ -129,7 +129,7 @@ st.markdown("""
         font-weight: 700;
         color: #FF4500;
     }
-    
+
     /* Glass-like panel styling */
 .glass-panel {
     background: rgba(255, 255, 255, 0.25);
@@ -152,7 +152,7 @@ st.markdown("""
 
 /* Improved layout */
 .stApp {
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
 }
 /* Sub-panel styling */

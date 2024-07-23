@@ -131,20 +131,20 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 SYSTEM_PROMPT = """
-Act strictly as an advanced AI based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
+Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
 Specific guidelines:
-1. **Figures and Diagrams:** Transcribe all details and explicitly state the nature of any diagrams or figures so that it could be reconstructed based on your notation..
-2. **Titles and Captions:** Transcribe all text exactly as seen, labelling them as 'Title:' or 'Caption:'.
-3. **Underlined, Highlighted or Circled Items:** Transcribe all and explicitly identify them:' so that it could be reconstructed based on your notation..
-4. **Charts and Graphs:** Transcribe all the related data and clearly describe its type, like 'Bar chart:', 'Line graph:' so that it could be reconstructed based on your notation.
-5. **Organizational Charts:** Transcribe all details and specify 'Organizational chart:' so that it could be reconstructed based on your notation.
-6. **Tables:** Transcribe all exactly as seen and start with 'Table:' so that it could be reconstructed based on your notation.
-7. **Annotations and Comments:** Transcribe all annotations and comments, specifying their nature, like 'Handwritten comment:' or 'Printed annotation:'.
-8. **General Image Content:** Describe all relevant images, logos, and visual elements, noting features like 'Hand-drawn logo:', 'Computer-generated image:' so that it could be reconstructed based on your notation..
-9. **Handwritten Notes:** Transcribe all and clearly label as 'Handwritten note:', also note the location where each hand written notes can be found in the document. Create a unique ID for each one so that it could be reconstructed based on your notation..
-10. **Page Layout:** Describe significant layout elements directly.
-11. **Redactions:** Note any redacted sections with 'Redacted area:' so that it could be reconstructed based on your notation.
+1. **Figures and Diagrams:** Transcribe all details and explicitly state the nature of any diagrams or figures so that they can be reconstructed based on your notation.
+2. **Titles and Captions:** Transcribe all text exactly as seen, labeling them as 'Title:' or 'Caption:'.
+3. **Underlined, Highlighted, or Circled Items:** Transcribe all such items and explicitly identify them as 'Underlined:', 'Highlighted:', or 'Circled:' so that they can be reconstructed based on your notation.
+4. **Charts and Graphs:** Transcribe all related data and clearly describe its type, like 'Bar chart:' or 'Line graph:' so that they can be reconstructed based on your notation.
+5. **Organizational Charts:** Transcribe all details and specify 'Organizational chart:' so that they can be reconstructed based on your notation.
+6. **Tables:** Transcribe tables exactly as seen and start with 'Table:' so that they can be reconstructed based on your notation.
+7. **Annotations and Comments:** Transcribe all annotations and comments, specifying their nature, like 'Handwritten comment:' or 'Printed annotation:', so that they can be reconstructed based on your notation.
+8. **General Image Content:** Describe all relevant images, logos, and visual elements, noting features like 'Hand-drawn logo:' or 'Computer-generated image:' so that they can be reconstructed based on your notation.
+9. **Handwritten Notes:** Transcribe all and clearly label as 'Handwritten note:', specifying their location within the document and creating a unique ID for each one so that they can be reconstructed based on your notation.
+10. **Page Layout:** Describe significant layout elements directly so that the document layout can be reconstructed.
+11. **Redactions:** Note any redacted sections with 'Redacted area:' so that they can be identified and the visible context can be reconstructed.
 
 Each transcription should be devoid of filler content, focusing solely on the precise documentation and categorization of the visible information.
 """
@@ -152,8 +152,6 @@ Each transcription should be devoid of filler content, focusing solely on the pr
 USER_PROMPT = """ 
 Transcribe and categorize all visible information from the image precisely as it is presented. Ensure to include notations about content types, such as 'Handwritten note:' or 'Graph type:'. Begin immediately with the details, omitting any introductory language.
 """
-
-
 
 def get_generated_data(image_path):
     base64_image = encode_image(image_path)

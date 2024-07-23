@@ -129,9 +129,45 @@ st.markdown("""
         font-weight: 700;
         color: #FF4500;
     }
+
+    /* Glass-like panel styling */
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.25);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    /* Sub-panel styling */
+    .sub-panel {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    /* Section headers */
+    .section-header {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--ios-blue);
+        margin-bottom: 15px;
+    }
+
+    /* Sub-header styling */
+    .sub-header {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--ios-blue);
+        margin-bottom: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
-
 # Warning Banner
 st.markdown("""
 <div class="warning-banner">
@@ -372,11 +408,18 @@ try:
                     ]
                 )
                 
+                
+                st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+                st.markdown('<h2 class="section-header">Section Title</h2>', unsafe_allow_html=True)
                 st.subheader("💬 Answer:")
                 st.write(response.choices[0].message.content)
 
                 confidence_score = calculate_confidence(all_docs)
                 st.write(f"Confidence Score: {confidence_score}%")
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                
+
 
                 st.subheader("📚 Sources:")
                 for file_name, doc, score in all_docs:

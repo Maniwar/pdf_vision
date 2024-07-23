@@ -131,39 +131,33 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-SYSTEM_PROMPT = """You are an AI assistant specialized in extracting and organizing information from images, particularly those containing charts, graphs, and data visualizations. Respond in Markdown format. Focus on providing comprehensive, structured data that can be easily queried. Always include the page number at the beginning of your response. Do not include any extraneous language or pleasantries."""
-USER_PROMPT = """
-Analyze the image and extract all relevant information, adhering to these guidelines:
-
-1. **Page Number:**
-   - Begin your response by clearly stating the page number: "## Page [Number]"
-
-2. **Page Context:**
+SYSTEM_PROMPT = """You are an AI assistant specialized in extracting and organizing information from images, particularly those containing charts, graphs, and data visualizations. Respond in Markdown format. Focus on providing comprehensive, structured data that can be easily queried.  Do not include any extraneous language or pleasantries."""
+USER_PROMPT = """ Analyze the image and extract all relevant information, adhering to these guidelines:
+1. **Page Context:**
    - Briefly mention how this page relates to the overall document structure (e.g., "Introduction page", "Chapter 3 summary", "Appendix B")
-
-3. **Charts and Graphs:**
+2. **Charts and Graphs:**
    - Identify the type of chart or graph
    - List all data points, values, and labels
    - Describe trends, patterns, or notable features
    - Include axis labels, units, and scales
    - Note any legends or color-coding systems
 
-4. **Text and Annotations:**
+3. **Text and Annotations:**
    - Transcribe all text, including titles, captions, and labels
    - Note any highlighted, underlined, or circled text
    - Describe any arrows, lines, or other visual connectors
    - Mark any redacted sections and ensure all unredacted parts are fully transcribed
 
-5. **Figures and Diagrams:**
+4. **Figures and Diagrams:**
    - Describe the overall structure and components
    - List any numerical data or measurements
    - Explain relationships between elements
 
-6. **Tables:**
+5. **Tables:**
    - Reproduce the entire table in markdown format
    - Include all headers, row labels, and cell values
 
-7. **General Image Content:**
+6. **General Image Content:**
    - Describe any relevant images, logos, or visual elements
    - Note color schemes if they convey meaning
 

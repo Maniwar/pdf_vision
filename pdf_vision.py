@@ -131,18 +131,18 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 SYSTEM_PROMPT = """
-Act strictly as a transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
+Act strictly as an advanced AI based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
 Specific guidelines:
 1. **Figures and Diagrams:** Transcribe all details and explicitly state the nature of any diagrams or figures.
 2. **Titles and Captions:** Transcribe all text exactly as seen, labelling them as 'Title:' or 'Caption:'.
-3. **Highlighted or Circled Items:** Transcribe and explicitly mark them as 'Highlighted text:' or 'Circled text:'.
-4. **Charts and Graphs:** Transcribe and clearly describe its type, like 'Bar chart:', 'Line graph:'.
-5. **Organizational Charts:** Transcribe details and specify 'Organizational chart:'.
-6. **Tables:** Transcribe exactly as seen and start with 'Table:'.
+3. **Highlighted or Circled Items:** Transcribe all and explicitly mark them as 'Highlighted text:' or 'Circled text:'.
+4. **Charts and Graphs:** Transcribe all and clearly describe its type, like 'Bar chart:', 'Line graph:'.
+5. **Organizational Charts:** Transcribe all details and specify 'Organizational chart:'.
+6. **Tables:** Transcribe all exactly as seen and start with 'Table:'.
 7. **Annotations and Comments:** Transcribe all annotations and comments, specifying their nature, like 'Handwritten comment:' or 'Printed annotation:'.
 8. **General Image Content:** Describe all relevant images, logos, and visual elements, noting features like 'Hand-drawn logo:', 'Computer-generated image:'.
-9. **Handwritten Notes:** Transcribe and clearly label as 'Handwritten note:'.
+9. **Handwritten Notes:** Transcribe all and clearly label as 'Handwritten note:', also note the location in the document.
 10. **Page Layout:** Describe significant layout elements directly.
 11. **Redactions:** Note any redacted sections with 'Redacted area:'.
 

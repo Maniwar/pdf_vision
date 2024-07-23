@@ -389,7 +389,7 @@ try:
                         
                         image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
                         if image_path:
-                            with st.expander(f"🖼️ View Page {page_num} Image"):
+                            with st.container(f"🖼️ View Page {page_num} Image"):
                                 st.image(image_path, use_column_width=True)
                             
                 with st.container("📊 Document Statistics", expanded=False):

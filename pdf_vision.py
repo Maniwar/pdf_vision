@@ -391,11 +391,11 @@ try:
                     if image_path:
                         with st.expander(f"🖼️ View Page {page_num} Image"):
                             st.image(image_path, use_column_width=True)
-
-                st.write(f"Total documents retrieved: {len(all_docs)}")
-                for file_name, doc, score in all_docs:
-                    st.write(f"File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
-                    st.write(f"Content snippet: {doc.page_content[:100]}...")
+                with st.expander("📊 Document Statistics", expanded=False):
+                    st.write(f"Total documents retrieved: {len(all_docs)}")
+                    for file_name, doc, score in all_docs:
+                        st.write(f"File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
+                        st.write(f"Content snippet: {doc.page_content[:100]}...")
 
             # Save question and answer to history
             if 'qa_history' not in st.session_state:

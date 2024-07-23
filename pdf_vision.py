@@ -12,6 +12,9 @@ import pdfkit
 from PIL import Image
 import hashlib
 
+# Set page configuration to wide mode
+st.set_page_config(layout="wide")
+
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
 MODEL = "gpt-4o-mini"

@@ -278,7 +278,7 @@ def process_file(uploaded_file):
     return vector_db, image_paths, markdown_content, summary
 
 # Streamlit interface
-st.title('📄 Document Query and Analysis App')
+st.title('📄 Document Query App')
 
 try:
     # Initialize session state variables

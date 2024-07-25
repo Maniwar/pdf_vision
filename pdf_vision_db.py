@@ -20,7 +20,7 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4o-mini"  # Latest GPT-4 Turbo model
+MODEL = "gpt-4o-mini"  # Latest GPT 4o Mini model
 MAX_TOKENS = 12000 
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
@@ -592,7 +592,7 @@ if __name__ == "__main__":
     st.sidebar.info(
         "This app allows you to upload PDF documents, Markdown files, or images, "
         "extract information from them, and query the content. "
-        "It uses OpenAI's GPT-4 Turbo model for text generation and "
+        "It uses OpenAI's GPT 4o Mini model for text generation and "
         "Milvus for efficient similarity search across sessions."
     )
     

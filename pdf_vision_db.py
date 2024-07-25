@@ -17,7 +17,7 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4-1106-preview"  # Updated to the latest GPT-4 model
+MODEL = "gpt-4o-mini"  # Updated to the latest GPT-4 model
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
@@ -232,7 +232,7 @@ def get_generated_data(image_path):
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
             ]}
         ],
-        max_tokens=4096,
+        max_tokens=16000,
         temperature=0.1
     )
     return response.choices[0].message.content

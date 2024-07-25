@@ -507,16 +507,14 @@ try:
             options=all_documents,
             default=list(st.session_state['current_session_files'])
         )
-        
+        st.subheader("**📜 Content:**")
+        st.divider()
         for file_name in st.session_state['selected_documents']:
             st.subheader(f"📄 {file_name}")
             page_contents = get_document_content(file_name)
             if page_contents:
                 with st.expander("📑 Document Summary"):
                     st.markdown(page_contents[0]['summary'])
-                
-                st.markdown("**📜 Content:**")
-                st.divider()
                 
                 with st.expander("📄 Scanned Content"):
                     for page in page_contents:

@@ -211,9 +211,7 @@ def generate_summary(page_contents):
         summaries = []
         for i, chunk in enumerate(chunks):
             chunk_summary = client.chat.completions.create(
-                model=
-
-MODEL,
+                model=MODEL,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that summarizes document chunks."},
                     {"role": "user", "content": f"Provide a brief summary of this document chunk ({i+1}/{len(chunks)}):\n\n{chunk}"}
@@ -459,9 +457,7 @@ try:
                     for page in all_pages:
                         if page['file_name'] not in sources_by_file:
                             sources_by_file[page['file_name']] = []
-                       
-
- sources_by_file[page['file_name']].append(page)
+                        sources_by_file[page['file_name']].append(page)
 
                     total_citation_length = 0
                     for file_name, pages in sources_by_file.items():
@@ -659,8 +655,6 @@ if __name__ == "__main__":
 st.divider()
 with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
     st.markdown("""
-
-
     <div class="bottom-warning">
         <ol style="text-align: left;">
             <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>

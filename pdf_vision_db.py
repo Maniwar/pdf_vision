@@ -439,7 +439,7 @@ try:
                     
                     st.markdown("**Pages:**")
                     for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
-                        with st.container(f"Page {page_num}"):
+                            st.write(f"Page {page_num}"):
                             st.image(image_path, use_column_width=True)
                             st.markdown(st.session_state['processed_data'][file_name]['page_contents'][page_num-1])
                 else:

@@ -5,11 +5,13 @@ from pathlib import Path
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain_milvus import Milvus
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
 import markdown2
 import pdfkit
 import hashlib
+import tiktoken
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -156,6 +158,20 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
+def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> int:
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+def chunk_content(content: str, chunk_size: int = 500, chunk_overlap: int = 50) -> list:
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        length_function=num_tokens_from_string,
+    )
+    chunks = text_splitter.split_text(content)
+    return chunks
+
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
@@ -203,15 +219,27 @@ def save_uploadedfile(uploadedfile):
         f.write(uploadedfile.getbuffer())
     return file_path
 
-def generate_summary(content):
-    response = client.chat.completions.create(
+def generate_summary(chunks):
+    summaries = []
+    for i, chunk in enumerate(chunks):
+        chunk_summary = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that summarizes document chunks."},
+                {"role": "user", "content": f"Provide a brief summary of this document chunk ({i+1}/{len(chunks)}):\n\n{chunk}"}
+            ]
+        ).choices[0].message.content
+        summaries.append(chunk_summary)
+    
+    final_summary = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that summarizes documents."},
-            {"role": "user", "content": f"Provide a brief summary of this document, including main topics and key points:\n\n{content}"}
+            {"role": "system", "content": "You are a helpful assistant that combines document chunk summaries."},
+            {"role": "user", "content": f"Combine these chunk summaries into a coherent overall summary:\n\n{''.join(summaries)}"}
         ]
-    )
-    return response.choices[0].message.content
+    ).choices[0].message.content
+    
+    return final_summary
 
 def calculate_confidence(docs):
     return min(len(docs) / 5 * 100, 100)  # 5 is the max number of chunks we retrieve
@@ -219,10 +247,6 @@ def calculate_confidence(docs):
 def highlight_relevant_text(text, query):
     highlighted = text.replace(query, f"**{query}**")
     return highlighted
-
-def split_markdown_by_pages(markdown_content):
-    pages = markdown_content.split('\n## Page ')
-    return [page.strip() for page in pages if page.strip()]
 
 def process_file(uploaded_file):
     st.subheader(f"Processing: {uploaded_file.name}")
@@ -264,26 +288,20 @@ def process_file(uploaded_file):
         markdown_content += get_generated_data(img_path)
         progress_bar.progress((i + 1) / len(image_paths))
 
-    pages = split_markdown_by_pages(markdown_content)
-    data = []
-    for i, page_content in enumerate(pages):
-        data.append({
-            'content': page_content,
-            'metadata': {'page_number': i + 1}
-        })
-
+    chunks = chunk_content(markdown_content)
+    
     vector_db = Milvus.from_texts(
-        [item['content'] for item in data],
+        chunks,
         embeddings,
-        metadatas=[item['metadata'] for item in data],
+        metadatas=[{'chunk_index': i, 'file_name': uploaded_file.name} for i in range(len(chunks))],
         connection_args=MILVUS_CONNECTION_ARGS,
     )
 
-    summary = generate_summary(markdown_content)
+    summary = generate_summary(chunks)
 
     progress_bar.progress(100)
 
-    return vector_db, image_paths, markdown_content, summary
+    return vector_db, image_paths, chunks, summary
 
 # Streamlit interface
 st.title('📄 Document Query and Analysis App')
@@ -323,45 +341,60 @@ try:
             else:
                 # New file, needs processing
                 try:
-                    vector_db, image_paths, markdown_content, summary = process_file(uploaded_file)
+                    with st.spinner('Processing file... This may take a while for large documents.'):
+                        vector_db, image_paths, chunks, summary = process_file(uploaded_file)
                     if vector_db is not None:
                         st.session_state['processed_data'][uploaded_file.name] = {
                             'vector_db': vector_db,
                             'image_paths': image_paths,
-                            'markdown_content': markdown_content,
+                            'chunks': chunks,
                             'summary': summary
                         }
                         st.session_state['current_session_files'].add(uploaded_file.name)
                         st.session_state['file_hashes'][file_hash] = uploaded_file.name
-                        st.success(f"File processed and stored in vector database! Summary: {summary}")
+                        st.success(f"File processed and stored in vector database!")
+                        with st.expander("View Summary"):
+                            st.markdown(summary)
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-            # Display summary and extracted content
-            display_name = uploaded_file.name if uploaded_file.name in st.session_state['processed_data'] else st.session_state['file_hashes'].get(file_hash, uploaded_file.name)
-            with st.expander(f"📑 View Summary for {display_name}"):
-                st.markdown(st.session_state['processed_data'][display_name]['summary'])
-            with st.expander(f"📄 View Extracted Content for {display_name}"):
-                st.markdown(st.session_state['processed_data'][display_name]['markdown_content'])
+    # Document Selection and Management
+    st.divider()
+    st.subheader("📂 Uploaded Documents")
 
-    # Display all uploaded images for the current session
     if st.session_state['current_session_files']:
-        st.divider()
-        st.subheader("📁 Uploads")
-        for file_name in st.session_state['current_session_files']:
-            with st.expander(f"🖼️ Images from {file_name}"):
+        selected_documents = st.multiselect(
+            "Select documents to query:",
+            options=list(st.session_state['current_session_files']),
+            default=list(st.session_state['current_session_files'])
+        )
+        
+        for file_name in selected_documents:
+            with st.expander(f"📄 {file_name}"):
+                st.markdown(f"**Summary:**")
+                st.markdown(st.session_state['processed_data'][file_name]['summary'])
+                
+                st.markdown("**Images:**")
                 for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                     st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
+                
+                if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                    st.session_state['current_session_files'].remove(file_name)
+                    del st.session_state['processed_data'][file_name]
+                    st.success(f"{file_name} has been removed.")
+                    st.rerun()
+    else:
+        st.info("No documents uploaded yet. Please upload some documents to get started.")
 
     # Query interface
     st.divider()
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     if st.button("🔎 Search"):
-        if st.session_state['current_session_files']:
+        if selected_documents:
             with st.spinner('Searching...'):
                 all_docs = []
-                for file_name in st.session_state['current_session_files']:
+                for file_name in selected_documents:
                     vector_db = st.session_state['processed_data'][file_name]['vector_db']
                     docs = vector_db.similarity_search_with_score(query, k=chunks_to_retrieve)
                     all_docs.extend([(file_name, doc, score) for doc, score in docs])
@@ -369,9 +402,9 @@ try:
                 # Sort all_docs by relevance score
                 all_docs.sort(key=lambda x: x[2])
                 
-                content = "\n".join([f"File: {file_name}, Page {doc.metadata.get('page_number', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
+                content = "\n".join([f"File: {file_name}, Chunk {doc.metadata.get('chunk_index', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
 
-                system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
+                system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, chunk indices, and relevant snippets."
                 user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
 
                 response = client.chat.completions.create(
@@ -391,34 +424,39 @@ try:
                 st.divider()
                 st.subheader("📚 Sources:")
                 for file_name, doc, score in all_docs:
-                    page_num = doc.metadata.get('page_number', 'Unknown')
-                    st.markdown(f"**File: {file_name}, Page {page_num}, Relevance: {1 - score:.2f}**")
+                    chunk_index = doc.metadata.get('chunk_index', 'Unknown')
+                    st.markdown(f"**File: {file_name}, Chunk {chunk_index}, Relevance: {1 - score:.2f}**")
                     highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
                     st.markdown(f"```\n{highlighted_text}...\n```")
                     
-                    image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
-                    if image_path:
-                        with st.expander(f"🖼️ View Image: {file_name}, Page {page_num}"):
-                            st.image(image_path, use_column_width=True)
+                    # Find the corresponding image
+                    image_paths = st.session_state['processed_data'][file_name]['image_paths']
+                    if chunk_index != 'Unknown':
+                        page_num = chunk_index // 2 + 1  # Assuming 2 chunks per page, adjust as needed
+                        image_path = next((img_path for num, img_path in image_paths if num == page_num), None)
+                        if image_path:
+                            with st.expander(f"🖼️ View Image: {file_name}, Page {page_num}"):
+                                st.image(image_path, use_column_width=True)
 
                 with st.expander("📊 Document Statistics", expanded=False):
-                    st.write(f"Total documents retrieved: {len(all_docs)}")
+                    st.write(f"Total chunks retrieved: {len(all_docs)}")
                     for file_name, doc, score in all_docs:
-                        st.write(f"File: {file_name}, Page: {doc.metadata.get('page_number', 'Unknown')}, Score: {1 - score:.2f}")
+                        st.write(f"File: {file_name}, Chunk: {doc.metadata.get('chunk_index', 'Unknown')}, Score: {1 - score:.2f}")
                         st.write(f"Content snippet: {doc.page_content[:100]}...")
 
-            # Save question and answer to history
-            if 'qa_history' not in st.session_state:
-                st.session_state['qa_history'] = []
-            st.session_state['qa_history'].append({
-                'question': query,
-                'answer': response.choices[0].message.content,
-                'sources': [{'file': file_name, 'page': doc.metadata.get('page_number', 'Unknown')} for file_name, doc, _ in all_docs],
-                'confidence': confidence_score
-            })
+                # Save question and answer to history
+                if 'qa_history' not in st.session_state:
+                    st.session_state['qa_history'] = []
+                st.session_state['qa_history'].append({
+                    'question': query,
+                    'answer': response.choices[0].message.content,
+                    'sources': [{'file': file_name, 'chunk': doc.metadata.get('chunk_index', 'Unknown')} for file_name, doc, _ in all_docs],
+                    'confidence': confidence_score,
+                    'documents_queried': selected_documents
+                })
 
         else:
-            st.warning("Please upload and process at least one file first.")
+            st.warning("Please select at least one document to query.")
     
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:
@@ -428,9 +466,10 @@ try:
             with st.expander(f"Q{i+1}: {qa['question']}"):
                 st.write(f"A: {qa['answer']}")
                 st.write(f"Confidence: {qa['confidence']}%")
+                st.write("Documents Queried:", ", ".join(qa['documents_queried']))
                 st.write("Sources:")
                 for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Page: {source['page']}")
+                    st.write(f"- File: {source['file']}, Chunk: {source['chunk']}")
         
         # Add a button to clear the question history
         if st.button("🗑️ Clear Question History"):
@@ -441,9 +480,9 @@ try:
         if st.button("📤 Export Q&A Session"):
             qa_session = ""
             for qa in st.session_state.get('qa_history', []):
-                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nSources:\n"
+                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
                 for source in qa['sources']:
-                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+                    qa_session += f"- File: {source['file']}, Chunk: {source['chunk']}\n"
                 qa_session += "\n---\n\n"
             
             # Convert markdown to HTML
@@ -479,10 +518,11 @@ if __name__ == "__main__":
     st.sidebar.info(
         "1. Upload one or more PDF or image files.\n"
         "2. Wait for the processing to complete.\n"
-        "3. Enter your query in the text box.\n"
-        "4. Click 'Search' to get answers based on the document content.\n"
-        "5. View the answer, confidence score, and sources.\n"
-        "6. Optionally, export the Q&A session as a PDF."
+        "3. Select the documents you want to query.\n"
+        "4. Enter your query in the text box.\n"
+        "5. Click 'Search' to get answers based on the selected document content.\n"
+        "6. View the answer, confidence score, and sources.\n"
+        "7. Optionally, export the Q&A session as a PDF."
     )
 
     st.sidebar.markdown("## ⚠️ Note")

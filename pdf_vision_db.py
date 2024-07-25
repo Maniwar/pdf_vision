@@ -54,7 +54,7 @@ def get_or_create_collection(collection_name, dim=1536):
         return Collection(collection_name)
     else:
         fields = [
-            FieldSchema(name="id", dtype=DataType.INT64, is_primary=key=True, auto_id=True),
+            FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
             FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
             FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=255),
             FieldSchema(name="page_number", dtype=DataType.INT64),

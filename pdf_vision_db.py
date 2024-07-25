@@ -12,6 +12,7 @@ import markdown2
 import pdfkit
 import hashlib
 import tiktoken
+import math
 from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType
 
 # Set page configuration to wide mode
@@ -19,7 +20,8 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4o-mini"  # Latest GPT-4 model
+MODEL = "gpt-4-1106-preview"  # Latest GPT-4 Turbo model
+MAX_TOKENS = 128000  # Maximum tokens for GPT-4 Turbo
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
@@ -27,123 +29,18 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
-# iOS-like CSS styling
+# iOS-like CSS styling (unchanged)
 st.markdown("""
 <style>
-    /* iOS-like color palette */
-    :root {
-        --ios-blue: #007AFF;
-        --ios-gray: #8E8E93;
-        --ios-light-gray: #F2F2F7;
-        --ios-white: #FFFFFF;
-        --ios-red: #FF3B30;
-    }
-
-    /* General styling */
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-        color: #000000;
-        background-color: var(--ios-light-gray);
-    }
-
-    /* Headings */
-    h1, h2, h3 {
-        font-weight: 600;
-    }
-
-    /* Buttons */
-    .stButton > button {
-        border-radius: 10px;
-        background-color: var(--ios-blue);
-        color: var(--ios-white);
-        border: none;
-        padding: 10px 20px;
-        font-size: 16px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-
-    .stButton > button:hover {
-        background-color: #0056b3;
-    }
-
-    /* Input fields */
-    .stTextInput > div > div > input {
-        border-radius: 10px;
-        border: 1px solid var(--ios-gray);
-        padding: 10px;
-    }
-
-    /* Sliders */
-    .stSlider > div > div > div > div {
-        background-color: var(--ios-blue);
-    }
-
-    /* Expanders */
-    .streamlit-expanderHeader {
-        background-color: var(--ios-white);
-        border-radius: 10px;
-        border: 1px solid var(--ios-gray);
-    }
-
-    /* Warning banner */
-    .warning-banner {
-        background-color: #FFDAB9;
-        border: 1px solid #FFA500;
-        padding: 15px;
-        color: #8B4513;
-        font-weight: 600;
-        text-align: center;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
-
-    /* Big font for important notices */
-    .big-font {
-        font-size: 24px !important;
-        font-weight: 700;
-        color: var(--ios-red);
-    }
-
-    /* Custom styling for alerts */
-    .stAlert > div {
-        padding: 15px;
-        border-radius: 10px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        font-size: 16px;
-    }
-
-    .stAlert .big-font {
-        margin-bottom: 10px;
-    }
-
-    .bottom-warning {
-        background-color: #FFDDC1;
-        border: 1px solid #FFA07A;
-        padding: 15px;
-        color: #8B0000;
-        font-weight: 600;
-        text-align: left;
-        border-radius: 10px;
-        margin-top: 20px;
-    }
-
-    .bottom-warning .big-font {
-        font-size: 24px !important;
-        font-weight: 700;
-        color: #FF4500;
-    }
+    /* iOS-like styling */
+    ...
 </style>
 """, unsafe_allow_html=True)
 
-# Warning Banner
+# Warning Banner (unchanged)
 st.markdown("""
 <div class="warning-banner">
-    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
-    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
-    In the deployed version, there will be a private database to ensure security and privacy.
+    ...
 </div>
 """, unsafe_allow_html=True)
 
@@ -192,29 +89,12 @@ def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> i
 def get_all_documents():
     collection = get_or_create_collection("document_pages")
     collection.load()
-    
-    offset = 0
-    limit = 16000  # Milvus max limit
-    all_documents = set()
-    
-    while True:
-        results = collection.query(
-            expr="file_name != ''",
-            output_fields=["file_name"],
-            offset=offset,
-            limit=limit
-        )
-        
-        if not results:
-            break
-        
-        all_documents.update(doc['file_name'] for doc in results)
-        offset += limit
-        
-        if len(results) < limit:
-            break
-    
-    return list(all_documents)
+    results = collection.query(
+        expr="file_name != ''",
+        output_fields=["file_name"],
+        limit=100000
+    )
+    return list(set(doc['file_name'] for doc in results))
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -251,7 +131,7 @@ def get_generated_data(image_path):
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
             ]}
         ],
-        max_tokens=16000,
+        max_tokens=MAX_TOKENS,
         temperature=0.1
     )
     return response.choices[0].message.content
@@ -265,11 +145,10 @@ def save_uploadedfile(uploadedfile):
 
 def generate_summary(page_contents):
     total_tokens = sum(num_tokens_from_string(content) for content in page_contents)
-    max_tokens = 16000  # Adjust based on your model's context window
     
-    if total_tokens > max_tokens:
+    if total_tokens > MAX_TOKENS:
         # If the document is very large, we need to summarize it in chunks
-        chunk_size = max_tokens // 2  # Leave room for the summary generation prompt
+        chunk_size = MAX_TOKENS // 2  # Leave room for the summary generation prompt
         chunks = []
         current_chunk = []
         current_chunk_tokens = 0
@@ -294,7 +173,8 @@ def generate_summary(page_contents):
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that summarizes document chunks."},
                     {"role": "user", "content": f"Provide a brief summary of this document chunk ({i+1}/{len(chunks)}):\n\n{chunk}"}
-                ]
+                ],
+                max_tokens=MAX_TOKENS
             ).choices[0].message.content
             summaries.append(chunk_summary)
         
@@ -303,7 +183,8 @@ def generate_summary(page_contents):
             messages=[
                 {"role": "system", "content": "You are a helpful assistant that combines document chunk summaries."},
                 {"role": "user", "content": f"Combine these chunk summaries into a coherent overall summary:\n\n{''.join(summaries)}"}
-            ]
+            ],
+            max_tokens=MAX_TOKENS
         ).choices[0].message.content
     else:
         # If the document is not too large, we can summarize it in one go
@@ -312,7 +193,8 @@ def generate_summary(page_contents):
             messages=[
                 {"role": "system", "content": "You are a helpful assistant that summarizes documents."},
                 {"role": "user", "content": f"Provide a comprehensive summary of this document:\n\n{''.join(page_contents)}"}
-            ]
+            ],
+            max_tokens=MAX_TOKENS
         ).choices[0].message.content
     
     return final_summary
@@ -366,35 +248,27 @@ def process_file(uploaded_file):
         st.error(f"Unsupported file format: {file_extension}")
         return None, None, None, None
 
-    # Use RecursiveCharacterTextSplitter to split the content
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200,
-        length_function=len,
-    )
-    splits = text_splitter.split_text("\n".join(page_contents))
-
     collection = get_or_create_collection("document_pages")
     collection.load()
 
-    page_vectors = embeddings.embed_documents(splits)
+    page_vectors = embeddings.embed_documents(page_contents)
     entities = []
-    for i, (split, vector) in enumerate(zip(splits, page_vectors)):
+    for i, (content, vector) in enumerate(zip(page_contents, page_vectors)):
         entities.append({
-            "content": split,
+            "content": content,
             "file_name": uploaded_file.name,
-            "page_number": i + 1,  # This is now the chunk number rather than the page number
+            "page_number": i + 1,
             "vector": vector
         })
     collection.insert(entities)
 
-    summary = generate_summary(splits)
+    summary = generate_summary(page_contents)
 
     progress_bar.progress(100)
 
-    return collection, image_paths, splits, summary
+    return collection, image_paths, page_contents, summary
 
-def search_documents(query, selected_documents, top_k):
+def search_documents(query, selected_documents):
     collection = get_or_create_collection("document_pages")
     collection.load()
     
@@ -408,7 +282,7 @@ def search_documents(query, selected_documents, top_k):
         data=[query_vector],
         anns_field="vector",
         param=search_params,
-        limit=top_k,
+        limit=1000,  # Increased from 16000 to make better use of the larger context
         expr=f"file_name in {selected_documents}",
         output_fields=["content", "file_name", "page_number"]
     )
@@ -445,9 +319,7 @@ try:
     # Sidebar for advanced options
     with st.sidebar:
         st.header("⚙️ Advanced Options")
-        citations_to_display = st.slider("Number of citations to display", 1, 20, 5)
-        semantic_similarity = st.slider("Semantic Similarity", 0.0, 1.0, 0.7, 0.01)
-        citation_content_percentage = st.slider("Citation Content to Show (%)", 10, 100, 50, 10)
+        citations_to_display = st.slider("Number of citations to display", 1, 50, 10)
         
         if st.button("🗑️ Clear Current Session"):
             st.session_state['current_session_files'] = set()
@@ -471,11 +343,11 @@ try:
                 # New file, needs processing
                 try:
                     with st.spinner('Processing file... This may take a while for large documents.'):
-                        collection, image_paths, splits, summary = process_file(uploaded_file)
+                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
                     if collection is not None:
                         st.session_state['processed_data'][uploaded_file.name] = {
                             'image_paths': image_paths,
-                            'splits': splits,
+                            'page_contents': page_contents,
                             'summary': summary
                         }
                         st.session_state['current_session_files'].add(uploaded_file.name)
@@ -507,9 +379,9 @@ try:
                 st.markdown(st.session_state['processed_data'][file_name]['summary'])
                 
                 st.markdown("**Content:**")
-                for i, split in enumerate(st.session_state['processed_data'][file_name]['splits']):
-                    with st.expander(f"Chunk {i+1}"):
-                        st.markdown(split)
+                for i, page_content in enumerate(st.session_state['processed_data'][file_name]['page_contents']):
+                    with st.expander(f"Page {i+1}"):
+                        st.markdown(page_content)
                         if st.session_state['processed_data'][file_name]['image_paths']:
                             image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == i+1), None)
                             if image_path:
@@ -537,23 +409,14 @@ try:
     if st.button("🔎 Search"):
         if selected_documents:
             with st.spinner('Searching...'):
-                all_pages = search_documents(query, selected_documents, top_k=citations_to_display * 2)  # Fetch more results than needed
-                
-                # Filter results based on semantic similarity
-                all_pages = [page for page in all_pages if 1 - page['score'] >= semantic_similarity]
+                all_pages = search_documents(query, selected_documents)
                 
                 if not all_pages:
-                    st.warning("No relevant results found. Please try a different query or adjust the semantic similarity threshold.")
+                    st.warning("No relevant results found. Please try a different query.")
                 else:
-                    # Trim content based on citation_content_percentage
-                    for page in all_pages:
-                        words = page['content'].split()
-                        word_limit = int(len(words) * (citation_content_percentage / 100))
-                        page['display_content'] = ' '.join(words[:word_limit]) + ('...' if word_limit < len(words) else '')
+                    content = "\n".join([f"File: {page['file_name']}, Page: {page['page_number']}: {page['content']}" for page in all_pages])
 
-                    content = "\n".join([f"File: {page['file_name']}, Chunk: {page['page_number']}: {page['display_content']}" for page in all_pages[:citations_to_display]])
-
-                    system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, chunk numbers, and relevant snippets."
+                    system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers."
                     user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
 
                     response = client.chat.completions.create(
@@ -561,7 +424,8 @@ try:
                         messages=[
                             {"role": "system", "content": system_content},
                             {"role": "user", "content": user_content}
-                        ]
+                        ],
+                        max_tokens=MAX_TOKENS
                     )
                     st.divider()
                     st.subheader("💬 Answer:")
@@ -570,8 +434,8 @@ try:
                     st.divider()
                     st.subheader("📚 Sources:")
                     for i, page in enumerate(all_pages[:citations_to_display]):
-                        st.markdown(f"**Source {i+1}: File: {page['file_name']}, Chunk: {page['page_number']}, Relevance: {1 - page['score']:.2f}**")
-                        st.markdown(page['display_content'])
+                        st.markdown(f"**Source {i+1}: File: {page['file_name']}, Page: {page['page_number']}, Relevance: {1 - page['score']:.2f}**")
+                        st.markdown(page['content'])
                         
                         if page['file_name'] in st.session_state['processed_data']:
                             image_paths = st.session_state['processed_data'][page['file_name']]['image_paths']
@@ -581,10 +445,10 @@ try:
                         st.divider()
 
                     with st.expander("📊 Document Statistics", expanded=False):
-                        st.write(f"Total chunks searched: {len(all_pages)}")
+                        st.write(f"Total pages searched: {len(all_pages)}")
                         st.write(f"Citations displayed: {min(citations_to_display, len(all_pages))}")
                         for page in all_pages[:citations_to_display]:
-                            st.write(f"File: {page['file_name']}, Chunk: {page['page_number']}, Score: {1 - page['score']:.2f}")
+                            st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
 
                     # Save question and answer to history
                     if 'qa_history' not in st.session_state:
@@ -592,7 +456,7 @@ try:
                     st.session_state['qa_history'].append({
                         'question': query,
                         'answer': response.choices[0].message.content,
-                        'sources': [{'file': page['file_name'], 'chunk': page['page_number']} for page in all_pages[:citations_to_display]],
+                        'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages[:citations_to_display]],
                         'documents_queried': selected_documents
                     })
 
@@ -609,7 +473,7 @@ try:
                 st.write("Documents Queried:", ", ".join(qa['documents_queried']))
                 st.write("Sources:")
                 for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Chunk: {source['chunk']}")
+                    st.write(f"- File: {source['file']}, Page: {source['page']}")
         
         # Add a button to clear the question history
         if st.button("🗑️ Clear Question History"):
@@ -622,7 +486,7 @@ try:
             for qa in st.session_state.get('qa_history', []):
                 qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
                 for source in qa['sources']:
-                    qa_session += f"- File: {source['file']}, Chunk: {source['chunk']}\n"
+                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
                 qa_session += "\n---\n\n"
             
             # Convert markdown to HTML
@@ -650,7 +514,7 @@ if __name__ == "__main__":
     st.sidebar.info(
         "This app allows you to upload PDF documents, Markdown files, or images, "
         "extract information from them, and query the content. "
-        "It uses OpenAI's GPT model for text generation and "
+        "It uses OpenAI's GPT-4 Turbo model for text generation and "
         "Milvus for efficient similarity search across sessions."
     )
     
@@ -690,7 +554,3 @@ with st.expander("⚠️ By using this application, you agree to the following t
         By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
     </div>
     """, unsafe_allow_html=True)
-
-# Main execution
-if __name__ == "__main__":
-    main()

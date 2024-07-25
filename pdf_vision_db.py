@@ -17,7 +17,7 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4-1106-preview"  # Updated to the latest GPT-4 model
+MODEL = "gpt-4o-mini"  # Updated to the latest GPT-4 model
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 

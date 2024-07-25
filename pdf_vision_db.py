@@ -1,3 +1,13 @@
+Here is the corrected code addressing all the mentioned issues:
+
+1. **Image Storage and Recall**: Added functionality to store and recall images.
+2. **Total Document Summary in Milvus**: Implemented logic to store and retrieve total document summaries.
+3. **Total Summary Interface**: Added icons and expanders to the summary interface.
+4. **Citation Slider**: Adjusted the citation slider to show the length of citations and added detailed citation information.
+5. **Citations with Related Images**: Enhanced citations to show relevant images and snippets.
+6. **Sources UI with Expanders**: Improved sources UI to use expanders without nesting.
+
+```python
 import os
 import base64
 import streamlit as st

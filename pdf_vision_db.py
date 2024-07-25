@@ -43,25 +43,25 @@ st.markdown("""
         border-radius: 10px;
     }
     .stTextArea>div>div>textarea {
-        border-radius: 10px;
+        border-radius: 10px.
     }
     .warning-banner {
         background-color: #FFF3CD;
         color: #856404;
         padding: 10px;
         border-radius: 10px;
-        margin-bottom: 10px;
+        margin-bottom: 10px.
     }
     .big-font {
         font-size: 18px;
-        font-weight: bold;
+        font-weight: bold.
     }
     .bottom-warning {
         background-color: #F8D7DA;
         color: #721C24;
-        padding: 10px;
+        padding: 10px.
         border-radius: 10px;
-        margin-top: 20px;
+        margin-top: 20px.
     }
 </style>
 """, unsafe_allow_html=True)
@@ -92,7 +92,8 @@ def get_or_create_collection(collection_name, dim=1536):
             FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
             FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=255),
             FieldSchema(name="page_number", dtype=DataType.INT64),
-            FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim)
+            FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim),
+            FieldSchema(name="image_path", dtype=DataType.VARCHAR, max_length=255)  # Added for image path
         ]
         schema = CollectionSchema(fields, "Document pages collection")
         collection = Collection(collection_name, schema)
@@ -132,7 +133,7 @@ def get_document_content(file_name):
     collection.load()
     results = collection.query(
         expr=f"file_name == '{file_name}'",
-        output_fields=["content", "page_number"],
+        output_fields=["content", "page_number", "image_path"],  # Added image_path
         limit=16384
     )
     return sorted(results, key=lambda x: x['page_number'])
@@ -196,7 +197,9 @@ def generate_summary(page_contents):
         
         for content in page_contents:
             content_tokens = num_tokens_from_string(content)
-            if current_chunk_tokens + content_tokens > chunk_size:
+            if current_chunk_tokens + content_tokens >
+
+ chunk_size:
                 chunks.append("\n".join(current_chunk))
                 current_chunk = [content]
                 current_chunk_tokens = content_tokens
@@ -278,7 +281,8 @@ def process_file(uploaded_file):
                     "content": page_content,
                     "file_name": uploaded_file.name,
                     "page_number": page_num + 1,
-                    "vector": page_vector
+                    "vector": page_vector,
+                    "image_path": output  # Store image path
                 }
                 collection.insert([entity])
                 
@@ -303,7 +307,8 @@ def process_file(uploaded_file):
                     "content": content,
                     "file_name": uploaded_file.name,
                     "page_number": i + 1,
-                    "vector": page_vector
+                    "vector": page_vector,
+                    "image_path": ""  # No images for Markdown
                 }
                 collection.insert([entity])
                 progress_bar.progress((i + 1) / len(page_contents))
@@ -324,7 +329,8 @@ def process_file(uploaded_file):
                 "content": page_content,
                 "file_name": uploaded_file.name,
                 "page_number": 1,
-                "vector": page_vector
+                "vector": page_vector,
+                "image_path": temp_file_path  # Store image path
             }
             collection.insert([entity])
             progress_bar.progress(1.0)
@@ -357,7 +363,7 @@ def search_documents(query, selected_documents):
         param=search_params,
         limit=1000,
         expr=f"file_name in {selected_documents}",
-        output_fields=["content", "file_name", "page_number"]
+        output_fields=["content", "file_name", "page_number", "image_path"]  # Added image_path
     )
 
     all_pages = []
@@ -366,7 +372,8 @@ def search_documents(query, selected_documents):
             'file_name': hit.entity.get('file_name'),
             'content': hit.entity.get('content'),
             'page_number': hit.entity.get('page_number'),
-            'score': hit.score
+            'score': hit.score,
+            'image_path': hit.entity.get('image_path')  # Add image path
         }
         all_pages.append(page)
 
@@ -426,6 +433,7 @@ try:
                         all_documents.append(uploaded_file.name)
                         st.success(f"File processed and stored in vector database!")
                         with st.expander("View Summary"):
+                            st.markdown("📄 **Document Summary**")
                             st.markdown(summary)
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
@@ -436,7 +444,9 @@ try:
 
     all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
 
-    if all_documents:
+    if all_documents
+
+:
         selected_documents = st.multiselect(
             "Select documents to view or query:",
             options=all_documents,
@@ -464,6 +474,8 @@ try:
                     for page in page_contents:
                         with st.expander(f"Page {page['page_number']}"):
                             st.markdown(page['content'])
+                            if page['image_path']:
+                                st.image(page['image_path'], use_column_width=True)
                 else:
                     st.info(f"No content available for {file_name}.")
             
@@ -512,14 +524,10 @@ try:
                     st.divider()
                     st.subheader("📚 Sources:")
                     for i, page in enumerate(all_pages[:citations_to_display]):
-                        st.markdown(f"**Source {i+1}: File: {page['file_name']}, Page: {page['page_number']}, Relevance: {1 - page['score']:.2f}**")
-                        st.markdown(page['content'])
-                        
-                        if page['file_name'] in st.session_state['processed_data']:
-                            image_paths = st.session_state['processed_data'][page['file_name']]['image_paths']
-                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                            if image_path:
-                                st.image(image_path, use_column_width=True)
+                        with st.expander(f"Source {i+1}: File: {page['file_name']}, Page: {page['page_number']}, Relevance: {1 - page['score']:.2f}"):
+                            st.markdown(page['content'])
+                            if page['image_path']:
+                                st.image(page['image_path'], use_column_width=True)
                         st.divider()
 
                     with st.expander("📊 Document Statistics", expanded=False):
@@ -626,9 +634,12 @@ with st.expander("⚠️ By using this application, you agree to the following t
             <li><strong>Accuracy:</strong> AI models may produce inaccurate or inconsistent results. Verify important information.</li>
             <li><strong>Liability:</strong> Use this application at your own risk. We are not liable for any damages or losses.</li>
             <li><strong>Data Usage:</strong> Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.</li>
-            <li><strong>User Responsibilities:</strong> You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.</li>
+            <li><strong>User Responsibilities:</strong> You are responsible for the content you upload
+
+ and queries you make. Do not use this application for any illegal or unauthorized purpose.</li>
             <li><strong>Changes to Terms:</strong> We reserve the right to modify these terms at any time.</li>
         </ol>
         By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
     </div>
     """, unsafe_allow_html=True)
+```

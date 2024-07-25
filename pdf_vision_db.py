@@ -30,18 +30,123 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
-# iOS-like CSS styling (unchanged)
+# iOS-like CSS styling
 st.markdown("""
 <style>
-    /* iOS-like styling */
-    ...
+    /* iOS-like color palette */
+    :root {
+        --ios-blue: #007AFF;
+        --ios-gray: #8E8E93;
+        --ios-light-gray: #F2F2F7;
+        --ios-white: #FFFFFF;
+        --ios-red: #FF3B30;
+    }
+
+    /* General styling */
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+        color: #000000;
+        background-color: var(--ios-light-gray);
+    }
+
+    /* Headings */
+    h1, h2, h3 {
+        font-weight: 600;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        border-radius: 10px;
+        background-color: var(--ios-blue);
+        color: var(--ios-white);
+        border: none;
+        padding: 10px 20px;
+        font-size: 16px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .stButton > button:hover {
+        background-color: #0056b3;
+    }
+
+    /* Input fields */
+    .stTextInput > div > div > input {
+        border-radius: 10px;
+        border: 1px solid var(--ios-gray);
+        padding: 10px;
+    }
+
+    /* Sliders */
+    .stSlider > div > div > div > div {
+        background-color: var(--ios-blue);
+    }
+
+    /* Expanders */
+    .streamlit-expanderHeader {
+        background-color: var(--ios-white);
+        border-radius: 10px;
+        border: 1px solid var(--ios-gray);
+    }
+
+    /* Warning banner */
+    .warning-banner {
+        background-color: #FFDAB9;
+        border: 1px solid #FFA500;
+        padding: 15px;
+        color: #8B4513;
+        font-weight: 600;
+        text-align: center;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+
+    /* Big font for important notices */
+    .big-font {
+        font-size: 24px !important;
+        font-weight: 700;
+        color: var(--ios-red);
+    }
+
+    /* Custom styling for alerts */
+    .stAlert > div {
+        padding: 15px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-size: 16px;
+    }
+
+    .stAlert .big-font {
+        margin-bottom: 10px;
+    }
+
+    .bottom-warning {
+        background-color: #FFDDC1;
+        border: 1px solid #FFA07A;
+        padding: 15px;
+        color: #8B0000;
+        font-weight: 600;
+        text-align: left;
+        border-radius: 10px;
+        margin-top: 20px;
+    }
+
+    .bottom-warning .big-font {
+        font-size: 24px !important;
+        font-weight: 700;
+        color: #FF4500;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Warning Banner (unchanged)
+# Warning Banner
 st.markdown("""
 <div class="warning-banner">
-    ...
+    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
+    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
+    In the deployed version, there will be a private database to ensure security and privacy.
 </div>
 """, unsafe_allow_html=True)
 

@@ -506,7 +506,6 @@ if st.button("🔎 Search"):
             except Exception as e:
                 st.error(f"An error occurred while generating the PDF: {str(e)}")
 
-except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
 
 if __name__ == "__main__":

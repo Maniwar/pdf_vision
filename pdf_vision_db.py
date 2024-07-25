@@ -197,6 +197,16 @@ def chunk_content(content: str, chunk_size: int = 500, chunk_overlap: int = 50) 
     chunks = text_splitter.split_text(content)
     return chunks
 
+def get_all_documents():
+    collection = get_or_create_collection("document_chunks")
+    collection.load()
+    results = collection.query(
+        expr="file_name != ''",
+        output_fields=["file_name"],
+        limit=10000  # Adjust this limit as needed
+    )
+    return list(set(doc['file_name'] for doc in results))
+
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
@@ -347,13 +357,8 @@ try:
     if 'file_hashes' not in st.session_state:
         st.session_state['file_hashes'] = {}
 
-    # Load existing files from Milvus
-    collection = get_or_create_collection("document_chunks")
-    collection.load()
-    existing_files = collection.query(expr="file_name != ''", output_fields=["file_name"])
-    existing_files = set(doc['file_name'] for doc in existing_files)
-    st.session_state['current_session_files'].update(existing_files)
-
+    # Load all existing files from Milvus
+    all_documents = get_all_documents()
 
     # Sidebar for advanced options
     with st.sidebar:
@@ -365,8 +370,9 @@ try:
             st.session_state['current_session_files'] = set()
             st.session_state['processed_data'] = {}
             st.session_state['file_hashes'] = {}
-            st.success("Current session cleared. You can now upload new files.")
+            st.success("Current session cleared. You can still access previously uploaded documents.")
 
+    # File upload section
     uploaded_files = st.file_uploader("📤 Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
@@ -391,6 +397,7 @@ try:
                         }
                         st.session_state['current_session_files'].add(uploaded_file.name)
                         st.session_state['file_hashes'][file_hash] = uploaded_file.name
+                        all_documents.append(uploaded_file.name)
                         st.success(f"File processed and stored in vector database!")
                         with st.expander("View Summary"):
                             st.markdown(summary)
@@ -399,12 +406,12 @@ try:
 
     # Document Selection and Management
     st.divider()
-    st.subheader("📂 Uploaded Documents")
+    st.subheader("📂 All Available Documents")
 
-    if st.session_state['current_session_files']:
+    if all_documents:
         selected_documents = st.multiselect(
             "Select documents to query:",
-            options=list(st.session_state['current_session_files']),
+            options=all_documents,
             default=list(st.session_state['current_session_files'])
         )
         
@@ -418,18 +425,20 @@ try:
                     for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
                         st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
                 else:
-                    st.info(f"Detailed information for {file_name} is not available in the current session.")
+                    st.info(f"Detailed information for {file_name} is not available in the current session. You can still query this document.")
                 
                 if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                     collection = get_or_create_collection("document_chunks")
                     collection.delete(f"file_name == '{file_name}'")
-                    st.session_state['current_session_files'].remove(file_name)
+                    all_documents.remove(file_name)
+                    if file_name in st.session_state['current_session_files']:
+                        st.session_state['current_session_files'].remove(file_name)
                     if file_name in st.session_state['processed_data']:
                         del st.session_state['processed_data'][file_name]
                     st.success(f"{file_name} has been removed.")
                     st.rerun()
     else:
-        st.info("No documents uploaded yet. Please upload some documents to get started.")
+        st.info("No documents available. Please upload some documents to get started.")
 
     # Query interface
     st.divider()

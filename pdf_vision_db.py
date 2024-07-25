@@ -21,7 +21,7 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4o-mini"  # Latest GPT-4 Turbo model
+MODEL = "gpt-4o-mini"  # Keeping the original model
 MAX_TOKENS = 12000 
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
@@ -30,7 +30,7 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
-# iOS-like CSS styling
+# iOS-like CSS styling (unchanged)
 st.markdown("""
 <style>
     /* iOS-like color palette */
@@ -140,39 +140,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-# Warning Banner
-st.markdown("""
-<div class="warning-banner">
-    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
-    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
-    In the deployed version, there will be a private database to ensure security and privacy.
-</div>
-""", unsafe_allow_html=True)
-
-# System and User prompts for GPT
-SYSTEM_PROMPT = """
-Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
-
-Specific guidelines:
-1. **Figures and Diagrams:** Transcribe all details and explicitly state the nature of any diagrams or figures so that they can be reconstructed based on your notation.
-2. **Titles and Captions:** Transcribe all text exactly as seen, labeling them as 'Title:' or 'Caption:'.
-3. **Underlined, Highlighted, or Circled Items:** Transcribe all such items and explicitly identify them as 'Underlined:', 'Highlighted:', or 'Circled:' so that they can be reconstructed based on your notation.
-4. **Charts and Graphs:** Transcribe all related data and clearly describe its type, like 'Bar chart:' or 'Line graph:' so that they can be reconstructed based on your notation.
-5. **Organizational Charts:** Transcribe all details and specify 'Organizational chart:' so that they can be reconstructed based on your notation.
-6. **Tables:** Transcribe tables exactly as seen and start with 'Table:' so that they can be reconstructed based on your notation.
-7. **Annotations and Comments:** Transcribe all annotations and comments, specifying their nature, like 'Handwritten comment:' or 'Printed annotation:', so that they can be reconstructed based on your notation.
-8. **General Image Content:** Describe all relevant images, logos, and visual elements, noting features like 'Hand-drawn logo:' or 'Computer-generated image:' so that they can be reconstructed based on your notation.
-9. **Handwritten Notes:** Transcribe all and clearly label as 'Handwritten note:', specifying their location within the document and creating a unique ID for each one so that they can be reconstructed based on your notation.
-10. **Page Layout:** Describe significant layout elements directly so that the document layout can be reconstructed.
-11. **Redactions:** Note any redacted sections with 'Redacted area:' so that they can be identified and the visible context can be reconstructed.
-
-Each transcription should be devoid of filler content, focusing solely on the precise documentation and categorization of the visible information.
-"""
-
-USER_PROMPT = """ 
-Transcribe and categorize all visible information from the image precisely as it is presented. Ensure to include notations about content types, such as 'Handwritten note:' or 'Graph type:'. Begin immediately with the details, omitting any introductory language.
-"""
 
 # Utility Functions
 def connect_to_milvus():
@@ -336,7 +303,6 @@ def process_file(uploaded_file):
         output_dir = tempfile.mkdtemp()
 
         total_pages = len(doc)
-        image_paths = []
         page_contents = []
         
         for page_num in range(total_pages):
@@ -347,8 +313,6 @@ def process_file(uploaded_file):
             
             with open(output, "rb") as image_file:
                 image_binary = image_file.read()
-            
-            image_paths.append((page_num + 1, output))
             
             # Generate content for each page using GPT vision
             try:
@@ -365,13 +329,7 @@ def process_file(uploaded_file):
                     "image": image_binary,
                     "summary": ""  # Will be updated later
                 }
-                try:
-                    collection.insert([entity])
-                except Exception as insert_error:
-                    st.error(f"Error inserting data for page {page_num + 1}: {str(insert_error)}")
-                    # If BLOB is causing issues, try inserting without the image
-                    entity.pop("image", None)
-                    collection.insert([entity])
+                collection.insert([entity])
                 
                 progress_bar.progress((page_num + 1) / total_pages)
             except Exception as e:
@@ -385,7 +343,6 @@ def process_file(uploaded_file):
         loader = UnstructuredMarkdownLoader(temp_file_path)
         data = loader.load()
         page_contents = [item.page_content for item in data]
-        image_paths = []  # No images for Markdown files
         
         for i, content in enumerate(page_contents):
             try:
@@ -410,7 +367,6 @@ def process_file(uploaded_file):
         with open(temp_file_path, "rb") as image_file:
             image_binary = image_file.read()
         
-        image_paths = [(1, temp_file_path)]
         try:
             page_content = get_generated_data(temp_file_path)
             page_contents = [page_content]
@@ -424,32 +380,24 @@ def process_file(uploaded_file):
                 "image": image_binary,
                 "summary": ""  # Will be updated later
             }
-            try:
-                collection.insert([entity])
-            except Exception as insert_error:
-                st.error(f"Error inserting data: {str(insert_error)}")
-                # If BLOB is causing issues, try inserting without the image
-                entity.pop("image", None)
-                collection.insert([entity])
+            collection.insert([entity])
             progress_bar.progress(1.0)
             st.success('Image processed successfully!')
         except Exception as e:
             st.error(f"Error processing image: {str(e)}")
     else:
         st.error(f"Unsupported file format: {file_extension}")
-        return None, None, None, None
+        return None, None
 
     summary = generate_summary(page_contents)
     
     # Update summary for all pages of this file
     collection.update(
         expr=f"file_name == '{uploaded_file.name}'",
-        data={"summary": summary}
-    )
-
+        data={"summary": summary})
     progress_bar.progress(100)
 
-    return collection, image_paths, page_contents, summary
+    return collection, summary
 
 def search_documents(query, selected_documents):
     collection = get_or_create_collection("document_pages")
@@ -467,7 +415,7 @@ def search_documents(query, selected_documents):
         param=search_params,
         limit=1000,
         expr=f"file_name in {selected_documents}",
-        output_fields=["content", "file_name", "page_number", "image"]
+        output_fields=["content", "file_name", "page_number", "image", "summary"]
     )
 
     all_pages = []
@@ -477,12 +425,9 @@ def search_documents(query, selected_documents):
             'content': hit.entity.get('content'),
             'page_number': hit.entity.get('page_number'),
             'score': hit.score,
+            'image': hit.entity.get('image'),
+            'summary': hit.entity.get('summary')
         }
-        try:
-            page['image'] = hit.entity.get('image')
-        except Exception as e:
-            st.warning(f"Error retrieving image for {page['file_name']}, page {page['page_number']}: {str(e)}")
-            page['image'] = None
         all_pages.append(page)
 
     return all_pages
@@ -529,11 +474,9 @@ try:
             else:
                 try:
                     with st.spinner('Processing file... This may take a while for large documents.'):
-                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
+                        collection, summary = process_file(uploaded_file)
                     if collection is not None:
                         st.session_state['processed_data'][uploaded_file.name] = {
-                            'image_paths': image_paths,
-                            'page_contents': page_contents,
                             'summary': summary
                         }
                         st.session_state['current_session_files'].add(uploaded_file.name)
@@ -541,7 +484,7 @@ try:
                         all_documents.append(uploaded_file.name)
                         st.success(f"File processed and stored in vector database!")
                         with st.expander("📑 View Summary"):
-                            st.markdown(summary)
+                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
@@ -563,7 +506,7 @@ try:
             page_contents = get_document_content(file_name)
             if page_contents:
                 with st.expander("📑 Document Summary"):
-                    st.markdown(page_contents[0]['summary'])
+                    st.markdown(f"🗂️ **Document Summary**\n\n{page_contents[0]['summary']}")
                 
                 st.markdown("**Content:**")
                 for page in page_contents:
@@ -599,7 +542,7 @@ try:
                 if not all_pages:
                     st.warning("No relevant results found. Please try a different query.")
                 else:
-                    content = "\n".join([f"File: {page['file_name']}, Page: {page['page_number']}: {page['content']}" for page in all_pages])
+                    content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
 
                     system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
                     user_content = f"Respond to the query '{query}' using the information from the following content: {content}"

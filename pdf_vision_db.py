@@ -163,7 +163,7 @@ def get_or_create_collection(collection_name, dim=1536):
             FieldSchema(name="image", dtype=DataType.BLOB, max_length=10*1024*1024),  # 10MB max for images
             FieldSchema(name="summary", dtype=DataType.VARCHAR, max_length=65535)
         ]
-        schema = CollectionSchema(fields, "Document pages collection", enable_dynamic_field=True)
+        schema = CollectionSchema(fields, "Document pages collection")
         collection = Collection(collection_name, schema)
         
         index_params = {

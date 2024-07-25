@@ -4,7 +4,6 @@ import streamlit as st
 from pathlib import Path
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
-from langchain_milvus import Milvus
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
@@ -12,6 +11,7 @@ import markdown2
 import pdfkit
 import hashlib
 import tiktoken
+from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -25,11 +25,6 @@ embeddings = OpenAIEmbeddings()
 # Milvus connection parameters
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
-MILVUS_CONNECTION_ARGS = {
-    "uri": MILVUS_ENDPOINT,
-    "token": MILVUS_API_KEY,
-    "secure": True
-}
 
 # iOS-like CSS styling
 st.markdown("""
@@ -150,6 +145,36 @@ st.markdown("""
     In the deployed version, there will be a private database to ensure security and privacy.
 </div>
 """, unsafe_allow_html=True)
+
+def connect_to_milvus():
+    connections.connect(
+        alias="default", 
+        uri=MILVUS_ENDPOINT,
+        token=MILVUS_API_KEY,
+        secure=True
+    )
+
+def get_or_create_collection(collection_name, dim=1536):  # 1536 is the dimension for OpenAI embeddings
+    if utility.has_collection(collection_name):
+        return Collection(collection_name)
+    else:
+        fields = [
+            FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+            FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
+            FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=255),
+            FieldSchema(name="chunk_index", dtype=DataType.INT64),
+            FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim)
+        ]
+        schema = CollectionSchema(fields, "Document chunks collection")
+        collection = Collection(collection_name, schema)
+        
+        index_params = {
+            "metric_type": "L2",
+            "index_type": "IVF_FLAT",
+            "params": {"nlist": 1024}
+        }
+        collection.create_index("vector", index_params)
+        return collection
 
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
@@ -290,23 +315,30 @@ def process_file(uploaded_file):
 
     chunks = chunk_content(markdown_content)
     
-    vector_db = Milvus.from_texts(
-        chunks,
-        embeddings,
-        metadatas=[{'chunk_index': i, 'file_name': uploaded_file.name} for i in range(len(chunks))],
-        connection_args=MILVUS_CONNECTION_ARGS,
-    )
+    collection = get_or_create_collection("document_chunks")
+    collection.load()
+
+    chunk_vectors = embeddings.embed_documents(chunks)
+    entities = [
+        [chunk for chunk in chunks],
+        [uploaded_file.name] * len(chunks),
+        list(range(len(chunks))),
+        chunk_vectors
+    ]
+    collection.insert(entities)
 
     summary = generate_summary(chunks)
 
     progress_bar.progress(100)
 
-    return vector_db, image_paths, chunks, summary
+    return collection, image_paths, chunks, summary
 
 # Streamlit interface
 st.title('📄 Document Query and Analysis App')
 
 try:
+    connect_to_milvus()
+
     # Initialize session state variables
     if 'current_session_files' not in st.session_state:
         st.session_state['current_session_files'] = set()
@@ -314,6 +346,14 @@ try:
         st.session_state['processed_data'] = {}
     if 'file_hashes' not in st.session_state:
         st.session_state['file_hashes'] = {}
+
+    # Load existing files from Milvus
+    collection = get_or_create_collection("document_chunks")
+    collection.load()
+    existing_files = collection.query(expr="file_name != ''", output_fields=["file_name"])
+    existing_files = set(doc['file_name'] for doc in existing_files)
+    st.session_state['current_session_files'].update(existing_files)
+
 
     # Sidebar for advanced options
     with st.sidebar:
@@ -342,10 +382,9 @@ try:
                 # New file, needs processing
                 try:
                     with st.spinner('Processing file... This may take a while for large documents.'):
-                        vector_db, image_paths, chunks, summary = process_file(uploaded_file)
-                    if vector_db is not None:
+                        collection, image_paths, chunks, summary = process_file(uploaded_file)
+                    if collection is not None:
                         st.session_state['processed_data'][uploaded_file.name] = {
-                            'vector_db': vector_db,
                             'image_paths': image_paths,
                             'chunks': chunks,
                             'summary': summary
@@ -371,16 +410,22 @@ try:
         
         for file_name in selected_documents:
             with st.expander(f"📄 {file_name}"):
-                st.markdown(f"**Summary:**")
-                st.markdown(st.session_state['processed_data'][file_name]['summary'])
-                
-                st.markdown("**Images:**")
-                for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
-                    st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
+                if file_name in st.session_state['processed_data']:
+                    st.markdown(f"**Summary:**")
+                    st.markdown(st.session_state['processed_data'][file_name]['summary'])
+                    
+                    st.markdown("**Images:**")
+                    for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
+                        st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
+                else:
+                    st.info(f"Detailed information for {file_name} is not available in the current session.")
                 
                 if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                    collection = get_or_create_collection("document_chunks")
+                    collection.delete(f"file_name == '{file_name}'")
                     st.session_state['current_session_files'].remove(file_name)
-                    del st.session_state['processed_data'][file_name]
+                    if file_name in st.session_state['processed_data']:
+                        del st.session_state['processed_data'][file_name]
                     st.success(f"{file_name} has been removed.")
                     st.rerun()
     else:
@@ -393,16 +438,29 @@ try:
     if st.button("🔎 Search"):
         if selected_documents:
             with st.spinner('Searching...'):
-                all_docs = []
-                for file_name in selected_documents:
-                    vector_db = st.session_state['processed_data'][file_name]['vector_db']
-                    docs = vector_db.similarity_search_with_score(query, k=chunks_to_retrieve)
-                    all_docs.extend([(file_name, doc, score) for doc, score in docs])
+                collection = get_or_create_collection("document_chunks")
+                collection.load()
+                
+                query_vector = embeddings.embed_query(query)
+                search_params = {
+                    "metric_type": "L2",
+                    "params": {"nprobe": 10},
+                }
+                results = collection.search(
+                    data=[query_vector],
+                    anns_field="vector",
+                    param=search_params,
+                    limit=chunks_to_retrieve,
+                    expr=f"file_name in {selected_documents}",
+                    output_fields=["content", "file_name", "chunk_index"]
+                )
+
+                all_docs = [(hit.entity.get('file_name'), hit.entity, hit.distance) for hit in results[0]]
                 
                 # Sort all_docs by relevance score
                 all_docs.sort(key=lambda x: x[2])
                 
-                content = "\n".join([f"File: {file_name}, Chunk {doc.metadata.get('chunk_index', 'Unknown')}: {doc.page_content}" for file_name, doc, _ in all_docs])
+                content = "\n".join([f"File: {file_name}, Chunk {doc.get('chunk_index', 'Unknown')}: {doc.get('content', '')}" for file_name, doc, _ in all_docs])
 
                 system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, chunk indices, and relevant snippets."
                 user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
@@ -424,25 +482,26 @@ try:
                 st.divider()
                 st.subheader("📚 Sources:")
                 for file_name, doc, score in all_docs:
-                    chunk_index = doc.metadata.get('chunk_index', 'Unknown')
+                    chunk_index = doc.get('chunk_index', 'Unknown')
                     st.markdown(f"**File: {file_name}, Chunk {chunk_index}, Relevance: {1 - score:.2f}**")
-                    highlighted_text = highlight_relevant_text(doc.page_content[:200], query)
+                    highlighted_text = highlight_relevant_text(doc.get('content', '')[:200], query)
                     st.markdown(f"```\n{highlighted_text}...\n```")
                     
                     # Find the corresponding image
-                    image_paths = st.session_state['processed_data'][file_name]['image_paths']
-                    if chunk_index != 'Unknown':
-                        page_num = chunk_index // 2 + 1  # Assuming 2 chunks per page, adjust as needed
-                        image_path = next((img_path for num, img_path in image_paths if num == page_num), None)
-                        if image_path:
-                            with st.expander(f"🖼️ View Image: {file_name}, Page {page_num}"):
-                                st.image(image_path, use_column_width=True)
+                    if file_name in st.session_state['processed_data']:
+                        image_paths = st.session_state['processed_data'][file_name]['image_paths']
+                        if chunk_index != 'Unknown':
+                            page_num = chunk_index // 2 + 1  # Assuming 2 chunks per page, adjust as needed
+                            image_path = next((img_path for num, img_path in image_paths if num == page_num), None)
+                            if image_path:
+                                with st.expander(f"🖼️ View Image: {file_name}, Page {page_num}"):
+                                    st.image(image_path, use_column_width=True)
 
                 with st.expander("📊 Document Statistics", expanded=False):
                     st.write(f"Total chunks retrieved: {len(all_docs)}")
                     for file_name, doc, score in all_docs:
-                        st.write(f"File: {file_name}, Chunk: {doc.metadata.get('chunk_index', 'Unknown')}, Score: {1 - score:.2f}")
-                        st.write(f"Content snippet: {doc.page_content[:100]}...")
+                        st.write(f"File: {file_name}, Chunk: {doc.get('chunk_index', 'Unknown')}, Score: {1 - score:.2f}")
+                        st.write(f"Content snippet: {doc.get('content', '')[:100]}...")
 
                 # Save question and answer to history
                 if 'qa_history' not in st.session_state:
@@ -450,7 +509,7 @@ try:
                 st.session_state['qa_history'].append({
                     'question': query,
                     'answer': response.choices[0].message.content,
-                    'sources': [{'file': file_name, 'chunk': doc.metadata.get('chunk_index', 'Unknown')} for file_name, doc, _ in all_docs],
+                    'sources': [{'file': file_name, 'chunk': doc.get('chunk_index', 'Unknown')} for file_name, doc, _ in all_docs],
                     'confidence': confidence_score,
                     'documents_queried': selected_documents
                 })
@@ -511,14 +570,14 @@ if __name__ == "__main__":
         "This app allows you to upload PDF documents or images, "
         "extract information from them, and query the content. "
         "It uses OpenAI's GPT model for text generation and "
-        "Milvus for efficient similarity search."
+        "Milvus for efficient similarity search across sessions."
     )
     
     st.sidebar.markdown("## 📖 How to use")
     st.sidebar.info(
         "1. Upload one or more PDF or image files.\n"
         "2. Wait for the processing to complete.\n"
-        "3. Select the documents you want to query.\n"
+        "3. Select the documents you want to query (including from previous sessions).\n"
         "4. Enter your query in the text box.\n"
         "5. Click 'Search' to get answers based on the selected document content.\n"
         "6. View the answer, confidence score, and sources.\n"
@@ -540,7 +599,7 @@ with st.expander("⚠️ By using this application, you agree to the following t
         <ol style="text-align: left;">
             <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
             <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>
-            <li><strong>Data Storage:</strong> All uploaded data is stored temporarily and is not secure.</li>
+            <li><strong>Data Storage:</strong> All uploaded data is stored in Milvus and is not secure.</li>
             <li><strong>Accuracy:</strong> AI models may produce inaccurate or inconsistent results. Verify important information.</li>
             <li><strong>Liability:</strong> Use this application at your own risk. We are not liable for any damages or losses.</li>
             <li><strong>Data Usage:</strong> Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.</li>

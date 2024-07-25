@@ -451,51 +451,54 @@ try:
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-    # Document Selection and Management
-    st.divider()
-    st.subheader("📂 All Available Documents")
+# Document Selection and Management
+st.divider()
+st.subheader("📂 All Available Documents")
+
+all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
+
+if all_documents:
+    selected_documents = st.multiselect(
+        "Select documents to view or query:",
+        options=all_documents,
+        default=list(st.session_state['current_session_files'])
+    )
     
-    all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
-    
-    if all_documents:
-        selected_documents = st.multiselect(
-            "Select documents to view or query:",
-            options=all_documents,
-            default=list(st.session_state['current_session_files'])
-        )
-        
-        for file_name in selected_documents:
-            st.subheader(f"📄 {file_name}")
-            page_contents = get_document_content(file_name)
-            if page_contents:
-                with st.expander("📑 Document Summary"):
-                    st.markdown(f"🗂️ **Document Summary**\n\n{page_contents[0]['summary']}")
-    
-                st.markdown("**Content:**")
-                for page in page_contents:
-                    with st.expander(f"📄 Page {page['page_number']}"):
-                        st.markdown(page['content'])
+    for file_name in selected_documents:
+        st.subheader(f"📄 {file_name}")
+        page_contents = get_document_content(file_name)
+        if page_contents:
+            with st.expander("📑 Document Summary"):
+                st.markdown(f"🗂️ **Document Summary**\n\n{page_contents[0]['summary']}")
+            
+            st.markdown("**📜 Content:**")
+            st.divider()
+            for page in page_contents:
+                with st.expander(f"📄 Page {page['page_number']}"):
+                    st.markdown("### Page Content")
+                    st.markdown(page['content'])
+                    
                     if file_name in st.session_state['processed_data']:
                         image_paths = st.session_state['processed_data'][file_name]['image_paths']
                         image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                         if image_path:
-                            with st.expander("🖼️ Image"):
+                            with st.expander(f"🖼️ Image for Page {page['page_number']}"):
                                 st.image(image_path, use_column_width=True)
-            else:
-                st.info(f"No content available for {file_name}.")
-            
-            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                collection = get_or_create_collection("document_pages")
-                collection.delete(f"file_name == '{file_name}'")
-                all_documents.remove(file_name)
-                if file_name in st.session_state['current_session_files']:
-                    st.session_state['current_session_files'].remove(file_name)
-                if file_name in st.session_state['processed_data']:
-                    del st.session_state['processed_data'][file_name]
-                st.success(f"{file_name} has been removed.")
-                st.rerun()
-    else:
-        st.info("No documents available. Please upload some documents to get started.")
+        else:
+            st.info(f"No content available for {file_name}.")
+        
+        if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+            collection = get_or_create_collection("document_pages")
+            collection.delete(f"file_name == '{file_name}'")
+            all_documents.remove(file_name)
+            if file_name in st.session_state['current_session_files']:
+                st.session_state['current_session_files'].remove(file_name)
+            if file_name in st.session_state['processed_data']:
+                del st.session_state['processed_data'][file_name]
+            st.success(f"{file_name} has been removed.")
+            st.rerun()
+else:
+    st.info("No documents available. Please upload some documents to get started.")
 
 
     # Query interface

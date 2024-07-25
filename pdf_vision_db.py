@@ -432,29 +432,33 @@ try:
         )
         
         for file_name in selected_documents:
-            with st.expander(f"📄 {file_name}"):
-                if file_name in st.session_state['processed_data']:
-                    st.markdown(f"**Summary:**")
-                    st.markdown(st.session_state['processed_data'][file_name]['summary'])
-                    
-                    st.markdown("**Pages:**")
-                    for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
-                            st.write(f"Page {page_num}"):)
-                            st.image(image_path, use_column_width=True)
-                            st.markdown(st.session_state['processed_data'][file_name]['page_contents'][page_num-1])
-                else:
-                    st.info(f"Detailed information for {file_name} is not available in the current session. You can still query this document.")
+            st.subheader(f"📄 {file_name}")
+            if file_name in st.session_state['processed_data']:
+                st.markdown(f"**Summary:**")
+                st.markdown(st.session_state['processed_data'][file_name]['summary'])
                 
-                if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                    collection = get_or_create_collection("document_pages")
-                    collection.delete(f"file_name == '{file_name}'")
-                    all_documents.remove(file_name)
-                    if file_name in st.session_state['current_session_files']:
-                        st.session_state['current_session_files'].remove(file_name)
-                    if file_name in st.session_state['processed_data']:
-                        del st.session_state['processed_data'][file_name]
-                    st.success(f"{file_name} has been removed.")
-                    st.rerun()
+                st.markdown("**Pages:**")
+                page_selector = st.selectbox(f"Select a page from {file_name}", 
+                                            options=[f"Page {num}" for num, _ in st.session_state['processed_data'][file_name]['image_paths']])
+                page_num = int(page_selector.split()[-1])
+                
+                image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == page_num), None)
+                if image_path:
+                    st.image(image_path, use_column_width=True)
+                    st.markdown(st.session_state['processed_data'][file_name]['page_contents'][page_num-1])
+            else:
+                st.info(f"Detailed information for {file_name} is not available in the current session. You can still query this document.")
+            
+            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                collection = get_or_create_collection("document_pages")
+                collection.delete(f"file_name == '{file_name}'")
+                all_documents.remove(file_name)
+                if file_name in st.session_state['current_session_files']:
+                    st.session_state['current_session_files'].remove(file_name)
+                if file_name in st.session_state['processed_data']:
+                    del st.session_state['processed_data'][file_name]
+                st.success(f"{file_name} has been removed.")
+                st.rerun()
     else:
         st.info("No documents available. Please upload some documents to get started.")
 
@@ -485,15 +489,16 @@ try:
 
                 st.divider()
                 st.subheader("📚 Sources:")
-                for page in all_pages[:citations_to_display]:  # Display the number of citations specified by the user
-                    with st.expander(f"File: {page['file_name']}, Page: {page['page_number']}, Relevance: {1 - page['score']:.2f}"):
-                        st.markdown(page['content'])
-                        
-                        if page['file_name'] in st.session_state['processed_data']:
-                            image_paths = st.session_state['processed_data'][page['file_name']]['image_paths']
-                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                            if image_path:
-                                st.image(image_path, use_column_width=True)
+                for i, page in enumerate(all_pages[:citations_to_display]):
+                    st.markdown(f"**Source {i+1}: File: {page['file_name']}, Page: {page['page_number']}, Relevance: {1 - page['score']:.2f}**")
+                    st.markdown(page['content'])
+                    
+                    if page['file_name'] in st.session_state['processed_data']:
+                        image_paths = st.session_state['processed_data'][page['file_name']]['image_paths']
+                        image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                        if image_path:
+                            st.image(image_path, use_column_width=True)
+                    st.divider()
 
                 with st.expander("📊 Document Statistics", expanded=False):
                     st.write(f"Total pages searched: {len(all_pages)}")

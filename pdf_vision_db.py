@@ -4,7 +4,6 @@ import streamlit as st
 from pathlib import Path
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
 import markdown2
@@ -18,7 +17,7 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4o-mini"
+MODEL = "gpt-4-1106-preview"  # Updated to the latest GPT-4 model
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
@@ -26,125 +25,7 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
-# iOS-like CSS styling
-st.markdown("""
-<style>
-    /* iOS-like color palette */
-    :root {
-        --ios-blue: #007AFF;
-        --ios-gray: #8E8E93;
-        --ios-light-gray: #F2F2F7;
-        --ios-white: #FFFFFF;
-        --ios-red: #FF3B30;
-    }
-
-    /* General styling */
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-        color: #000000;
-        background-color: var(--ios-light-gray);
-    }
-
-    /* Headings */
-    h1, h2, h3 {
-        font-weight: 600;
-    }
-
-    /* Buttons */
-    .stButton > button {
-        border-radius: 10px;
-        background-color: var(--ios-blue);
-        color: var(--ios-white);
-        border: none;
-        padding: 10px 20px;
-        font-size: 16px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-
-    .stButton > button:hover {
-        background-color: #0056b3;
-    }
-
-    /* Input fields */
-    .stTextInput > div > div > input {
-        border-radius: 10px;
-        border: 1px solid var(--ios-gray);
-        padding: 10px;
-    }
-
-    /* Sliders */
-    .stSlider > div > div > div > div {
-        background-color: var(--ios-blue);
-    }
-
-    /* Expanders */
-    .streamlit-expanderHeader {
-        background-color: var(--ios-white);
-        border-radius: 10px;
-        border: 1px solid var(--ios-gray);
-    }
-
-    /* Warning banner */
-    .warning-banner {
-        background-color: #FFDAB9;
-        border: 1px solid #FFA500;
-        padding: 15px;
-        color: #8B4513;
-        font-weight: 600;
-        text-align: center;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
-
-    /* Big font for important notices */
-    .big-font {
-        font-size: 24px !important;
-        font-weight: 700;
-        color: var(--ios-red);
-    }
-
-    /* Custom styling for alerts */
-    .stAlert > div {
-        padding: 15px;
-        border-radius: 10px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        font-size: 16px;
-    }
-
-    .stAlert .big-font {
-        margin-bottom: 10px;
-    }
-
-    .bottom-warning {
-        background-color: #FFDDC1;
-        border: 1px solid #FFA07A;
-        padding: 15px;
-        color: #8B0000;
-        font-weight: 600;
-        text-align: left;
-        border-radius: 10px;
-        margin-top: 20px;
-    }
-
-    .bottom-warning .big-font {
-        font-size: 24px !important;
-        font-weight: 700;
-        color: #FF4500;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Warning Banner
-st.markdown("""
-<div class="warning-banner">
-    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
-    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
-    In the deployed version, there will be a private database to ensure security and privacy.
-</div>
-""", unsafe_allow_html=True)
+# Keep your existing CSS styling here
 
 def connect_to_milvus():
     connections.connect(
@@ -154,7 +35,7 @@ def connect_to_milvus():
         secure=True
     )
 
-def get_or_create_collection(collection_name, dim=1536):  # 1536 is the dimension for OpenAI embeddings
+def get_or_create_collection(collection_name, dim=1536):
     if utility.has_collection(collection_name):
         return Collection(collection_name)
     else:
@@ -162,10 +43,10 @@ def get_or_create_collection(collection_name, dim=1536):  # 1536 is the dimensio
             FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
             FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
             FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=255),
-            FieldSchema(name="chunk_index", dtype=DataType.INT64),
+            FieldSchema(name="page_number", dtype=DataType.INT64),
             FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim)
         ]
-        schema = CollectionSchema(fields, "Document chunks collection")
+        schema = CollectionSchema(fields, "Document pages collection")
         collection = Collection(collection_name, schema)
         
         index_params = {
@@ -187,25 +68,6 @@ def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> i
     encoding = tiktoken.get_encoding(encoding_name)
     num_tokens = len(encoding.encode(string))
     return num_tokens
-
-def chunk_content(content: str, chunk_size: int = 500, chunk_overlap: int = 50) -> list:
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=num_tokens_from_string,
-    )
-    chunks = text_splitter.split_text(content)
-    return chunks
-
-def get_all_documents():
-    collection = get_or_create_collection("document_chunks")
-    collection.load()
-    results = collection.query(
-        expr="file_name != ''",
-        output_fields=["file_name"],
-        limit=10000  # Adjust this limit as needed
-    )
-    return list(set(doc['file_name'] for doc in results))
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -242,7 +104,7 @@ def get_generated_data(image_path):
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
             ]}
         ],
-        max_tokens=16384,
+        max_tokens=4096,
         temperature=0.1
     )
     return response.choices[0].message.content
@@ -254,34 +116,27 @@ def save_uploadedfile(uploadedfile):
         f.write(uploadedfile.getbuffer())
     return file_path
 
-def generate_summary(chunks):
+def generate_summary(page_contents):
     summaries = []
-    for i, chunk in enumerate(chunks):
-        chunk_summary = client.chat.completions.create(
-            model="gpt-4o-mini",
+    for i, content in enumerate(page_contents):
+        page_summary = client.chat.completions.create(
+            model=MODEL,
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that summarizes document chunks."},
-                {"role": "user", "content": f"Provide a brief summary of this document chunk ({i+1}/{len(chunks)}):\n\n{chunk}"}
+                {"role": "system", "content": "You are a helpful assistant that summarizes document pages."},
+                {"role": "user", "content": f"Provide a brief summary of this document page ({i+1}/{len(page_contents)}):\n\n{content}"}
             ]
         ).choices[0].message.content
-        summaries.append(chunk_summary)
+        summaries.append(page_summary)
     
     final_summary = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that combines document chunk summaries."},
-            {"role": "user", "content": f"Combine these chunk summaries into a coherent overall summary:\n\n{''.join(summaries)}"}
+            {"role": "system", "content": "You are a helpful assistant that combines document page summaries."},
+            {"role": "user", "content": f"Combine these page summaries into a coherent overall summary:\n\n{''.join(summaries)}"}
         ]
     ).choices[0].message.content
     
     return final_summary
-
-def calculate_confidence(docs):
-    return min(len(docs) / 5 * 100, 100)  # 5 is the max number of chunks we retrieve
-
-def highlight_relevant_text(text, query):
-    highlighted = text.replace(query, f"**{query}**")
-    return highlighted
 
 def process_file(uploaded_file):
     st.subheader(f"Processing: {uploaded_file.name}")
@@ -298,50 +153,81 @@ def process_file(uploaded_file):
 
         total_pages = len(doc)
         image_paths = []
+        page_contents = []
         for page_num in range(total_pages):
             page = doc.load_page(page_num)
             pix = page.get_pixmap()
             output = os.path.join(output_dir, f"page{page_num + 1}.png")
             pix.save(output)
             image_paths.append((page_num + 1, output))
+            
+            # Generate content for each page
+            page_content = get_generated_data(output)
+            page_contents.append(page_content)
+            
             progress_bar.progress((page_num + 1) / total_pages)
 
         doc.close()
-        st.success('PDF converted to images successfully!')
+        st.success('PDF processed successfully!')
     elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
         # Process single image
         image_paths = [(1, temp_file_path)]
+        page_contents = [get_generated_data(temp_file_path)]
         progress_bar.progress(1.0)
         st.success('Image processed successfully!')
     else:
         st.error(f"Unsupported file format: {file_extension}")
-        return None, None, None, None
+        return None, None, None
 
-    markdown_content = ""
-    for i, (page_num, img_path) in enumerate(image_paths):
-        markdown_content += f"\n## Page {page_num}\n"
-        markdown_content += get_generated_data(img_path)
-        progress_bar.progress((i + 1) / len(image_paths))
-
-    chunks = chunk_content(markdown_content)
-    
-    collection = get_or_create_collection("document_chunks")
+    collection = get_or_create_collection("document_pages")
     collection.load()
 
-    chunk_vectors = embeddings.embed_documents(chunks)
-    entities = [
-        chunks,
-        [uploaded_file.name] * len(chunks),
-        list(range(len(chunks))),
-        chunk_vectors
-    ]
+    page_vectors = embeddings.embed_documents(page_contents)
+    entities = []
+    for i, (content, vector) in enumerate(zip(page_contents, page_vectors)):
+        entities.append({
+            "content": content,
+            "file_name": uploaded_file.name,
+            "page_number": i + 1,
+            "vector": vector
+        })
     collection.insert(entities)
 
-    summary = generate_summary(chunks)
+    summary = generate_summary(page_contents)
 
     progress_bar.progress(100)
 
-    return collection, image_paths, chunks, summary
+    return collection, image_paths, page_contents, summary
+
+def search_documents(query, selected_documents, max_results=1000):
+    collection = get_or_create_collection("document_pages")
+    collection.load()
+    
+    query_vector = embeddings.embed_query(query)
+    search_params = {
+        "metric_type": "L2",
+        "params": {"nprobe": 10},
+    }
+    results = collection.search(
+        data=[query_vector],
+        anns_field="vector",
+        param=search_params,
+        limit=max_results,
+        expr=f"file_name in {selected_documents}",
+        output_fields=["content", "file_name", "page_number"]
+    )
+
+    all_pages = []
+    for hit in results[0]:
+        page = {
+            'file_name': hit.entity.get('file_name'),
+            'content': hit.entity.get('content'),
+            'page_number': hit.entity.get('page_number'),
+            'score': hit.score
+        }
+        all_pages.append(page)
+
+    return all_pages
 
 # Streamlit interface
 st.title('📄 Document Query and Analysis App')
@@ -363,9 +249,8 @@ try:
     # Sidebar for advanced options
     with st.sidebar:
         st.header("⚙️ Advanced Options")
-        chunks_to_retrieve = st.slider("Number of chunks to retrieve", 1, 100, 5)
-        similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.5)
-
+        max_results = st.slider("Maximum number of results", 10, 1000, 100)
+        
         if st.button("🗑️ Clear Current Session"):
             st.session_state['current_session_files'] = set()
             st.session_state['processed_data'] = {}
@@ -388,11 +273,11 @@ try:
                 # New file, needs processing
                 try:
                     with st.spinner('Processing file... This may take a while for large documents.'):
-                        collection, image_paths, chunks, summary = process_file(uploaded_file)
+                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
                     if collection is not None:
                         st.session_state['processed_data'][uploaded_file.name] = {
                             'image_paths': image_paths,
-                            'chunks': chunks,
+                            'page_contents': page_contents,
                             'summary': summary
                         }
                         st.session_state['current_session_files'].add(uploaded_file.name)
@@ -423,25 +308,27 @@ try:
                     st.markdown(f"**Summary:**")
                     st.markdown(st.session_state['processed_data'][file_name]['summary'])
                     
-                    st.markdown("**Images:**")
+                    st.markdown("**Pages:**")
                     for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
-                        st.image(image_path, caption=f"Page {page_num}", use_column_width=True)
+                        with st.expander(f"Page {page_num}"):
+                            st.image(image_path, use_column_width=True)
+                            st.markdown(st.session_state['processed_data'][file_name]['page_contents'][page_num-1])
                 else:
                     st.info(f"Detailed information for {file_name} is not available in the current session. You can still query this document.")
-                
+
                 if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                    collection = get_or_create_collection("document_chunks")
-                    collection.delete(f"file_name == '{file_name}'")
-                    all_documents.remove(file_name)
-                    if file_name in st.session_state['current_session_files']:
-                        st.session_state['current_session_files'].remove(file_name)
-                    if file_name in st.session_state['processed_data']:
-                        del st.session_state['processed_data'][file_name]
-                    st.success(f"{file_name} has been removed.")
-                    st.rerun()
-    else:
-        st.info("No documents available. Please upload some documents to get started.")
-    
+                                    collection = get_or_create_collection("document_pages")
+                                    collection.delete(f"file_name == '{file_name}'")
+                                    all_documents.remove(file_name)
+                                    if file_name in st.session_state['current_session_files']:
+                                        st.session_state['current_session_files'].remove(file_name)
+                                    if file_name in st.session_state['processed_data']:
+                                        del st.session_state['processed_data'][file_name]
+                                    st.success(f"{file_name} has been removed.")
+                                    st.rerun()
+                    else:
+                        st.info("No documents available. Please upload some documents to get started.")
+
     # Query interface
     st.divider()
     st.subheader("🔍 Query the Document(s)")
@@ -449,45 +336,15 @@ try:
     if st.button("🔎 Search"):
         if selected_documents:
             with st.spinner('Searching...'):
-                collection = get_or_create_collection("document_chunks")
-                collection.load()
+                all_pages = search_documents(query, selected_documents, max_results)
                 
-                query_vector = embeddings.embed_query(query)
-                search_params = {
-                    "metric_type": "L2",
-                    "params": {"nprobe": 10},
-                }
-                results = collection.search(
-                    data=[query_vector],
-                    anns_field="vector",
-                    param=search_params,
-                    limit=1000,  # Increase this limit to retrieve more chunks
-                    expr=f"file_name in {selected_documents}",
-                    output_fields=["content", "file_name", "chunk_index"]
-                )
-    
-                all_docs = []
-                for hit in results[0]:
-                    all_docs.append((
-                        hit.entity.get('file_name'),
-                        {
-                            'content': hit.entity.get('content'),
-                            'chunk_index': hit.entity.get('chunk_index')
-                        },
-                        hit.distance
-                    ))
-                
-                # Sort all_docs by relevance score
-                all_docs.sort(key=lambda x: x[2])
-                
-                # Use all retrieved chunks for generating the response
-                content = "\n".join([f"File: {file_name}, Chunk {doc['chunk_index']}: {doc['content']}" for file_name, doc, _ in all_docs])
-    
-                system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, chunk indices, and relevant snippets."
+                content = "\n".join([f"File: {page['file_name']}, Page: {page['page_number']}: {page['content']}" for page in all_pages])
+
+                system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
                 user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-    
+
                 response = client.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model=MODEL,
                     messages=[
                         {"role": "system", "content": system_content},
                         {"role": "user", "content": user_content}
@@ -496,61 +353,49 @@ try:
                 st.divider()
                 st.subheader("💬 Answer:")
                 st.write(response.choices[0].message.content)
-    
-                confidence_score = calculate_confidence(all_docs)
-                st.write(f"Confidence Score: {confidence_score}%")
-    
+
                 st.divider()
                 st.subheader("📚 Sources:")
-                # Only display the number of sources specified by chunks_to_retrieve
-                for file_name, doc, score in all_docs[:chunks_to_retrieve]:
-                    chunk_index = doc['chunk_index']
-                    st.markdown(f"**File: {file_name}, Chunk {chunk_index}, Relevance: {1 - score:.2f}**")
-                    highlighted_text = highlight_relevant_text(doc['content'][:200], query)
-                    st.markdown(f"```\n{highlighted_text}...\n```")
-                    
-                    # Find the corresponding image
-                    if file_name in st.session_state['processed_data']:
-                        image_paths = st.session_state['processed_data'][file_name]['image_paths']
-                        page_num = chunk_index // 2 + 1  # Assuming 2 chunks per page, adjust as needed
-                        image_path = next((img_path for num, img_path in image_paths if num == page_num), None)
-                        if image_path:
-                            with st.expander(f"🖼️ View Image: {file_name}, Page {page_num}"):
+                for page in all_pages[:10]:  # Display top 10 sources
+                    with st.expander(f"File: {page['file_name']}, Page: {page['page_number']}, Relevance: {1 - page['score']:.2f}"):
+                        st.markdown(page['content'])
+                        
+                        if page['file_name'] in st.session_state['processed_data']:
+                            image_paths = st.session_state['processed_data'][page['file_name']]['image_paths']
+                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                            if image_path:
                                 st.image(image_path, use_column_width=True)
-    
+
                 with st.expander("📊 Document Statistics", expanded=False):
-                    st.write(f"Total chunks retrieved: {len(all_docs)}")
-                    st.write(f"Chunks displayed: {min(chunks_to_retrieve, len(all_docs))}")
-                    for file_name, doc, score in all_docs[:chunks_to_retrieve]:
-                        st.write(f"File: {file_name}, Chunk: {doc['chunk_index']}, Score: {1 - score:.2f}")
-                        st.write(f"Content snippet: {doc['content'][:100]}...")
-    
+                    st.write(f"Total pages retrieved: {len(all_pages)}")
+                    st.write(f"Pages displayed: {min(10, len(all_pages))}")
+                    for page in all_pages[:10]:
+                        st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
+
                 # Save question and answer to history
                 if 'qa_history' not in st.session_state:
                     st.session_state['qa_history'] = []
                 st.session_state['qa_history'].append({
                     'question': query,
                     'answer': response.choices[0].message.content,
-                    'sources': [{'file': file_name, 'chunk': doc['chunk_index']} for file_name, doc, _ in all_docs[:chunks_to_retrieve]],
-                    'confidence': confidence_score,
+                    'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages[:10]],
                     'documents_queried': selected_documents
                 })
-    
+
         else:
             st.warning("Please select at least one document to query.")
-    
+
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:
         st.divider()
         st.subheader("📜 Question History")
-        for i, qa in enumerate(st.session_state['qa_history']):
-            with st.expander(f"Q{i+1}: {qa['question']}"):
+        for i, qa in enumerate(reversed(st.session_state['qa_history'])):
+            with st.expander(f"Q{len(st.session_state['qa_history'])-i}: {qa['question']}"):
                 st.write(f"A: {qa['answer']}")
-                st.write(f"Confidence: {qa['confidence']}%")
                 st.write("Documents Queried:", ", ".join(qa['documents_queried']))
                 st.write("Sources:")
                 for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Chunk: {source['chunk']}")
+                    st.write(f"- File: {source['file']}, Page: {source['page']}")
         
         # Add a button to clear the question history
         if st.button("🗑️ Clear Question History"):
@@ -561,9 +406,9 @@ try:
         if st.button("📤 Export Q&A Session"):
             qa_session = ""
             for qa in st.session_state.get('qa_history', []):
-                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nConfidence: {qa['confidence']}%\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
+                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
                 for source in qa['sources']:
-                    qa_session += f"- File: {source['file']}, Chunk: {source['chunk']}\n"
+                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
                 qa_session += "\n---\n\n"
             
             # Convert markdown to HTML
@@ -602,7 +447,7 @@ if __name__ == "__main__":
         "3. Select the documents you want to query (including from previous sessions).\n"
         "4. Enter your query in the text box.\n"
         "5. Click 'Search' to get answers based on the selected document content.\n"
-        "6. View the answer, confidence score, and sources.\n"
+        "6. View the answer and sources.\n"
         "7. Optionally, export the Q&A session as a PDF."
     )
 

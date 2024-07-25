@@ -264,137 +264,53 @@ def search_documents(query, selected_documents):
         "metric_type": "L2",
         "params": {"nprobe": 10},
     }
-    results = collection.search(
-        data=[query_vector],
-        anns_field="vector",
-        param=search_params,
-        limit=100000,  # Set a high limit to search across all pages
-        expr=f"file_name in {selected_documents}",
-        output_fields=["content", "file_name", "page_number"]
-    )
 
+    # Initialize variables for pagination
+    offset = 0
+    limit = 16000  # Milvus max limit
     all_pages = []
-    for hit in results[0]:
-        page = {
-            'file_name': hit.entity.get('file_name'),
-            'content': hit.entity.get('content'),
-            'page_number': hit.entity.get('page_number'),
-            'score': hit.score
-        }
-        all_pages.append(page)
+
+    while True:
+        results = collection.search(
+            data=[query_vector],
+            anns_field="vector",
+            param=search_params,
+            limit=limit,
+            offset=offset,
+            expr=f"file_name in {selected_documents}",
+            output_fields=["content", "file_name", "page_number"]
+        )
+
+        if not results[0]:  # If no results, break the loop
+            break
+
+        for hit in results[0]:
+            page = {
+                'file_name': hit.entity.get('file_name'),
+                'content': hit.entity.get('content'),
+                'page_number': hit.entity.get('page_number'),
+                'score': hit.score
+            }
+            all_pages.append(page)
+
+        offset += limit
+        if len(results[0]) < limit:  # If we've retrieved all results, break the loop
+            break
 
     return all_pages
 
-# Streamlit interface
-st.title('📄 Document Query and Analysis App')
-
-try:
-    connect_to_milvus()
-
-    # Initialize session state variables
-    if 'current_session_files' not in st.session_state:
-        st.session_state['current_session_files'] = set()
-    if 'processed_data' not in st.session_state:
-        st.session_state['processed_data'] = {}
-
-    if 'file_hashes' not in st.session_state:
-        st.session_state['file_hashes'] = {}
-
-    # Load all existing files from Milvus
-    all_documents = get_all_documents()
-
-    # Sidebar for advanced options
-    with st.sidebar:
-        st.header("⚙️ Advanced Options")
-        citations_to_display = st.slider("Number of citations to display", 1, 20, 5)
-        
-        if st.button("🗑️ Clear Current Session"):
-            st.session_state['current_session_files'] = set()
-            st.session_state['processed_data'] = {}
-            st.session_state['file_hashes'] = {}
-            st.success("Current session cleared. You can still access previously uploaded documents.")
-
-    # File upload section
-    uploaded_files = st.file_uploader("📤 Upload PDF or Image file(s)", type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            file_content = uploaded_file.getvalue()
-            file_hash = get_file_hash(file_content)
+# Update the query interface section
+st.divider()
+st.subheader("🔍 Query the Document(s)")
+query = st.text_input("Enter your query about the document(s):")
+if st.button("🔎 Search"):
+    if selected_documents:
+        with st.spinner('Searching...'):
+            all_pages = search_documents(query, selected_documents)
             
-            if file_hash in st.session_state['file_hashes']:
-                # File has been processed before
-                existing_file_name = st.session_state['file_hashes'][file_hash]
-                st.session_state['current_session_files'].add(existing_file_name)
-                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
+            if not all_pages:
+                st.warning("No relevant results found. Please try a different query.")
             else:
-                # New file, needs processing
-                try:
-                    with st.spinner('Processing file... This may take a while for large documents.'):
-                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
-                    if collection is not None:
-                        st.session_state['processed_data'][uploaded_file.name] = {
-                            'image_paths': image_paths,
-                            'page_contents': page_contents,
-                            'summary': summary
-                        }
-                        st.session_state['current_session_files'].add(uploaded_file.name)
-                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
-                        all_documents.append(uploaded_file.name)
-                        st.success(f"File processed and stored in vector database!")
-                        with st.expander("View Summary"):
-                            st.markdown(summary)
-                except Exception as e:
-                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-
-    # Document Selection and Management
-    st.divider()
-    st.subheader("📂 All Available Documents")
-
-    all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
-
-    if all_documents:
-        selected_documents = st.multiselect(
-            "Select documents to query:",
-            options=all_documents,
-            default=list(st.session_state['current_session_files'])
-        )
-        
-        for file_name in selected_documents:
-            st.subheader(f"📄 {file_name}")
-            if file_name in st.session_state['processed_data']:
-                st.markdown(f"**Summary:**")
-                st.markdown(st.session_state['processed_data'][file_name]['summary'])
-                
-                st.markdown("**Pages:**")
-                for page_num, image_path in st.session_state['processed_data'][file_name]['image_paths']:
-                    with st.expander(f"Page {page_num}"):
-                        st.image(image_path, use_column_width=True)
-                        st.markdown(st.session_state['processed_data'][file_name]['page_contents'][page_num-1])
-            else:
-                st.info(f"Detailed information for {file_name} is not available in the current session. You can still query this document.")
-            
-            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                collection = get_or_create_collection("document_pages")
-                collection.delete(f"file_name == '{file_name}'")
-                all_documents.remove(file_name)
-                if file_name in st.session_state['current_session_files']:
-                    st.session_state['current_session_files'].remove(file_name)
-                if file_name in st.session_state['processed_data']:
-                    del st.session_state['processed_data'][file_name]
-                st.success(f"{file_name} has been removed.")
-                st.rerun()
-    else:
-        st.info("No documents available. Please upload some documents to get started.")
-
-    # Query interface
-    st.divider()
-    st.subheader("🔍 Query the Document(s)")
-    query = st.text_input("Enter your query about the document(s):")
-    if st.button("🔎 Search"):
-        if selected_documents:
-            with st.spinner('Searching...'):
-                all_pages = search_documents(query, selected_documents)
-                
                 content = "\n".join([f"File: {page['file_name']}, Page: {page['page_number']}: {page['content']}" for page in all_pages])
 
                 system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
@@ -440,8 +356,8 @@ try:
                     'documents_queried': selected_documents
                 })
 
-        else:
-            st.warning("Please select at least one document to query.")
+    else:
+        st.warning("Please select at least one document to query.")
 
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:

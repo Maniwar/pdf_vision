@@ -421,90 +421,6 @@ try:
             st.session_state['file_hashes'] = {}
             st.success("Current session cleared. You can still access previously uploaded documents.")
 
-    # File upload section
-    uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            file_content = uploaded_file.getvalue()
-            file_hash = get_file_hash(file_content)
-            
-            if file_hash in st.session_state['file_hashes']:
-                existing_file_name = st.session_state['file_hashes'][file_hash]
-                st.session_state['current_session_files'].add(existing_file_name)
-                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
-            else:
-                try:
-                    with st.spinner('Processing file... This may take a while for large documents.'):
-                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
-                    if collection is not None:
-                        st.session_state['processed_data'][uploaded_file.name] = {
-                            'image_paths': image_paths,
-                            'page_contents': page_contents,
-                            'summary': summary
-                        }
-                        st.session_state['current_session_files'].add(uploaded_file.name)
-                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
-                        all_documents.append(uploaded_file.name)
-                        st.success(f"File processed and stored in vector database!")
-                        with st.expander("📑 View Summary"):
-                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
-                except Exception as e:
-                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-        
-    # Document Selection and Management
-    st.divider()
-    st.subheader("📂 All Available Documents")
-    
-    all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
-    
-    if all_documents:
-        selected_documents = st.multiselect(
-            "Select documents to view or query:",
-            options=all_documents,
-            default=list(st.session_state['current_session_files'])
-        )
-        
-        for file_name in selected_documents:
-            st.subheader(f"📄 {file_name}")
-            page_contents = get_document_content(file_name)
-            if page_contents:
-                with st.expander("📑 Document Summary"):
-                    st.markdown(page_contents[0]['summary'])
-                
-                st.markdown("**📜 Content:**")
-                st.divider()
-                
-                with st.expander("📄 All Pages Content"):
-                    for page in page_contents:
-                        st.subheader(f"Page {page['page_number']}")
-                        st.markdown("### Page Content")
-                        st.markdown(page['content'])
-                
-                with st.expander("🖼️ All Pages Images"):
-                    for page in page_contents:
-                        if file_name in st.session_state['processed_data']:
-                            image_paths = st.session_state['processed_data'][file_name]['image_paths']
-                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                            if image_path:
-                                st.subheader(f"Page {page['page_number']} Image")
-                                st.image(image_path, use_column_width=True)
-            else:
-                st.info(f"No content available for {file_name}.")
-            
-            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                collection = get_or_create_collection("document_pages")
-                collection.delete(f"file_name == '{file_name}'")
-                all_documents.remove(file_name)
-                if file_name in st.session_state['current_session_files']:
-                    st.session_state['current_session_files'].remove(file_name)
-                if file_name in st.session_state['processed_data']:
-                    del st.session_state['processed_data'][file_name]
-                st.success(f"{file_name} has been removed.")
-                st.rerun()
-    else:
-        st.info("No documents available. Please upload some documents to get started.")
-
-
 
     # Query interface
     st.divider()
@@ -579,6 +495,90 @@ try:
 
         else:
             st.warning("Please select at least one document to query.")
+            
+    # File upload section
+    uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            file_content = uploaded_file.getvalue()
+            file_hash = get_file_hash(file_content)
+            
+            if file_hash in st.session_state['file_hashes']:
+                existing_file_name = st.session_state['file_hashes'][file_hash]
+                st.session_state['current_session_files'].add(existing_file_name)
+                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
+            else:
+                try:
+                    with st.spinner('Processing file... This may take a while for large documents.'):
+                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
+                    if collection is not None:
+                        st.session_state['processed_data'][uploaded_file.name] = {
+                            'image_paths': image_paths,
+                            'page_contents': page_contents,
+                            'summary': summary
+                        }
+                        st.session_state['current_session_files'].add(uploaded_file.name)
+                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
+                        all_documents.append(uploaded_file.name)
+                        st.success(f"File processed and stored in vector database!")
+                        with st.expander("📑 View Summary"):
+                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
+                except Exception as e:
+                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
+        
+    # Document Selection and Management
+    st.divider()
+    st.subheader("📂 All Available Documents")
+    
+    all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
+    
+    if all_documents:
+        selected_documents = st.multiselect(
+            "Select documents to view or query:",
+            options=all_documents,
+            default=list(st.session_state['current_session_files'])
+        )
+        
+        for file_name in selected_documents:
+            st.subheader(f"📄 {file_name}")
+            page_contents = get_document_content(file_name)
+            if page_contents:
+                with st.expander("📑 Document Summary"):
+                    st.markdown(page_contents[0]['summary'])
+                
+                st.markdown("**📜 Content:**")
+                st.divider()
+                
+                with st.expander("📄 Scanned Content"):
+                    for page in page_contents:
+                        st.subheader(f"Page {page['page_number']}")
+                        st.markdown("### Page Content")
+                        st.markdown(page['content'])
+                
+                with st.expander("🖼️ Source Images"):
+                    for page in page_contents:
+                        if file_name in st.session_state['processed_data']:
+                            image_paths = st.session_state['processed_data'][file_name]['image_paths']
+                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                            if image_path:
+                                st.subheader(f"Page {page['page_number']} Image")
+                                st.image(image_path, use_column_width=True)
+            else:
+                st.info(f"No content available for {file_name}.")
+            
+            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                collection = get_or_create_collection("document_pages")
+                collection.delete(f"file_name == '{file_name}'")
+                all_documents.remove(file_name)
+                if file_name in st.session_state['current_session_files']:
+                    st.session_state['current_session_files'].remove(file_name)
+                if file_name in st.session_state['processed_data']:
+                    del st.session_state['processed_data'][file_name]
+                st.success(f"{file_name} has been removed.")
+                st.rerun()
+    else:
+        st.info("No documents available. Please upload some documents to get started.")
+
 
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:

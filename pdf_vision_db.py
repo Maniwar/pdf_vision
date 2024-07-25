@@ -450,7 +450,7 @@ try:
                             st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-    
+        
     # Document Selection and Management
     st.divider()
     st.subheader("📂 All Available Documents")
@@ -469,21 +469,25 @@ try:
             page_contents = get_document_content(file_name)
             if page_contents:
                 with st.expander("📑 Document Summary"):
-                    st.markdown(f"🗂️ **Document Summary**\n\n{page_contents[0]['summary']}")
+                    st.markdown(page_contents[0]['summary'])
                 
                 st.markdown("**📜 Content:**")
                 st.divider()
-                for page in page_contents:
-                    with st.expander(f"📄 Page {page['page_number']}"):
+                
+                with st.expander("📄 All Pages Content"):
+                    for page in page_contents:
+                        st.subheader(f"Page {page['page_number']}")
                         st.markdown("### Page Content")
                         st.markdown(page['content'])
-                        
+                
+                with st.expander("🖼️ All Pages Images"):
+                    for page in page_contents:
                         if file_name in st.session_state['processed_data']:
                             image_paths = st.session_state['processed_data'][file_name]['image_paths']
                             image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                             if image_path:
-                                with st.expander(f"🖼️ Image for Page {page['page_number']}"):
-                                    st.image(image_path, use_column_width=True)
+                                st.subheader(f"Page {page['page_number']} Image")
+                                st.image(image_path, use_column_width=True)
             else:
                 st.info(f"No content available for {file_name}.")
             
@@ -499,6 +503,7 @@ try:
                 st.rerun()
     else:
         st.info("No documents available. Please upload some documents to get started.")
+
 
 
     # Query interface

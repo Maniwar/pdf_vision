@@ -150,6 +150,31 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# System and User prompts for GPT
+SYSTEM_PROMPT = """
+Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
+
+Specific guidelines:
+1. **Figures and Diagrams:** Transcribe all details and explicitly state the nature of any diagrams or figures so that they can be reconstructed based on your notation.
+2. **Titles and Captions:** Transcribe all text exactly as seen, labeling them as 'Title:' or 'Caption:'.
+3. **Underlined, Highlighted, or Circled Items:** Transcribe all such items and explicitly identify them as 'Underlined:', 'Highlighted:', or 'Circled:' so that they can be reconstructed based on your notation.
+4. **Charts and Graphs:** Transcribe all related data and clearly describe its type, like 'Bar chart:' or 'Line graph:' so that they can be reconstructed based on your notation.
+5. **Organizational Charts:** Transcribe all details and specify 'Organizational chart:' so that they can be reconstructed based on your notation.
+6. **Tables:** Transcribe tables exactly as seen and start with 'Table:' so that they can be reconstructed based on your notation.
+7. **Annotations and Comments:** Transcribe all annotations and comments, specifying their nature, like 'Handwritten comment:' or 'Printed annotation:', so that they can be reconstructed based on your notation.
+8. **General Image Content:** Describe all relevant images, logos, and visual elements, noting features like 'Hand-drawn logo:' or 'Computer-generated image:' so that they can be reconstructed based on your notation.
+9. **Handwritten Notes:** Transcribe all and clearly label as 'Handwritten note:', specifying their location within the document and creating a unique ID for each one so that they can be reconstructed based on your notation.
+10. **Page Layout:** Describe significant layout elements directly so that the document layout can be reconstructed.
+11. **Redactions:** Note any redacted sections with 'Redacted area:' so that they can be identified and the visible context can be reconstructed.
+
+Each transcription should be devoid of filler content, focusing solely on the precise documentation and categorization of the visible information.
+"""
+
+USER_PROMPT = """ 
+Transcribe and categorize all visible information from the image precisely as it is presented. Ensure to include notations about content types, such as 'Handwritten note:' or 'Graph type:'. Begin immediately with the details, omitting any introductory language.
+"""
+
+# Utility Functions
 def connect_to_milvus():
     connections.connect(
         alias="default", 
@@ -182,7 +207,117 @@ def get_or_create_collection(collection_name, dim=1536):
         collection.create_index("vector", index_params)
         return collection
 
-# ... (other utility functions remain the same)
+def get_file_hash(file_content):
+    return hashlib.md5(file_content).hexdigest()
+
+def encode_image(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
+
+def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> int:
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+def get_all_documents():
+    collection = get_or_create_collection("document_pages")
+    collection.load()
+    results = collection.query(
+        expr="file_name != ''",
+        output_fields=["file_name"],
+        limit=16384
+    )
+    return list(set(doc['file_name'] for doc in results))
+
+def get_document_content(file_name):
+    collection = get_or_create_collection("document_pages")
+    collection.load()
+    results = collection.query(
+        expr=f"file_name == '{file_name}'",
+        output_fields=["content", "page_number", "image", "summary"],
+        limit=16384
+    )
+    return sorted(results, key=lambda x: x['page_number'])
+
+def get_generated_data(image_path):
+    base64_image = encode_image(image_path)
+    
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": [
+                {"type": "text", "text": USER_PROMPT},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+            ]}
+        ],
+        max_tokens=MAX_TOKENS,
+        temperature=0.1
+    )
+    return response.choices[0].message.content
+
+def save_uploadedfile(uploadedfile):
+    temp_dir = tempfile.mkdtemp()
+    file_path = os.path.join(temp_dir, uploadedfile.name)
+    with open(file_path, "wb") as f:
+        f.write(uploadedfile.getbuffer())
+    return file_path
+
+def generate_summary(page_contents):
+    total_tokens = sum(num_tokens_from_string(content) for content in page_contents)
+    
+    if total_tokens > MAX_TOKENS:
+        # If the document is very large, we need to summarize it in chunks
+        chunk_size = MAX_TOKENS // 2  # Leave room for the summary generation prompt
+        chunks = []
+        current_chunk = []
+        current_chunk_tokens = 0
+        
+        for content in page_contents:
+            content_tokens = num_tokens_from_string(content)
+            if current_chunk_tokens + content_tokens > chunk_size:
+                chunks.append("\n".join(current_chunk))
+                current_chunk = [content]
+                current_chunk_tokens = content_tokens
+            else:
+                current_chunk.append(content)
+                current_chunk_tokens += content_tokens
+        
+        if current_chunk:
+            chunks.append("\n".join(current_chunk))
+        
+        summaries = []
+        for i, chunk in enumerate(chunks):
+            chunk_summary = client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that summarizes document chunks."},
+                    {"role": "user", "content": f"Provide a brief summary of this document chunk ({i+1}/{len(chunks)}):\n\n{chunk}"}
+                ],
+                max_tokens=MAX_TOKENS // 4  # Limit the summary size for each chunk
+            ).choices[0].message.content
+            summaries.append(chunk_summary)
+        
+        final_summary = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that combines document chunk summaries."},
+                {"role": "user", "content": f"Combine these chunk summaries into a coherent overall summary:\n\n{''.join(summaries)}"}
+            ],
+            max_tokens=MAX_TOKENS // 2  # Limit the final summary size
+        ).choices[0].message.content
+    else:
+        # If the document is not too large, we can summarize it in one go
+        final_summary = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that summarizes documents."},
+                {"role": "user", "content": f"Provide a comprehensive summary of this document:\n\n{''.join(page_contents)}"}
+            ],
+            max_tokens=MAX_TOKENS // 2  # Limit the summary size
+        ).choices[0].message.content
+    
+    return final_summary
 
 def process_file(uploaded_file):
     st.subheader(f"Processing: {uploaded_file.name}")
@@ -304,16 +439,6 @@ def process_file(uploaded_file):
 
     return collection, image_paths, page_contents, summary
 
-def get_document_content(file_name):
-    collection = get_or_create_collection("document_pages")
-    collection.load()
-    results = collection.query(
-        expr=f"file_name == '{file_name}'",
-        output_fields=["content", "page_number", "image", "summary"],
-        limit=16384
-    )
-    return sorted(results, key=lambda x: x['page_number'])
-
 def search_documents(query, selected_documents):
     collection = get_or_create_collection("document_pages")
     collection.load()
@@ -345,6 +470,11 @@ def search_documents(query, selected_documents):
         all_pages.append(page)
 
     return all_pages
+
+# Streamlit interface starts here
+st.title('📄 Document Query and Analysis App')
+
+# The rest of your Streamlit interface code follows...
 
 # Streamlit interface
 st.title('📄 Document Query and Analysis App')

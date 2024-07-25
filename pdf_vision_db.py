@@ -27,14 +27,118 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
-# iOS-like CSS styling (unchanged)
+# iOS-like CSS styling
 st.markdown("""
 <style>
-    /* iOS-like styling (unchanged) */
+    /* iOS-like color palette */
+    :root {
+        --ios-blue: #007AFF;
+        --ios-gray: #8E8E93;
+        --ios-light-gray: #F2F2F7;
+        --ios-white: #FFFFFF;
+        --ios-red: #FF3B30;
+    }
+
+    /* General styling */
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+        color: #000000;
+        background-color: var(--ios-light-gray);
+    }
+
+    /* Headings */
+    h1, h2, h3 {
+        font-weight: 600;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        border-radius: 10px;
+        background-color: var(--ios-blue);
+        color: var(--ios-white);
+        border: none;
+        padding: 10px 20px;
+        font-size: 16px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .stButton > button:hover {
+        background-color: #0056b3;
+    }
+
+    /* Input fields */
+    .stTextInput > div > div > input {
+        border-radius: 10px;
+        border: 1px solid var(--ios-gray);
+        padding: 10px;
+    }
+
+    /* Sliders */
+    .stSlider > div > div > div > div {
+        background-color: var(--ios-blue);
+    }
+
+    /* Expanders */
+    .streamlit-expanderHeader {
+        background-color: var(--ios-white);
+        border-radius: 10px;
+        border: 1px solid var(--ios-gray);
+    }
+
+    /* Warning banner */
+    .warning-banner {
+        background-color: #FFDAB9;
+        border: 1px solid #FFA500;
+        padding: 15px;
+        color: #8B4513;
+        font-weight: 600;
+        text-align: center;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+
+    /* Big font for important notices */
+    .big-font {
+        font-size: 24px !important;
+        font-weight: 700;
+        color: var(--ios-red);
+    }
+
+    /* Custom styling for alerts */
+    .stAlert > div {
+        padding: 15px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-size: 16px;
+    }
+
+    .stAlert .big-font {
+        margin-bottom: 10px;
+    }
+
+    .bottom-warning {
+        background-color: #FFDDC1;
+        border: 1px solid #FFA07A;
+        padding: 15px;
+        color: #8B0000;
+        font-weight: 600;
+        text-align: left;
+        border-radius: 10px;
+        margin-top: 20px;
+    }
+
+    .bottom-warning .big-font {
+        font-size: 24px !important;
+        font-weight: 700;
+        color: #FF4500;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Warning Banner (unchanged)
+# Warning Banner
 st.markdown("""
 <div class="warning-banner">
     <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
@@ -88,12 +192,29 @@ def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> i
 def get_all_documents():
     collection = get_or_create_collection("document_pages")
     collection.load()
-    results = collection.query(
-        expr="file_name != ''",
-        output_fields=["file_name"],
-        limit=100000
-    )
-    return list(set(doc['file_name'] for doc in results))
+    
+    offset = 0
+    limit = 16000  # Milvus max limit
+    all_documents = set()
+    
+    while True:
+        results = collection.query(
+            expr="file_name != ''",
+            output_fields=["file_name"],
+            offset=offset,
+            limit=limit
+        )
+        
+        if not results:
+            break
+        
+        all_documents.update(doc['file_name'] for doc in results)
+        offset += limit
+        
+        if len(results) < limit:
+            break
+    
+    return list(all_documents)
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -273,7 +394,7 @@ def process_file(uploaded_file):
 
     return collection, image_paths, splits, summary
 
-def search_documents(query, selected_documents):
+def search_documents(query, selected_documents, top_k):
     collection = get_or_create_collection("document_pages")
     collection.load()
     
@@ -283,37 +404,24 @@ def search_documents(query, selected_documents):
         "params": {"nprobe": 10},
     }
 
-    # Initialize variables for pagination
-    offset = 0
-    limit = 16000  # Milvus max limit
+    results = collection.search(
+        data=[query_vector],
+        anns_field="vector",
+        param=search_params,
+        limit=top_k,
+        expr=f"file_name in {selected_documents}",
+        output_fields=["content", "file_name", "page_number"]
+    )
+
     all_pages = []
-
-    while True:
-        results = collection.search(
-            data=[query_vector],
-            anns_field="vector",
-            param=search_params,
-            limit=limit,
-            offset=offset,
-            expr=f"file_name in {selected_documents}",
-            output_fields=["content", "file_name", "page_number"]
-        )
-
-        if not results[0]:  # If no results, break the loop
-            break
-
-        for hit in results[0]:
-            page = {
-                'file_name': hit.entity.get('file_name'),
-                'content': hit.entity.get('content'),
-                'page_number': hit.entity.get('page_number'),
-                'score': hit.score
-            }
-            all_pages.append(page)
-
-        offset += limit
-        if len(results[0]) < limit:  # If we've retrieved all results, break the loop
-            break
+    for hit in results[0]:
+        page = {
+            'file_name': hit.entity.get('file_name'),
+            'content': hit.entity.get('content'),
+            'page_number': hit.entity.get('page_number'),
+            'score': hit.score
+        }
+        all_pages.append(page)
 
     return all_pages
 
@@ -338,6 +446,8 @@ try:
     with st.sidebar:
         st.header("⚙️ Advanced Options")
         citations_to_display = st.slider("Number of citations to display", 1, 20, 5)
+        semantic_similarity = st.slider("Semantic Similarity", 0.0, 1.0, 0.7, 0.01)
+        citation_content_percentage = st.slider("Citation Content to Show (%)", 10, 100, 50, 10)
         
         if st.button("🗑️ Clear Current Session"):
             st.session_state['current_session_files'] = set()
@@ -427,12 +537,21 @@ try:
     if st.button("🔎 Search"):
         if selected_documents:
             with st.spinner('Searching...'):
-                all_pages = search_documents(query, selected_documents)
+                all_pages = search_documents(query, selected_documents, top_k=citations_to_display * 2)  # Fetch more results than needed
+                
+                # Filter results based on semantic similarity
+                all_pages = [page for page in all_pages if 1 - page['score'] >= semantic_similarity]
                 
                 if not all_pages:
-                    st.warning("No relevant results found. Please try a different query.")
+                    st.warning("No relevant results found. Please try a different query or adjust the semantic similarity threshold.")
                 else:
-                    content = "\n".join([f"File: {page['file_name']}, Chunk: {page['page_number']}: {page['content']}" for page in all_pages])
+                    # Trim content based on citation_content_percentage
+                    for page in all_pages:
+                        words = page['content'].split()
+                        word_limit = int(len(words) * (citation_content_percentage / 100))
+                        page['display_content'] = ' '.join(words[:word_limit]) + ('...' if word_limit < len(words) else '')
+
+                    content = "\n".join([f"File: {page['file_name']}, Chunk: {page['page_number']}: {page['display_content']}" for page in all_pages[:citations_to_display]])
 
                     system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, chunk numbers, and relevant snippets."
                     user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
@@ -452,7 +571,7 @@ try:
                     st.subheader("📚 Sources:")
                     for i, page in enumerate(all_pages[:citations_to_display]):
                         st.markdown(f"**Source {i+1}: File: {page['file_name']}, Chunk: {page['page_number']}, Relevance: {1 - page['score']:.2f}**")
-                        st.markdown(page['content'])
+                        st.markdown(page['display_content'])
                         
                         if page['file_name'] in st.session_state['processed_data']:
                             image_paths = st.session_state['processed_data'][page['file_name']]['image_paths']
@@ -571,3 +690,7 @@ with st.expander("⚠️ By using this application, you agree to the following t
         By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
     </div>
     """, unsafe_allow_html=True)
+
+# Main execution
+if __name__ == "__main__":
+    main()

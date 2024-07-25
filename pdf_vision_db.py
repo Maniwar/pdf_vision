@@ -441,7 +441,7 @@ try:
                     st.rerun()
     else:
         st.info("No documents available. Please upload some documents to get started.")
-
+    
     # Query interface
     st.divider()
     st.subheader("🔍 Query the Document(s)")
@@ -461,11 +461,11 @@ try:
                     data=[query_vector],
                     anns_field="vector",
                     param=search_params,
-                    limit=chunks_to_retrieve,
+                    limit=1000,  # Increase this limit to retrieve more chunks
                     expr=f"file_name in {selected_documents}",
                     output_fields=["content", "file_name", "chunk_index"]
                 )
-
+    
                 all_docs = []
                 for hit in results[0]:
                     all_docs.append((
@@ -480,11 +480,12 @@ try:
                 # Sort all_docs by relevance score
                 all_docs.sort(key=lambda x: x[2])
                 
+                # Use all retrieved chunks for generating the response
                 content = "\n".join([f"File: {file_name}, Chunk {doc['chunk_index']}: {doc['content']}" for file_name, doc, _ in all_docs])
-
+    
                 system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, chunk indices, and relevant snippets."
                 user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-
+    
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
@@ -495,13 +496,14 @@ try:
                 st.divider()
                 st.subheader("💬 Answer:")
                 st.write(response.choices[0].message.content)
-
+    
                 confidence_score = calculate_confidence(all_docs)
                 st.write(f"Confidence Score: {confidence_score}%")
-
+    
                 st.divider()
                 st.subheader("📚 Sources:")
-                for file_name, doc, score in all_docs:
+                # Only display the number of sources specified by chunks_to_retrieve
+                for file_name, doc, score in all_docs[:chunks_to_retrieve]:
                     chunk_index = doc['chunk_index']
                     st.markdown(f"**File: {file_name}, Chunk {chunk_index}, Relevance: {1 - score:.2f}**")
                     highlighted_text = highlight_relevant_text(doc['content'][:200], query)
@@ -515,24 +517,25 @@ try:
                         if image_path:
                             with st.expander(f"🖼️ View Image: {file_name}, Page {page_num}"):
                                 st.image(image_path, use_column_width=True)
-
+    
                 with st.expander("📊 Document Statistics", expanded=False):
                     st.write(f"Total chunks retrieved: {len(all_docs)}")
-                    for file_name, doc, score in all_docs:
+                    st.write(f"Chunks displayed: {min(chunks_to_retrieve, len(all_docs))}")
+                    for file_name, doc, score in all_docs[:chunks_to_retrieve]:
                         st.write(f"File: {file_name}, Chunk: {doc['chunk_index']}, Score: {1 - score:.2f}")
                         st.write(f"Content snippet: {doc['content'][:100]}...")
-
+    
                 # Save question and answer to history
                 if 'qa_history' not in st.session_state:
                     st.session_state['qa_history'] = []
                 st.session_state['qa_history'].append({
                     'question': query,
                     'answer': response.choices[0].message.content,
-                    'sources': [{'file': file_name, 'chunk': doc['chunk_index']} for file_name, doc, _ in all_docs],
+                    'sources': [{'file': file_name, 'chunk': doc['chunk_index']} for file_name, doc, _ in all_docs[:chunks_to_retrieve]],
                     'confidence': confidence_score,
                     'documents_queried': selected_documents
                 })
-
+    
         else:
             st.warning("Please select at least one document to query.")
     

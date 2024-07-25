@@ -491,7 +491,7 @@ try:
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     if st.button("🔎 Search"):
-        if selected_documents:
+        if 'selected_documents' in locals() and selected_documents:
             with st.spinner('Searching...'):
                 all_pages = search_documents(query, selected_documents)
                 
@@ -499,10 +499,10 @@ try:
                     st.warning("No relevant results found. Please try a different query.")
                 else:
                     content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
-
+    
                     system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
                     user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-
+    
                     response = client.chat.completions.create(
                         model=MODEL,
                         messages=[
@@ -514,7 +514,6 @@ try:
                     st.divider()
                     st.subheader("💬 Answer:")
                     st.write(response.choices[0].message.content)
-
                     st.divider()
                     st.subheader("📚 Sources:")
                     

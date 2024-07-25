@@ -342,10 +342,20 @@ def process_file(uploaded_file):
     summary = generate_summary(page_contents)
     
     # Update summary for all pages of this file
-    collection.update(
-        expr=f"file_name == '{uploaded_file.name}'",
-        data={"summary": summary}
-    )
+    try:
+        collection.delete(expr=f"file_name == '{uploaded_file.name}'")
+        for i, content in enumerate(page_contents):
+            page_vector = embeddings.embed_documents([content])[0]
+            entity = {
+                "content": content,
+                "file_name": uploaded_file.name,
+                "page_number": i + 1,
+                "vector": page_vector,
+                "summary": summary
+            }
+            collection.insert([entity])
+    except Exception as e:
+        st.error(f"Error updating summary: {str(e)}")
 
     progress_bar.progress(100)
 

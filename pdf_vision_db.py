@@ -363,7 +363,7 @@ try:
     # Sidebar for advanced options
     with st.sidebar:
         st.header("⚙️ Advanced Options")
-        chunks_to_retrieve = st.slider("Number of chunks to retrieve", 1, 10, 5)
+        chunks_to_retrieve = st.slider("Number of chunks to retrieve", 1, 100, 5)
         similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.5)
 
         if st.button("🗑️ Clear Current Session"):

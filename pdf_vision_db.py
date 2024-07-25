@@ -20,7 +20,7 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4o-mini"  # Latest GPT-4 model
+MODEL = "gpt-4-1106-preview"  # Latest GPT-4 Turbo model
 MAX_TOKENS = 128000  # Maximum tokens for GPT-4 Turbo
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
@@ -29,18 +29,49 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
-# iOS-like CSS styling (unchanged)
+# iOS-like CSS styling
 st.markdown("""
 <style>
-    /* iOS-like styling */
-    ...
+    .stButton>button {
+        border-radius: 20px;
+        font-weight: bold;
+    }
+    .stTextInput>div>div>input {
+        border-radius: 10px;
+    }
+    .stSelectbox>div>div>select {
+        border-radius: 10px;
+    }
+    .stTextArea>div>div>textarea {
+        border-radius: 10px;
+    }
+    .warning-banner {
+        background-color: #FFF3CD;
+        color: #856404;
+        padding: 10px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+    }
+    .big-font {
+        font-size: 18px;
+        font-weight: bold;
+    }
+    .bottom-warning {
+        background-color: #F8D7DA;
+        color: #721C24;
+        padding: 10px;
+        border-radius: 10px;
+        margin-top: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Warning Banner (unchanged)
+# Warning Banner
 st.markdown("""
 <div class="warning-banner">
-    ...
+    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
+    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
+    In the deployed version, there will be a private database to ensure security and privacy.
 </div>
 """, unsafe_allow_html=True)
 
@@ -92,7 +123,7 @@ def get_all_documents():
     results = collection.query(
         expr="file_name != ''",
         output_fields=["file_name"],
-        limit=16384  # Changed from 100000 to comply with Milvus limits
+        limit=16384
     )
     return list(set(doc['file_name'] for doc in results))
 
@@ -184,7 +215,7 @@ def generate_summary(page_contents):
                     {"role": "system", "content": "You are a helpful assistant that summarizes document chunks."},
                     {"role": "user", "content": f"Provide a brief summary of this document chunk ({i+1}/{len(chunks)}):\n\n{chunk}"}
                 ],
-                max_tokens=MAX_TOKENS
+                max_tokens=MAX_TOKENS // 4  # Limit the summary size for each chunk
             ).choices[0].message.content
             summaries.append(chunk_summary)
         
@@ -194,7 +225,7 @@ def generate_summary(page_contents):
                 {"role": "system", "content": "You are a helpful assistant that combines document chunk summaries."},
                 {"role": "user", "content": f"Combine these chunk summaries into a coherent overall summary:\n\n{''.join(summaries)}"}
             ],
-            max_tokens=MAX_TOKENS
+            max_tokens=MAX_TOKENS // 2  # Limit the final summary size
         ).choices[0].message.content
     else:
         # If the document is not too large, we can summarize it in one go
@@ -204,7 +235,7 @@ def generate_summary(page_contents):
                 {"role": "system", "content": "You are a helpful assistant that summarizes documents."},
                 {"role": "user", "content": f"Provide a comprehensive summary of this document:\n\n{''.join(page_contents)}"}
             ],
-            max_tokens=MAX_TOKENS
+            max_tokens=MAX_TOKENS // 2  # Limit the summary size
         ).choices[0].message.content
     
     return final_summary
@@ -217,6 +248,9 @@ def process_file(uploaded_file):
     temp_file_path = save_uploadedfile(uploaded_file)
     file_extension = Path(uploaded_file.name).suffix.lower()
     
+    collection = get_or_create_collection("document_pages")
+    collection.load()
+
     if file_extension == '.pdf':
         # Process PDF
         doc = fitz.open(temp_file_path)
@@ -225,6 +259,7 @@ def process_file(uploaded_file):
         total_pages = len(doc)
         image_paths = []
         page_contents = []
+        
         for page_num in range(total_pages):
             page = doc.load_page(page_num)
             pix = page.get_pixmap()
@@ -233,10 +268,24 @@ def process_file(uploaded_file):
             image_paths.append((page_num + 1, output))
             
             # Generate content for each page using GPT vision
-            page_content = get_generated_data(output)
-            page_contents.append(page_content)
-            
-            progress_bar.progress((page_num + 1) / total_pages)
+            try:
+                page_content = get_generated_data(output)
+                page_contents.append(page_content)
+                
+                # Embed and store each page individually
+                page_vector = embeddings.embed_documents([page_content])[0]
+                entity = {
+                    "content": page_content,
+                    "file_name": uploaded_file.name,
+                    "page_number": page_num + 1,
+                    "vector": page_vector
+                }
+                collection.insert([entity])
+                
+                progress_bar.progress((page_num + 1) / total_pages)
+            except Exception as e:
+                st.error(f"Error processing page {page_num + 1}: {str(e)}")
+                # Continue with the next page
 
         doc.close()
         st.success('PDF processed successfully!')
@@ -246,31 +295,45 @@ def process_file(uploaded_file):
         data = loader.load()
         page_contents = [item.page_content for item in data]
         image_paths = []  # No images for Markdown files
-        progress_bar.progress(1.0)
+        
+        for i, content in enumerate(page_contents):
+            try:
+                page_vector = embeddings.embed_documents([content])[0]
+                entity = {
+                    "content": content,
+                    "file_name": uploaded_file.name,
+                    "page_number": i + 1,
+                    "vector": page_vector
+                }
+                collection.insert([entity])
+                progress_bar.progress((i + 1) / len(page_contents))
+            except Exception as e:
+                st.error(f"Error processing page {i + 1}: {str(e)}")
+                # Continue with the next page
+        
         st.success('Markdown processed successfully!')
     elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
         # Process single image
         image_paths = [(1, temp_file_path)]
-        page_contents = [get_generated_data(temp_file_path)]
-        progress_bar.progress(1.0)
-        st.success('Image processed successfully!')
+        try:
+            page_content = get_generated_data(temp_file_path)
+            page_contents = [page_content]
+            
+            page_vector = embeddings.embed_documents([page_content])[0]
+            entity = {
+                "content": page_content,
+                "file_name": uploaded_file.name,
+                "page_number": 1,
+                "vector": page_vector
+            }
+            collection.insert([entity])
+            progress_bar.progress(1.0)
+            st.success('Image processed successfully!')
+        except Exception as e:
+            st.error(f"Error processing image: {str(e)}")
     else:
         st.error(f"Unsupported file format: {file_extension}")
         return None, None, None, None
-
-    collection = get_or_create_collection("document_pages")
-    collection.load()
-
-    page_vectors = embeddings.embed_documents(page_contents)
-    entities = []
-    for i, (content, vector) in enumerate(zip(page_contents, page_vectors)):
-        entities.append({
-            "content": content,
-            "file_name": uploaded_file.name,
-            "page_number": i + 1,
-            "vector": vector
-        })
-    collection.insert(entities)
 
     summary = generate_summary(page_contents)
 
@@ -292,7 +355,7 @@ def search_documents(query, selected_documents):
         data=[query_vector],
         anns_field="vector",
         param=search_params,
-        limit=1000,  # Increased from 16000 to make better use of the larger context
+        limit=1000,
         expr=f"file_name in {selected_documents}",
         output_fields=["content", "file_name", "page_number"]
     )
@@ -308,7 +371,6 @@ def search_documents(query, selected_documents):
         all_pages.append(page)
 
     return all_pages
-
 
 # Streamlit interface
 st.title('📄 Document Query and Analysis App')
@@ -478,7 +540,6 @@ try:
 
         else:
             st.warning("Please select at least one document to query.")
-
 
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:

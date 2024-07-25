@@ -4,6 +4,8 @@ import streamlit as st
 from pathlib import Path
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import UnstructuredMarkdownLoader
 import fitz  # PyMuPDF for handling PDFs
 import tempfile
 import markdown2
@@ -17,7 +19,7 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4o-mini"  # Updated to the latest GPT-4 model
+MODEL = "gpt-4o-mini"  # Latest GPT-4 model
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
@@ -128,7 +130,7 @@ def get_generated_data(image_path):
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
             ]}
         ],
-        max_tokens=4096,
+        max_tokens=16000,
         temperature=0.1
     )
     return response.choices[0].message.content
@@ -217,7 +219,7 @@ def process_file(uploaded_file):
             pix.save(output)
             image_paths.append((page_num + 1, output))
             
-            # Generate content for each page
+            # Generate content for each page using GPT vision
             page_content = get_generated_data(output)
             page_contents.append(page_content)
             
@@ -225,6 +227,14 @@ def process_file(uploaded_file):
 
         doc.close()
         st.success('PDF processed successfully!')
+    elif file_extension == '.md':
+        # Process Markdown using UnstructuredMarkdownLoader
+        loader = UnstructuredMarkdownLoader(temp_file_path)
+        data = loader.load()
+        page_contents = [item.page_content for item in data]
+        image_paths = []  # No images for Markdown files
+        progress_bar.progress(1.0)
+        st.success('Markdown processed successfully!')
     elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
         # Process single image
         image_paths = [(1, temp_file_path)]
@@ -235,25 +245,33 @@ def process_file(uploaded_file):
         st.error(f"Unsupported file format: {file_extension}")
         return None, None, None, None
 
+    # Use RecursiveCharacterTextSplitter to split the content
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200,
+        length_function=len,
+    )
+    splits = text_splitter.split_text("\n".join(page_contents))
+
     collection = get_or_create_collection("document_pages")
     collection.load()
 
-    page_vectors = embeddings.embed_documents(page_contents)
+    page_vectors = embeddings.embed_documents(splits)
     entities = []
-    for i, (content, vector) in enumerate(zip(page_contents, page_vectors)):
+    for i, (split, vector) in enumerate(zip(splits, page_vectors)):
         entities.append({
-            "content": content,
+            "content": split,
             "file_name": uploaded_file.name,
-            "page_number": i + 1,
+            "page_number": i + 1,  # This is now the chunk number rather than the page number
             "vector": vector
         })
     collection.insert(entities)
 
-    summary = generate_summary(page_contents)
+    summary = generate_summary(splits)
 
     progress_bar.progress(100)
 
-    return collection, image_paths, page_contents, summary
+    return collection, image_paths, splits, summary
 
 def search_documents(query, selected_documents):
     collection = get_or_create_collection("document_pages")
@@ -299,65 +317,168 @@ def search_documents(query, selected_documents):
 
     return all_pages
 
-# Update the query interface section
-st.divider()
-st.subheader("🔍 Query the Document(s)")
-query = st.text_input("Enter your query about the document(s):")
-if st.button("🔎 Search"):
-    if selected_documents:
-        with st.spinner('Searching...'):
-            all_pages = search_documents(query, selected_documents)
+# Streamlit interface
+st.title('📄 Document Query and Analysis App')
+
+try:
+    connect_to_milvus()
+
+    # Initialize session state variables
+    if 'current_session_files' not in st.session_state:
+        st.session_state['current_session_files'] = set()
+    if 'processed_data' not in st.session_state:
+        st.session_state['processed_data'] = {}
+    if 'file_hashes' not in st.session_state:
+        st.session_state['file_hashes'] = {}
+
+    # Load all existing files from Milvus
+    all_documents = get_all_documents()
+
+    # Sidebar for advanced options
+    with st.sidebar:
+        st.header("⚙️ Advanced Options")
+        citations_to_display = st.slider("Number of citations to display", 1, 20, 5)
+        
+        if st.button("🗑️ Clear Current Session"):
+            st.session_state['current_session_files'] = set()
+            st.session_state['processed_data'] = {}
+            st.session_state['file_hashes'] = {}
+            st.success("Current session cleared. You can still access previously uploaded documents.")
+
+    # File upload section
+    uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            file_content = uploaded_file.getvalue()
+            file_hash = get_file_hash(file_content)
             
-            if not all_pages:
-                st.warning("No relevant results found. Please try a different query.")
+            if file_hash in st.session_state['file_hashes']:
+                # File has been processed before
+                existing_file_name = st.session_state['file_hashes'][file_hash]
+                st.session_state['current_session_files'].add(existing_file_name)
+                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
             else:
-                content = "\n".join([f"File: {page['file_name']}, Page: {page['page_number']}: {page['content']}" for page in all_pages])
+                # New file, needs processing
+                try:
+                    with st.spinner('Processing file... This may take a while for large documents.'):
+                        collection, image_paths, splits, summary = process_file(uploaded_file)
+                    if collection is not None:
+                        st.session_state['processed_data'][uploaded_file.name] = {
+                            'image_paths': image_paths,
+                            'splits': splits,
+                            'summary': summary
+                        }
+                        st.session_state['current_session_files'].add(uploaded_file.name)
+                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
+                        all_documents.append(uploaded_file.name)
+                        st.success(f"File processed and stored in vector database!")
+                        with st.expander("View Summary"):
+                            st.markdown(summary)
+                except Exception as e:
+                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-                system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets."
-                user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+    # Document Selection and Management
+    st.divider()
+    st.subheader("📂 All Available Documents")
 
-                response = client.chat.completions.create(
-                    model=MODEL,
-                    messages=[
-                        {"role": "system", "content": system_content},
-                        {"role": "user", "content": user_content}
-                    ]
-                )
-                st.divider()
-                st.subheader("💬 Answer:")
-                st.write(response.choices[0].message.content)
+    all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
 
-                st.divider()
-                st.subheader("📚 Sources:")
-                for i, page in enumerate(all_pages[:citations_to_display]):
-                    st.markdown(f"**Source {i+1}: File: {page['file_name']}, Page: {page['page_number']}, Relevance: {1 - page['score']:.2f}**")
-                    st.markdown(page['content'])
-                    
-                    if page['file_name'] in st.session_state['processed_data']:
-                        image_paths = st.session_state['processed_data'][page['file_name']]['image_paths']
-                        image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                        if image_path:
-                            st.image(image_path, use_column_width=True)
-                    st.divider()
-
-                with st.expander("📊 Document Statistics", expanded=False):
-                    st.write(f"Total pages searched: {len(all_pages)}")
-                    st.write(f"Citations displayed: {min(citations_to_display, len(all_pages))}")
-                    for page in all_pages[:citations_to_display]:
-                        st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
-
-                # Save question and answer to history
-                if 'qa_history' not in st.session_state:
-                    st.session_state['qa_history'] = []
-                st.session_state['qa_history'].append({
-                    'question': query,
-                    'answer': response.choices[0].message.content,
-                    'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages[:citations_to_display]],
-                    'documents_queried': selected_documents
-                })
-
+    if all_documents:
+        selected_documents = st.multiselect(
+            "Select documents to query:",
+            options=all_documents,
+            default=list(st.session_state['current_session_files'])
+        )
+        
+        for file_name in selected_documents:
+            st.subheader(f"📄 {file_name}")
+            if file_name in st.session_state['processed_data']:
+                st.markdown(f"**Summary:**")
+                st.markdown(st.session_state['processed_data'][file_name]['summary'])
+                
+                st.markdown("**Content:**")
+                for i, split in enumerate(st.session_state['processed_data'][file_name]['splits']):
+                    with st.expander(f"Chunk {i+1}"):
+                        st.markdown(split)
+                        if st.session_state['processed_data'][file_name]['image_paths']:
+                            image_path = next((img_path for num, img_path in st.session_state['processed_data'][file_name]['image_paths'] if num == i+1), None)
+                            if image_path:
+                                st.image(image_path, use_column_width=True)
+            else:
+                st.info(f"Detailed information for {file_name} is not available in the current session. You can still query this document.")
+            
+            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                collection = get_or_create_collection("document_pages")
+                collection.delete(f"file_name == '{file_name}'")
+                all_documents.remove(file_name)
+                if file_name in st.session_state['current_session_files']:
+                    st.session_state['current_session_files'].remove(file_name)
+                if file_name in st.session_state['processed_data']:
+                    del st.session_state['processed_data'][file_name]
+                st.success(f"{file_name} has been removed.")
+                st.rerun()
     else:
-        st.warning("Please select at least one document to query.")
+        st.info("No documents available. Please upload some documents to get started.")
+
+    # Query interface
+    st.divider()
+    st.subheader("🔍 Query the Document(s)")
+    query = st.text_input("Enter your query about the document(s):")
+    if st.button("🔎 Search"):
+        if selected_documents:
+            with st.spinner('Searching...'):
+                all_pages = search_documents(query, selected_documents)
+                
+                if not all_pages:
+                    st.warning("No relevant results found. Please try a different query.")
+                else:
+                    content = "\n".join([f"File: {page['file_name']}, Chunk: {page['page_number']}: {page['content']}" for page in all_pages])
+
+                    system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, chunk numbers, and relevant snippets."
+                    user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+
+                    response = client.chat.completions.create(
+                        model=MODEL,
+                        messages=[
+                            {"role": "system", "content": system_content},
+                            {"role": "user", "content": user_content}
+                        ]
+                    )
+                    st.divider()
+                    st.subheader("💬 Answer:")
+                    st.write(response.choices[0].message.content)
+
+                    st.divider()
+                    st.subheader("📚 Sources:")
+                    for i, page in enumerate(all_pages[:citations_to_display]):
+                        st.markdown(f"**Source {i+1}: File: {page['file_name']}, Chunk: {page['page_number']}, Relevance: {1 - page['score']:.2f}**")
+                        st.markdown(page['content'])
+                        
+                        if page['file_name'] in st.session_state['processed_data']:
+                            image_paths = st.session_state['processed_data'][page['file_name']]['image_paths']
+                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                            if image_path:
+                                st.image(image_path, use_column_width=True)
+                        st.divider()
+
+                    with st.expander("📊 Document Statistics", expanded=False):
+                        st.write(f"Total chunks searched: {len(all_pages)}")
+                        st.write(f"Citations displayed: {min(citations_to_display, len(all_pages))}")
+                        for page in all_pages[:citations_to_display]:
+                            st.write(f"File: {page['file_name']}, Chunk: {page['page_number']}, Score: {1 - page['score']:.2f}")
+
+                    # Save question and answer to history
+                    if 'qa_history' not in st.session_state:
+                        st.session_state['qa_history'] = []
+                    st.session_state['qa_history'].append({
+                        'question': query,
+                        'answer': response.choices[0].message.content,
+                        'sources': [{'file': page['file_name'], 'chunk': page['page_number']} for page in all_pages[:citations_to_display]],
+                        'documents_queried': selected_documents
+                    })
+
+        else:
+            st.warning("Please select at least one document to query.")
 
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:
@@ -369,7 +490,7 @@ if st.button("🔎 Search"):
                 st.write("Documents Queried:", ", ".join(qa['documents_queried']))
                 st.write("Sources:")
                 for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Page: {source['page']}")
+                    st.write(f"- File: {source['file']}, Chunk: {source['chunk']}")
         
         # Add a button to clear the question history
         if st.button("🗑️ Clear Question History"):
@@ -382,7 +503,7 @@ if st.button("🔎 Search"):
             for qa in st.session_state.get('qa_history', []):
                 qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
                 for source in qa['sources']:
-                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+                    qa_session += f"- File: {source['file']}, Chunk: {source['chunk']}\n"
                 qa_session += "\n---\n\n"
             
             # Convert markdown to HTML
@@ -408,7 +529,7 @@ except Exception as e:
 if __name__ == "__main__":
     st.sidebar.markdown("## ℹ️ About")
     st.sidebar.info(
-        "This app allows you to upload PDF documents or images, "
+        "This app allows you to upload PDF documents, Markdown files, or images, "
         "extract information from them, and query the content. "
         "It uses OpenAI's GPT model for text generation and "
         "Milvus for efficient similarity search across sessions."
@@ -416,7 +537,7 @@ if __name__ == "__main__":
     
     st.sidebar.markdown("## 📖 How to use")
     st.sidebar.info(
-        "1. Upload one or more PDF or image files.\n"
+        "1. Upload one or more PDF, Markdown, or image files.\n"
         "2. Wait for the processing to complete.\n"
         "3. Select the documents you want to query (including from previous sessions).\n"
         "4. Enter your query in the text box.\n"

@@ -500,7 +500,7 @@ try:
                     if file_name in st.session_state['processed_data']:
                         image_paths = st.session_state['processed_data'][file_name]['image_paths']
                         if chunk_index != 'Unknown':
-                            page_num = chunk_index // 2 + 1  # Assuming 2 chunks per page, adjust as needed
+                            page_num = int(chunk_index) // 2 + 1  # Assuming 2 chunks per page, adjust as needed
                             image_path = next((img_path for num, img_path in image_paths if num == page_num), None)
                             if image_path:
                                 with st.expander(f"🖼️ View Image: {file_name}, Page {page_num}"):

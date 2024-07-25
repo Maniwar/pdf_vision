@@ -365,7 +365,13 @@ def process_file(uploaded_file):
                     "image": image_binary,
                     "summary": ""  # Will be updated later
                 }
-                collection.insert([entity])
+                try:
+                    collection.insert([entity])
+                except Exception as insert_error:
+                    st.error(f"Error inserting data for page {page_num + 1}: {str(insert_error)}")
+                    # If BLOB is causing issues, try inserting without the image
+                    entity.pop("image", None)
+                    collection.insert([entity])
                 
                 progress_bar.progress((page_num + 1) / total_pages)
             except Exception as e:
@@ -418,7 +424,13 @@ def process_file(uploaded_file):
                 "image": image_binary,
                 "summary": ""  # Will be updated later
             }
-            collection.insert([entity])
+            try:
+                collection.insert([entity])
+            except Exception as insert_error:
+                st.error(f"Error inserting data: {str(insert_error)}")
+                # If BLOB is causing issues, try inserting without the image
+                entity.pop("image", None)
+                collection.insert([entity])
             progress_bar.progress(1.0)
             st.success('Image processed successfully!')
         except Exception as e:
@@ -465,12 +477,15 @@ def search_documents(query, selected_documents):
             'content': hit.entity.get('content'),
             'page_number': hit.entity.get('page_number'),
             'score': hit.score,
-            'image': hit.entity.get('image')
         }
+        try:
+            page['image'] = hit.entity.get('image')
+        except Exception as e:
+            st.warning(f"Error retrieving image for {page['file_name']}, page {page['page_number']}: {str(e)}")
+            page['image'] = None
         all_pages.append(page)
 
     return all_pages
-
 
 # Streamlit interface
 st.title('📄 Document Query and Analysis App')

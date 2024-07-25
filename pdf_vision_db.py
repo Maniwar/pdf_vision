@@ -20,7 +20,7 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4-1106-preview"  # Latest GPT-4 Turbo model
+MODEL = "gpt-4o-mini"  # Latest GPT-4 model
 MAX_TOKENS = 128000  # Maximum tokens for GPT-4 Turbo
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
@@ -92,9 +92,19 @@ def get_all_documents():
     results = collection.query(
         expr="file_name != ''",
         output_fields=["file_name"],
-        limit=100000
+        limit=16384  # Changed from 100000 to comply with Milvus limits
     )
     return list(set(doc['file_name'] for doc in results))
+
+def get_document_content(file_name):
+    collection = get_or_create_collection("document_pages")
+    collection.load()
+    results = collection.query(
+        expr=f"file_name == '{file_name}'",
+        output_fields=["content", "page_number"],
+        limit=16384
+    )
+    return sorted(results, key=lambda x: x['page_number'])
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -299,6 +309,7 @@ def search_documents(query, selected_documents):
 
     return all_pages
 
+
 # Streamlit interface
 st.title('📄 Document Query and Analysis App')
 
@@ -335,12 +346,10 @@ try:
             file_hash = get_file_hash(file_content)
             
             if file_hash in st.session_state['file_hashes']:
-                # File has been processed before
                 existing_file_name = st.session_state['file_hashes'][file_hash]
                 st.session_state['current_session_files'].add(existing_file_name)
                 st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
             else:
-                # New file, needs processing
                 try:
                     with st.spinner('Processing file... This may take a while for large documents.'):
                         collection, image_paths, page_contents, summary = process_file(uploaded_file)
@@ -367,7 +376,7 @@ try:
 
     if all_documents:
         selected_documents = st.multiselect(
-            "Select documents to query:",
+            "Select documents to view or query:",
             options=all_documents,
             default=list(st.session_state['current_session_files'])
         )
@@ -387,7 +396,14 @@ try:
                             if image_path:
                                 st.image(image_path, use_column_width=True)
             else:
-                st.info(f"Detailed information for {file_name} is not available in the current session. You can still query this document.")
+                # Fetch content from Milvus for previously uploaded files
+                page_contents = get_document_content(file_name)
+                if page_contents:
+                    for page in page_contents:
+                        with st.expander(f"Page {page['page_number']}"):
+                            st.markdown(page['content'])
+                else:
+                    st.info(f"No content available for {file_name}.")
             
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 collection = get_or_create_collection("document_pages")
@@ -462,6 +478,7 @@ try:
 
         else:
             st.warning("Please select at least one document to query.")
+
 
     # Display question history
     if 'qa_history' in st.session_state and st.session_state['qa_history']:

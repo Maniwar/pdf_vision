@@ -340,7 +340,7 @@ def search_documents(query, selected_documents):
         data=[query_vector],
         anns_field="vector",
         param=search_params,
-        limit=10000,  # Set a high limit to ensure we search across all pages
+        limit=1024,  # Set a high limit to ensure we search across all pages
         expr=f"file_name in {selected_documents}",
         output_fields=["content", "file_name", "page_number"]
     )

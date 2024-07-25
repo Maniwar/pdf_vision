@@ -394,7 +394,7 @@ def search_documents(query, selected_documents):
     return all_pages
 
 # Streamlit interface
-st.title('📄 Document Query and Analysis App')
+st.title('📄 Document Query App')
 
 try:
     connect_to_milvus()
@@ -479,7 +479,8 @@ try:
                             image_paths = st.session_state['processed_data'][file_name]['image_paths']
                             image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                             if image_path:
-                                st.image(image_path, use_column_width=True)
+                                with st.expander("🖼️ Image"):
+                                    st.image(image_path, use_column_width=True)
             else:
                 st.info(f"No content available for {file_name}.")
             

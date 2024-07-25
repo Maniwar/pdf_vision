@@ -213,7 +213,7 @@ Act strictly as an advanced AI-based transcription and notation tool, directly c
 Specific guidelines:
 1. **Figures and Diagrams:** Transcribe all details and explicitly state the nature of any diagrams or figures so that they can be reconstructed based on your notation.
 2. **Titles and Captions:** Transcribe all text exactly as seen, labeling them as 'Title:' or 'Caption:'.
-3. **Underlined, Highlighted, Bold, or Circled Items:** Transcribe all such items and explicitly identify them as 'Underlined:', 'Highlighted:', 'Bold:' or 'Circled:' so that they can be reconstructed based on your notation.
+3. **Underlined, Highlighted, or Circled Items:** Transcribe all such items and explicitly identify them as 'Underlined:', 'Highlighted:', or 'Circled:' so that they can be reconstructed based on your notation.
 4. **Charts and Graphs:** Transcribe all related data and clearly describe its type, like 'Bar chart:' or 'Line graph:' so that they can be reconstructed based on your notation.
 5. **Organizational Charts:** Transcribe all details and specify 'Organizational chart:' so that they can be reconstructed based on your notation.
 6. **Tables:** Transcribe tables exactly as seen and start with 'Table:' so that they can be reconstructed based on your notation.

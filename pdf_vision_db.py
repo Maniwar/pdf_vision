@@ -471,10 +471,6 @@ def search_documents(query, selected_documents):
 
     return all_pages
 
-# Streamlit interface starts here
-st.title('📄 Document Query and Analysis App')
-
-# The rest of your Streamlit interface code follows...
 
 # Streamlit interface
 st.title('📄 Document Query and Analysis App')

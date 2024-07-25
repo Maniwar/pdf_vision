@@ -652,4 +652,3 @@ with st.expander("⚠️ By using this application, you agree to the following t
         By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
     </div>
     """, unsafe_allow_html=True)
-```

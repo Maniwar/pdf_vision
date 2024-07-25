@@ -330,7 +330,7 @@ def process_file(uploaded_file):
 
     chunk_vectors = embeddings.embed_documents(chunks)
     entities = [
-        [chunk for chunk in chunks],
+        chunks,
         [uploaded_file.name] * len(chunks),
         list(range(len(chunks))),
         chunk_vectors
@@ -408,6 +408,8 @@ try:
     st.divider()
     st.subheader("📂 All Available Documents")
 
+    all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
+
     if all_documents:
         selected_documents = st.multiselect(
             "Select documents to query:",
@@ -464,12 +466,21 @@ try:
                     output_fields=["content", "file_name", "chunk_index"]
                 )
 
-                all_docs = [(hit.entity.get('file_name'), hit.entity, hit.distance) for hit in results[0]]
+                all_docs = []
+                for hit in results[0]:
+                    all_docs.append((
+                        hit.entity.get('file_name'),
+                        {
+                            'content': hit.entity.get('content'),
+                            'chunk_index': hit.entity.get('chunk_index')
+                        },
+                        hit.distance
+                    ))
                 
                 # Sort all_docs by relevance score
                 all_docs.sort(key=lambda x: x[2])
                 
-                content = "\n".join([f"File: {file_name}, Chunk {doc.get('chunk_index', 'Unknown')}: {doc.get('content', '')}" for file_name, doc, _ in all_docs])
+                content = "\n".join([f"File: {file_name}, Chunk {doc['chunk_index']}: {doc['content']}" for file_name, doc, _ in all_docs])
 
                 system_content = "You are an assisting agent. Please provide the response based on the input. After your response, list the sources of information used, including file names, chunk indices, and relevant snippets."
                 user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
@@ -491,26 +502,25 @@ try:
                 st.divider()
                 st.subheader("📚 Sources:")
                 for file_name, doc, score in all_docs:
-                    chunk_index = doc.get('chunk_index', 'Unknown')
+                    chunk_index = doc['chunk_index']
                     st.markdown(f"**File: {file_name}, Chunk {chunk_index}, Relevance: {1 - score:.2f}**")
-                    highlighted_text = highlight_relevant_text(doc.get('content', '')[:200], query)
+                    highlighted_text = highlight_relevant_text(doc['content'][:200], query)
                     st.markdown(f"```\n{highlighted_text}...\n```")
                     
                     # Find the corresponding image
                     if file_name in st.session_state['processed_data']:
                         image_paths = st.session_state['processed_data'][file_name]['image_paths']
-                        if chunk_index != 'Unknown':
-                            page_num = int(chunk_index) // 2 + 1  # Assuming 2 chunks per page, adjust as needed
-                            image_path = next((img_path for num, img_path in image_paths if num == page_num), None)
-                            if image_path:
-                                with st.expander(f"🖼️ View Image: {file_name}, Page {page_num}"):
-                                    st.image(image_path, use_column_width=True)
+                        page_num = chunk_index // 2 + 1  # Assuming 2 chunks per page, adjust as needed
+                        image_path = next((img_path for num, img_path in image_paths if num == page_num), None)
+                        if image_path:
+                            with st.expander(f"🖼️ View Image: {file_name}, Page {page_num}"):
+                                st.image(image_path, use_column_width=True)
 
                 with st.expander("📊 Document Statistics", expanded=False):
                     st.write(f"Total chunks retrieved: {len(all_docs)}")
                     for file_name, doc, score in all_docs:
-                        st.write(f"File: {file_name}, Chunk: {doc.get('chunk_index', 'Unknown')}, Score: {1 - score:.2f}")
-                        st.write(f"Content snippet: {doc.get('content', '')[:100]}...")
+                        st.write(f"File: {file_name}, Chunk: {doc['chunk_index']}, Score: {1 - score:.2f}")
+                        st.write(f"Content snippet: {doc['content'][:100]}...")
 
                 # Save question and answer to history
                 if 'qa_history' not in st.session_state:
@@ -518,7 +528,7 @@ try:
                 st.session_state['qa_history'].append({
                     'question': query,
                     'answer': response.choices[0].message.content,
-                    'sources': [{'file': file_name, 'chunk': doc.get('chunk_index', 'Unknown')} for file_name, doc, _ in all_docs],
+                    'sources': [{'file': file_name, 'chunk': doc['chunk_index']} for file_name, doc, _ in all_docs],
                     'confidence': confidence_score,
                     'documents_queried': selected_documents
                 })

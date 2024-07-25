@@ -20,7 +20,7 @@ st.set_page_config(layout="wide")
 
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4-1106-preview"  # Latest GPT-4 Turbo model
+MODEL = "gpt-4o-mini"  # Latest GPT-4 Turbo model
 MAX_TOKENS = 128000  # Maximum tokens for GPT-4 Turbo
 client = OpenAI()
 embeddings = OpenAIEmbeddings()

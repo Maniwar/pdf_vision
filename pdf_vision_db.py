@@ -1,3 +1,7 @@
+To keep the question and answer (Q&A) UI above the document selection and still be able to pass the selected documents, we can use Streamlit's session state to store the selected documents and use them in the Q&A logic. Here's the updated code:
+
+```python
+# Import necessary libraries
 import os
 import base64
 import streamlit as st
@@ -211,7 +215,9 @@ def generate_summary(page_contents):
         summaries = []
         for i, chunk in enumerate(chunks):
             chunk_summary = client.chat.completions.create(
-                model=MODEL,
+                model=
+
+MODEL,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that summarizes document chunks."},
                     {"role": "user", "content": f"Provide a brief summary of this document chunk ({i+1}/{len(chunks)}):\n\n{chunk}"}
@@ -421,8 +427,82 @@ try:
             st.session_state['file_hashes'] = {}
             st.success("Current session cleared. You can still access previously uploaded documents.")
 
+    # Query interface
+    st.divider()
+    st.subheader("🔍 Query the Document(s)")
+    query = st.text_input("Enter your query about the document(s):")
+    if st.button("🔎 Search"):
+        if 'selected_documents' in st.session_state and st.session_state['selected_documents']:
+            with st.spinner('Searching...'):
+                all_pages = search_documents(query, st.session_state['selected_documents'])
+                
+                if not all_pages:
+                    st.warning("No relevant results found. Please try a different query.")
+                else:
+                    content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
+    
+                    system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
+                    user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+    
+                    response = client.chat.completions.create(
+                        model=MODEL,
+                        messages=[
+                            {"role": "system", "content": system_content},
+                            {"role": "user", "content": user_content}
+                        ],
+                        max_tokens=MAX_TOKENS
+                    )
+                    st.divider()
+                    st.subheader("💬 Answer:")
+                    st.write(response.choices[0].message.content)
+                    st.divider()
+                    st.subheader("📚 Sources:")
+                    
+                    # Group sources by file
+                    sources_by_file = {}
+                    for page in all_pages:
+                        if page['file_name'] not in sources_by_file:
+                            sources_by_file[page['file_name']] = []
+                       
 
-        
+ sources_by_file[page['file_name']].append(page)
+
+                    total_citation_length = 0
+                    for file_name, pages in sources_by_file.items():
+                        with st.expander(f"📄 {file_name}"):
+                            for page in pages:
+                                st.markdown(f"**Page {page['page_number']} (Relevance: {1 - page['score']:.2f})**")
+                                citation_id = f"{file_name}-p{page['page_number']}"
+                                content_to_display = page['content'][:citation_length]
+                                st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
+                                total_citation_length += len(content_to_display)
+                                
+                                if file_name in st.session_state['processed_data']:
+                                    image_paths = st.session_state['processed_data'][file_name]['image_paths']
+                                    image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                                    if image_path:
+                                        st.image(image_path, use_column_width=True)
+                            st.divider()
+
+                    with st.expander("📊 Document Statistics", expanded=False):
+                        st.write(f"Total pages searched: {len(all_pages)}")
+                        st.write(f"Total citation length: {total_citation_length} characters")
+                        for page in all_pages:
+                            st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
+
+                    # Save question and answer to history
+                    if 'qa_history' not in st.session_state:
+                        st.session_state['qa_history'] = []
+                    st.session_state['qa_history'].append({
+                        'question': query,
+                        'answer': response.choices[0].message.content,
+                        'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages],
+                        'documents_queried': st.session_state['selected_documents']
+                    })
+
+        else:
+            st.warning("Please select at least one document to query.")
+            
     # Document Selection and Management
     st.divider()
     st.subheader("📂 All Available Documents")
@@ -430,13 +510,13 @@ try:
     all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
     
     if all_documents:
-        selected_documents = st.multiselect(
+        st.session_state['selected_documents'] = st.multiselect(
             "Select documents to view or query:",
             options=all_documents,
             default=list(st.session_state['current_session_files'])
         )
         
-        for file_name in selected_documents:
+        for file_name in st.session_state['selected_documents']:
             st.subheader(f"📄 {file_name}")
             page_contents = get_document_content(file_name)
             if page_contents:
@@ -476,80 +556,6 @@ try:
     else:
         st.info("No documents available. Please upload some documents to get started.")
 
-    # Query interface
-    st.divider()
-    st.subheader("🔍 Query the Document(s)")
-    query = st.text_input("Enter your query about the document(s):")
-    if st.button("🔎 Search"):
-        if 'selected_documents' in locals() and selected_documents:
-            with st.spinner('Searching...'):
-                all_pages = search_documents(query, selected_documents)
-                
-                if not all_pages:
-                    st.warning("No relevant results found. Please try a different query.")
-                else:
-                    content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
-    
-                    system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
-                    user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-    
-                    response = client.chat.completions.create(
-                        model=MODEL,
-                        messages=[
-                            {"role": "system", "content": system_content},
-                            {"role": "user", "content": user_content}
-                        ],
-                        max_tokens=MAX_TOKENS
-                    )
-                    st.divider()
-                    st.subheader("💬 Answer:")
-                    st.write(response.choices[0].message.content)
-                    st.divider()
-                    st.subheader("📚 Sources:")
-                    
-                    # Group sources by file
-                    sources_by_file = {}
-                    for page in all_pages:
-                        if page['file_name'] not in sources_by_file:
-                            sources_by_file[page['file_name']] = []
-                        sources_by_file[page['file_name']].append(page)
-
-                    total_citation_length = 0
-                    for file_name, pages in sources_by_file.items():
-                        with st.expander(f"📄 {file_name}"):
-                            for page in pages:
-                                st.markdown(f"**Page {page['page_number']} (Relevance: {1 - page['score']:.2f})**")
-                                citation_id = f"{file_name}-p{page['page_number']}"
-                                content_to_display = page['content'][:citation_length]
-                                st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
-                                total_citation_length += len(content_to_display)
-                                
-                                if file_name in st.session_state['processed_data']:
-                                    image_paths = st.session_state['processed_data'][file_name]['image_paths']
-                                    image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                                    if image_path:
-                                        st.image(image_path, use_column_width=True)
-                            st.divider()
-
-                    with st.expander("📊 Document Statistics", expanded=False):
-                        st.write(f"Total pages searched: {len(all_pages)}")
-                        st.write(f"Total citation length: {total_citation_length} characters")
-                        for page in all_pages:
-                            st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
-
-                    # Save question and answer to history
-                    if 'qa_history' not in st.session_state:
-                        st.session_state['qa_history'] = []
-                    st.session_state['qa_history'].append({
-                        'question': query,
-                        'answer': response.choices[0].message.content,
-                        'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages],
-                        'documents_queried': selected_documents
-                    })
-
-        else:
-            st.warning("Please select at least one document to query.")
-            
     # File upload section
     uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
@@ -657,6 +663,8 @@ if __name__ == "__main__":
 st.divider()
 with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
     st.markdown("""
+
+
     <div class="bottom-warning">
         <ol style="text-align: left;">
             <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
@@ -671,4 +679,4 @@ with st.expander("⚠️ By using this application, you agree to the following t
         By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
     </div>
     """, unsafe_allow_html=True)
-    
+```

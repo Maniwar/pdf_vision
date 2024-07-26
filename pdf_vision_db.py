@@ -549,8 +549,8 @@ try:
             options=all_documents,
             default=list(st.session_state['current_session_files'])
         )
-        st.subheader("**📜 Content:**")
-        st.divider()
+
+        
         for file_name in st.session_state['selected_documents']:
             st.subheader(f"📄 {file_name}")
             page_contents = get_document_content(file_name)

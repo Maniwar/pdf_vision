@@ -494,7 +494,49 @@ try:
 
         else:
             st.warning("Please select at least one document to query.")
+  
+    # Display question history
+    if 'qa_history' in st.session_state and st.session_state['qa_history']:
+        st.divider()
+        st.subheader("📜 Question History")
+        for i, qa in enumerate(reversed(st.session_state['qa_history'])):
+            with st.expander(f"Q{len(st.session_state['qa_history'])-i}: {qa['question']}"):
+                st.write(f"A: {qa['answer']}")
+                st.write("Documents Queried:", ", ".join(qa['documents_queried']))
+                st.write("Sources:")
+                for source in qa['sources']:
+                    st.write(f"- File: {source['file']}, Page: {source['page']}")
+        
+        # Add a button to clear the question history
+        if st.button("🗑️ Clear Question History"):
+            st.session_state['qa_history'] = []
+            st.success("Question history cleared!")
+
+        # Export results
+        if st.button("📤 Export Q&A Session"):
+            qa_session = ""
+            for qa in st.session_state.get('qa_history', []):
+                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
+                for source in qa['sources']:
+                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+                qa_session += "\n---\n\n"
             
+            # Convert markdown to HTML
+            html = markdown2.markdown(qa_session)
+            
+            try:
+                # Convert HTML to PDF
+                pdf = pdfkit.from_string(html, False)
+                
+                # Provide the PDF for download
+                st.download_button(
+                    label="Download Q&A Session as PDF",
+                    data=pdf,
+                    file_name="qa_session.pdf",
+                    mime="application/pdf"
+                )
+            except Exception as e:
+                st.error(f"An error occurred while generating the PDF: {str(e)}")
     # Document Selection and Management
     st.divider()
     st.subheader("📂 All Available Documents")
@@ -576,48 +618,7 @@ try:
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-    # Display question history
-    if 'qa_history' in st.session_state and st.session_state['qa_history']:
-        st.divider()
-        st.subheader("📜 Question History")
-        for i, qa in enumerate(reversed(st.session_state['qa_history'])):
-            with st.expander(f"Q{len(st.session_state['qa_history'])-i}: {qa['question']}"):
-                st.write(f"A: {qa['answer']}")
-                st.write("Documents Queried:", ", ".join(qa['documents_queried']))
-                st.write("Sources:")
-                for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Page: {source['page']}")
-        
-        # Add a button to clear the question history
-        if st.button("🗑️ Clear Question History"):
-            st.session_state['qa_history'] = []
-            st.success("Question history cleared!")
 
-        # Export results
-        if st.button("📤 Export Q&A Session"):
-            qa_session = ""
-            for qa in st.session_state.get('qa_history', []):
-                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
-                for source in qa['sources']:
-                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
-                qa_session += "\n---\n\n"
-            
-            # Convert markdown to HTML
-            html = markdown2.markdown(qa_session)
-            
-            try:
-                # Convert HTML to PDF
-                pdf = pdfkit.from_string(html, False)
-                
-                # Provide the PDF for download
-                st.download_button(
-                    label="Download Q&A Session as PDF",
-                    data=pdf,
-                    file_name="qa_session.pdf",
-                    mime="application/pdf"
-                )
-            except Exception as e:
-                st.error(f"An error occurred while generating the PDF: {str(e)}")
 
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")

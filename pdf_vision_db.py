@@ -676,14 +676,15 @@ try:
         for file_name in files_to_remove:
             collection = get_or_create_collection("document_pages")
             collection.delete(f"file_name == '{file_name}'")
-            all_documents.remove(file_name)
+            if file_name in all_documents:
+                all_documents.remove(file_name)
             if file_name in st.session_state['current_session_files']:
                 st.session_state['current_session_files'].remove(file_name)
             if file_name in st.session_state['processed_data']:
                 del st.session_state['processed_data'][file_name]
             st.success(f"{file_name} has been removed.")
         st.session_state['files_to_remove'].clear()
-        st.rerun()
+        st.rerun()  # This is the correct function to refresh the app state
 
     # File upload section
     uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)

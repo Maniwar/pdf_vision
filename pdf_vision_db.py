@@ -444,6 +444,7 @@ def search_documents(query, selected_documents):
 
 # Streamlit interface
 st.title('📄 Document Query App')
+
 # Initialize session state variables
 if 'documents' not in st.session_state:
     st.session_state.documents = {}
@@ -492,14 +493,9 @@ with st.sidebar:
         "private database to ensure security and privacy."
     )
 
+# Main app
 try:
     connect_to_milvus()
-
-    # Query interface at the top
-    st.divider()
-    st.subheader("🔍 Query the Document(s)")
-    query = st.text_input("Enter your query about the document(s):")
-    search_button = st.button("🔎 Search")
 
     # File upload section
     uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
@@ -528,7 +524,7 @@ try:
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-    # Document selection and management section
+    # Document selection section
     st.divider()
     st.subheader("📂 All Available Documents")
 
@@ -540,51 +536,16 @@ try:
             options=all_documents,
             default=list(st.session_state.documents.keys())
         )
-
-        st.subheader("**📜 Content:**")
-        st.divider()
-        for file_name in selected_documents:
-            st.subheader(f"📄 {file_name}")
-            page_contents = get_document_content(file_name)
-            if page_contents:
-                with st.expander("📑 Document Summary", expanded=True):
-                    st.markdown(page_contents[0]['summary'])
-                
-                for page in page_contents:
-                    with st.expander(f"Page {page['page_number']}"):
-                        st.markdown(page['content'])
-                        
-                        if file_name in st.session_state.documents:
-                            image_paths = st.session_state.documents[file_name]['image_paths']
-                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                            if image_path:
-                                try:
-                                    st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                                except Exception as e:
-                                    st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
-                            else:
-                                st.info(f"No image available for page {page['page_number']}")
-            else:
-                st.info(f"No content available for {file_name}.")
-            
-            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                st.session_state.files_to_remove.add(file_name)
-                st.rerun()
     else:
         st.info("No documents available. Please upload some documents to get started.")
+        selected_documents = []
 
-    # Remove files marked for deletion
-    if st.session_state.files_to_remove:
-        for file_name in list(st.session_state.files_to_remove):
-            collection = get_or_create_collection("document_pages")
-            collection.delete(f"file_name == '{file_name}'")
-            if file_name in st.session_state.documents:
-                del st.session_state.documents[file_name]
-            st.success(f"{file_name} has been removed.")
-        st.session_state.files_to_remove.clear()
-        st.rerun()
+    # Query interface and answer display
+    st.divider()
+    st.subheader("🔍 Query the Document(s)")
+    query = st.text_input("Enter your query about the document(s):")
+    search_button = st.button("🔎 Search")
 
-    # Process search query
     if search_button and selected_documents:
         with st.spinner('Searching...'):
             all_pages = search_documents(query, selected_documents)
@@ -651,6 +612,49 @@ try:
     elif search_button:
         st.warning("Please select at least one document to query.")
 
+    # Document content display
+    if selected_documents:
+        st.divider()
+        st.subheader("**📜 Document Content:**")
+        for file_name in selected_documents:
+            st.subheader(f"📄 {file_name}")
+            page_contents = get_document_content(file_name)
+            if page_contents:
+                with st.expander("📑 Document Summary", expanded=True):
+                    st.markdown(page_contents[0]['summary'])
+                
+                for page in page_contents:
+                    with st.expander(f"Page {page['page_number']}"):
+                        st.markdown(page['content'])
+                        
+                        if file_name in st.session_state.documents:
+                            image_paths = st.session_state.documents[file_name]['image_paths']
+                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                            if image_path:
+                                try:
+                                    st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                                except Exception as e:
+                                    st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
+                            else:
+                                st.info(f"No image available for page {page['page_number']}")
+            else:
+                st.info(f"No content available for {file_name}.")
+            
+            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                st.session_state.files_to_remove.add(file_name)
+                st.rerun()
+
+    # Remove files marked for deletion
+    if st.session_state.files_to_remove:
+        for file_name in list(st.session_state.files_to_remove):
+            collection = get_or_create_collection("document_pages")
+            collection.delete(f"file_name == '{file_name}'")
+            if file_name in st.session_state.documents:
+                del st.session_state.documents[file_name]
+            st.success(f"{file_name} has been removed.")
+        st.session_state.files_to_remove.clear()
+        st.rerun()
+
     # Display question history
     if st.session_state.qa_history:
         st.divider()
@@ -697,28 +701,28 @@ try:
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
 
-if __name__ == "__main__":
+# Warning banner and terms (place this at the end of your script, outside the main try-except block)
+st.markdown("""
+<div class="warning-banner">
+    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
+    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
+    In the deployed version, there will be a private database to ensure security and privacy.
+</div>
+""", unsafe_allow_html=True)
+
+with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
     st.markdown("""
-    <div class="warning-banner">
-        <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
-        This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
-        In the deployed version, there will be a private database to ensure security and privacy.
+    <div class="bottom-warning">
+        <ol style="text-align: left;">
+            <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
+            <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>
+            <li><strong>Data Storage:</strong> All uploaded data is stored in Milvus and is not secure.</li>
+            <li><strong>Accuracy:</strong> AI models may produce inaccurate or inconsistent results. Verify important information.</li>
+            <li><strong>Liability:</strong> Use this application at your own risk. We are not liable for any damages or losses.</li>
+            <li><strong>Data Usage:</strong> Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.</li>
+            <li><strong>User Responsibilities:</strong> You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.</li>
+            <li><strong>Changes to Terms:</strong> We reserve the right to modify these terms at any time.</li>
+        </ol>
+        By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
     </div>
     """, unsafe_allow_html=True)
-    
-    with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
-        st.markdown("""
-        <div class="bottom-warning">
-            <ol style="text-align: left;">
-                <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
-                <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>
-                <li><strong>Data Storage:</strong> All uploaded data is stored in Milvus and is not secure.</li>
-                <li><strong>Accuracy:</strong> AI models may produce inaccurate or inconsistent results. Verify important information.</li>
-                <li><strong>Liability:</strong> Use this application at your own risk. We are not liable for any damages or losses.</li>
-                <li><strong>Data Usage:</strong> Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.</li>
-                <li><strong>User Responsibilities:</strong> You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.</li>
-                <li><strong>Changes to Terms:</strong> We reserve the right to modify these terms at any time.</li>
-            </ol>
-            By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
-        </div>
-        """, unsafe_allow_html=True)

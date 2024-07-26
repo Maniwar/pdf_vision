@@ -200,7 +200,9 @@ def generate_summary(page_contents):
             if current_chunk_tokens + content_tokens > chunk_size:
                 chunks.append("\n".join(current_chunk))
                 current_chunk = [content]
-                current_chunk_tokens = content_tokens
+                current
+
+_chunk_tokens = content_tokens
             else:
                 current_chunk.append(content)
                 current_chunk_tokens += content_tokens
@@ -448,7 +450,9 @@ try:
                     )
                     st.divider()
                     st.subheader("💬 Answer:")
-                    st.write(response.choices[0].message.content)
+                    st.write(response.choices
+
+[0].message.content)
                     st.divider()
                     st.subheader("📚 Sources:")
                     
@@ -537,6 +541,7 @@ try:
                 )
             except Exception as e:
                 st.error(f"An error occurred while generating the PDF: {str(e)}")
+
     # Document Selection and Management
     st.divider()
     st.subheader("📂 All Available Documents")
@@ -550,7 +555,8 @@ try:
             default=list(st.session_state['current_session_files'])
         )
 
-        
+        st.subheader("**📜 Content:**")
+        st.divider()
         for file_name in st.session_state['selected_documents']:
             st.subheader(f"📄 {file_name}")
             page_contents = get_document_content(file_name)
@@ -558,20 +564,17 @@ try:
                 with st.expander("📑 Document Summary"):
                     st.markdown(page_contents[0]['summary'])
                 
-                with st.expander("📄 Scanned Content"):
-                    for page in page_contents:
-                        st.subheader(f"Page {page['page_number']}")
+                for page in page_contents:
+                    with st.expander(f"Page {page['page_number']}"):
                         st.markdown("### Page Content")
                         st.markdown(page['content'])
-                
-                with st.expander("🖼️ Source Images"):
-                    for page in page_contents:
+                        
                         if file_name in st.session_state['processed_data']:
                             image_paths = st.session_state['processed_data'][file_name]['image_paths']
                             image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                             if image_path:
-                                st.subheader(f"Page {page['page_number']} Image")
                                 st.image(image_path, use_column_width=True)
+
             else:
                 st.info(f"No content available for {file_name}.")
             
@@ -618,8 +621,6 @@ try:
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-
-
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
 
@@ -652,7 +653,9 @@ if __name__ == "__main__":
 
 # Bottom warning section with expander
 st.divider()
-with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
+with st.expander("⚠️ By using this
+
+ application, you agree to the following terms and conditions:", expanded=True):
     st.markdown("""
     <div class="bottom-warning">
         <ol style="text-align: left;">

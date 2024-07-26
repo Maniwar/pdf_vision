@@ -675,7 +675,10 @@ try:
             
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 st.session_state['files_to_remove'].add(file_name)
-    
+                st.rerun()
+    else:
+        st.info("No documents available. Please upload some documents to get started.")
+
     # Remove files marked for deletion
     if st.session_state['files_to_remove']:
         files_to_remove = list(st.session_state['files_to_remove'])
@@ -689,6 +692,7 @@ try:
                 del st.session_state['processed_data'][file_name]
             st.success(f"{file_name} has been removed.")
         st.session_state['files_to_remove'].clear()
+        st.rerun()
 
     # File upload section
     uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)

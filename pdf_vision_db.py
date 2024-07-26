@@ -335,14 +335,15 @@ def process_file(uploaded_file):
         st.error("Error in creating or accessing the collection.")
         return None, None, None, None
 
+    image_paths = []
+    page_contents = []
+
     if file_extension == '.pdf':
         # Process PDF
         doc = fitz.open(temp_file_path)
         output_dir = tempfile.mkdtemp()
 
         total_pages = len(doc)
-        image_paths = []
-        page_contents = []
         
         for page_num in range(total_pages):
             page = doc.load_page(page_num)
@@ -351,51 +352,23 @@ def process_file(uploaded_file):
             pix.save(output)
             image_paths.append((page_num + 1, output))
             
-            # Generate content for each page using GPT vision
             try:
                 page_content = get_generated_data(output)
                 page_contents.append(page_content)
-                
-                # Embed and store each page individually
-                page_vector = embeddings.embed_documents([page_content])[0]
-                entity = {
-                    "content": page_content,
-                    "file_name": uploaded_file.name,
-                    "page_number": page_num + 1,
-                    "vector": page_vector,
-                    "summary": ""  # Will be updated later
-                }
-                collection.insert([entity])
-                
                 progress_bar.progress((page_num + 1) / total_pages)
             except Exception as e:
                 st.error(f"Error processing page {page_num + 1}: {str(e)}")
-                # Continue with the next page
 
         doc.close()
         st.success('PDF processed successfully!')
     elif file_extension == '.md':
-        # Process Markdown using UnstructuredMarkdownLoader
+    # Process Markdown using UnstructuredMarkdownLoader
         loader = UnstructuredMarkdownLoader(temp_file_path)
         data = loader.load()
         page_contents = [item.page_content for item in data]
-        image_paths = []  # No images for Markdown files
         
-        for i, content in enumerate(page_contents):
-            try:
-                page_vector = embeddings.embed_documents([content])[0]
-                entity = {
-                    "content": content,
-                    "file_name": uploaded_file.name,
-                    "page_number": i + 1,
-                    "vector": page_vector,
-                    "summary": ""  # Will be updated later
-                }
-                collection.insert([entity])
-                progress_bar.progress((i + 1) / len(page_contents))
-            except Exception as e:
-                st.error(f"Error processing page {i + 1}: {str(e)}")
-                # Continue with the next page
+        for i, _ in enumerate(page_contents):
+            progress_bar.progress((i + 1) / len(page_contents))
         
         st.success('Markdown processed successfully!')
     elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
@@ -404,16 +377,6 @@ def process_file(uploaded_file):
         try:
             page_content = get_generated_data(temp_file_path)
             page_contents = [page_content]
-            
-            page_vector = embeddings.embed_documents([page_content])[0]
-            entity = {
-                "content": page_content,
-                "file_name": uploaded_file.name,
-                "page_number": 1,
-                "vector": page_vector,
-                "summary": ""  # Will be updated later
-            }
-            collection.insert([entity])
             progress_bar.progress(1.0)
             st.success('Image processed successfully!')
         except Exception as e:
@@ -424,9 +387,8 @@ def process_file(uploaded_file):
 
     summary = generate_summary(page_contents)
     
-    # Update summary for all pages of this file
+    # Insert pages with summary only once
     try:
-        collection.delete(expr=f"file_name == '{uploaded_file.name}'")
         for i, content in enumerate(page_contents):
             page_vector = embeddings.embed_documents([content])[0]
             entity = {
@@ -438,7 +400,7 @@ def process_file(uploaded_file):
             }
             collection.insert([entity])
     except Exception as e:
-        st.error(f"Error updating summary: {str(e)}")
+        st.error(f"Error inserting pages: {str(e)}")
 
     progress_bar.progress(100)
 
@@ -483,51 +445,154 @@ def search_documents(query, selected_documents):
 # Streamlit interface
 st.title('📄 Document Query App')
 
+# Sidebar
+with st.sidebar:
+    st.header("⚙️ Advanced Options")
+    citation_length = st.slider("Maximum length of each citation", 100, 1000, 250)
+    
+    if st.button("🗑️ Clear Current Session"):
+        st.session_state.documents = {}
+        st.session_state.file_hashes = {}
+        st.session_state.files_to_remove = set()
+        st.success("Current session cleared. You can still access previously uploaded documents.")
+        st.rerun()
+
+    st.markdown("## ℹ️ About")
+    st.info(
+        "This app allows you to upload PDF documents, Markdown files, or images, "
+        "extract information from them, and query the content. "
+        "It uses OpenAI's GPT-4 model for text generation and "
+        "Milvus for efficient similarity search across sessions."
+    )
+    
+    st.markdown("## 📖 How to use")
+    st.info(
+        "1. Upload one or more PDF, Markdown, or image files.\n"
+        "2. Wait for the processing to complete.\n"
+        "3. Select the documents you want to query (including from previous sessions).\n"
+        "4. Enter your query in the text box.\n"
+        "5. Click 'Search' to get answers based on the selected document content.\n"
+        "6. View the answer and sources.\n"
+        "7. Optionally, export the Q&A session as a PDF."
+    )
+
+    st.markdown("## ⚠️ Note")
+    st.warning(
+        "This is a prototype application. Do not upload sensitive "
+        "information. In the deployed version, there will be a "
+        "private database to ensure security and privacy."
+    )
+
 try:
     connect_to_milvus()
 
     # Initialize session state variables
-    if 'current_session_files' not in st.session_state:
-        st.session_state['current_session_files'] = set()
-    if 'processed_data' not in st.session_state:
-        st.session_state['processed_data'] = {}
+    if 'documents' not in st.session_state:
+        st.session_state.documents = {}
     if 'file_hashes' not in st.session_state:
-        st.session_state['file_hashes'] = {}
+        st.session_state.file_hashes = {}
     if 'files_to_remove' not in st.session_state:
-        st.session_state['files_to_remove'] = set()
+        st.session_state.files_to_remove = set()
+    if 'qa_history' not in st.session_state:
+        st.session_state.qa_history = []
 
-    # Load all existing files from Milvus
-    all_documents = get_all_documents()
+    # File upload section
+    uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            file_content = uploaded_file.getvalue()
+            file_hash = get_file_hash(file_content)
+            
+            if file_hash in st.session_state.file_hashes:
+                existing_file_name = st.session_state.file_hashes[file_hash]
+                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
+            else:
+                try:
+                    with st.spinner('Processing file... This may take a while for large documents.'):
+                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
+                    if collection is not None:
+                        st.session_state.documents[uploaded_file.name] = {
+                            'image_paths': image_paths,
+                            'page_contents': page_contents,
+                            'summary': summary
+                        }
+                        st.session_state.file_hashes[file_hash] = uploaded_file.name
+                        st.success(f"File processed and stored in vector database!")
+                        with st.expander("📑 View Summary"):
+                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
+                except Exception as e:
+                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
 
-    # Sidebar for advanced options
-    with st.sidebar:
-        st.header("⚙️ Advanced Options")
-        citation_length = st.slider("Maximum length of each citation", 100, 1000, 250)
-        
-        if st.button("🗑️ Clear Current Session"):
-            st.session_state['current_session_files'] = set()
-            st.session_state['processed_data'] = {}
-            st.session_state['file_hashes'] = {}
-            st.session_state['files_to_remove'] = set()
-            st.success("Current session cleared. You can still access previously uploaded documents.")
+    # Document selection and management section
+    st.divider()
+    st.subheader("📂 All Available Documents")
+
+    all_documents = list(set(get_all_documents() + list(st.session_state.documents.keys())))
+
+    if all_documents:
+        selected_documents = st.multiselect(
+            "Select documents to view or query:",
+            options=all_documents,
+            default=list(st.session_state.documents.keys())
+        )
+
+        st.subheader("**📜 Content:**")
+        st.divider()
+        for file_name in selected_documents:
+            st.subheader(f"📄 {file_name}")
+            page_contents = get_document_content(file_name)
+            if page_contents:
+                with st.expander("📑 Document Summary", expanded=True):
+                    st.markdown(page_contents[0]['summary'])
+                
+                for page in page_contents:
+                    with st.expander(f"Page {page['page_number']}"):
+                        st.markdown(page['content'])
+                        
+                        if file_name in st.session_state.documents:
+                            image_paths = st.session_state.documents[file_name]['image_paths']
+                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                            if image_path:
+                                st.image(image_path, use_column_width=True)
+            else:
+                st.info(f"No content available for {file_name}.")
+            
+            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                st.session_state.files_to_remove.add(file_name)
+                st.rerun()
+    else:
+        st.info("No documents available. Please upload some documents to get started.")
+
+    # Remove files marked for deletion
+    if st.session_state.files_to_remove:
+        for file_name in list(st.session_state.files_to_remove):
+            collection = get_or_create_collection("document_pages")
+            collection.delete(f"file_name == '{file_name}'")
+            if file_name in all_documents:
+                all_documents.remove(file_name)
+            if file_name in st.session_state.documents:
+                del st.session_state.documents[file_name]
+            st.success(f"{file_name} has been removed.")
+        st.session_state.files_to_remove.clear()
+        st.rerun()
 
     # Query interface
     st.divider()
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     if st.button("🔎 Search"):
-        if 'selected_documents' in st.session_state and st.session_state['selected_documents']:
+        if selected_documents:
             with st.spinner('Searching...'):
-                all_pages = search_documents(query, st.session_state['selected_documents'])
+                all_pages = search_documents(query, selected_documents)
                 
                 if not all_pages:
                     st.warning("No relevant results found. Please try a different query.")
                 else:
                     content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
-    
+
                     system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
                     user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-    
+
                     response = client.chat.completions.create(
                         model=MODEL,
                         messages=[
@@ -559,8 +624,8 @@ try:
                                 st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
                                 total_citation_length += len(content_to_display)
                                 
-                                if file_name in st.session_state['processed_data']:
-                                    image_paths = st.session_state['processed_data'][file_name]['image_paths']
+                                if file_name in st.session_state.documents:
+                                    image_paths = st.session_state.documents[file_name]['image_paths']
                                     image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                                     if image_path:
                                         st.image(image_path, use_column_width=True)
@@ -573,39 +638,36 @@ try:
                             st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
 
                     # Save question and answer to history
-                    if 'qa_history' not in st.session_state:
-                        st.session_state['qa_history'] = []
-                    st.session_state['qa_history'].append({
+                    st.session_state.qa_history.append({
                         'question': query,
                         'answer': response.choices[0].message.content,
                         'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages],
-                        'documents_queried': st.session_state['selected_documents']
+                        'documents_queried': selected_documents
                     })
-
         else:
             st.warning("Please select at least one document to query.")
   
     # Display question history
-    if 'qa_history' in st.session_state and st.session_state['qa_history']:
+    if st.session_state.qa_history:
         st.divider()
         st.subheader("📜 Question History")
-        for i, qa in enumerate(reversed(st.session_state['qa_history'])):
-            with st.expander(f"Q{len(st.session_state['qa_history'])-i}: {qa['question']}"):
+        for i, qa in enumerate(reversed(st.session_state.qa_history)):
+            with st.expander(f"Q{len(st.session_state.qa_history)-i}: {qa['question']}"):
                 st.write(f"A: {qa['answer']}")
                 st.write("Documents Queried:", ", ".join(qa['documents_queried']))
                 st.write("Sources:")
                 for source in qa['sources']:
                     st.write(f"- File: {source['file']}, Page: {source['page']}")
 
-        # Add a button to clear the question history
         if st.button("🗑️ Clear Question History"):
-            st.session_state['qa_history'] = []
+            st.session_state.qa_history = []
             st.success("Question history cleared!")
+            st.rerun()
 
         # Export results
         if st.button("📤 Export Q&A Session"):
             qa_session = ""
-            for qa in st.session_state.get('qa_history', []):
+            for qa in st.session_state.qa_history:
                 qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
                 for source in qa['sources']:
                     qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
@@ -628,147 +690,31 @@ try:
             except Exception as e:
                 st.error(f"An error occurred while generating the PDF: {str(e)}")
 
-    # Document Selection and Management
-    st.divider()
-    st.subheader("📂 All Available Documents")
-    
-    all_documents = list(set(all_documents + list(st.session_state['current_session_files'])))
-    
-    if all_documents:
-        st.session_state['selected_documents'] = st.multiselect(
-            "Select documents to view or query:",
-            options=all_documents,
-            default=list(st.session_state['current_session_files'])
-        )
-
-        st.subheader("**📜 Content:**")
-        st.divider()
-        for file_name in st.session_state['selected_documents']:
-            st.subheader(f"📄 {file_name}")
-            page_contents = get_document_content(file_name)
-            if page_contents:
-                with st.expander("📑 Document Summary"):
-                    st.markdown(page_contents[0]['summary'])
-                
-                for page in page_contents:
-                    with st.expander(f"Page {page['page_number']}"):
-                        st.markdown("### Page Content")
-                        st.markdown(page['content'])
-                        
-                        if file_name in st.session_state['processed_data']:
-                            image_paths = st.session_state['processed_data'][file_name]['image_paths']
-                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                            if image_path:
-                                st.image(image_path, use_column_width=True)
-
-            else:
-                st.info(f"No content available for {file_name}.")
-            
-            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                st.session_state['files_to_remove'].add(file_name)
-                st.rerun()
-    else:
-        st.info("No documents available. Please upload some documents to get started.")
-
-    # Remove files marked for deletion
-    if st.session_state['files_to_remove']:
-        files_to_remove = list(st.session_state['files_to_remove'])
-        for file_name in files_to_remove:
-            collection = get_or_create_collection("document_pages")
-            collection.delete(f"file_name == '{file_name}'")
-            if file_name in all_documents:
-                all_documents.remove(file_name)
-            if file_name in st.session_state['current_session_files']:
-                st.session_state['current_session_files'].remove(file_name)
-            if file_name in st.session_state['processed_data']:
-                del st.session_state['processed_data'][file_name]
-            st.success(f"{file_name} has been removed.")
-        st.session_state['files_to_remove'].clear()
-        st.rerun()  # This is the correct function to refresh the app state
-
-    # File upload section
-    uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            file_content = uploaded_file.getvalue()
-            file_hash = get_file_hash(file_content)
-            
-            if file_hash in st.session_state['file_hashes']:
-                existing_file_name = st.session_state['file_hashes'][file_hash]
-                st.session_state['current_session_files'].add(existing_file_name)
-                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
-            else:
-                try:
-                    with st.spinner('Processing file... This may take a while for large documents.'):
-                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
-                    if collection is not None:
-                        st.session_state['processed_data'][uploaded_file.name] = {
-                            'image_paths': image_paths,
-                            'page_contents': page_contents,
-                            'summary': summary
-                        }
-                        st.session_state['current_session_files'].add(uploaded_file.name)
-                        st.session_state['file_hashes'][file_hash] = uploaded_file.name
-                        all_documents.append(uploaded_file.name)
-                        st.success(f"File processed and stored in vector database!")
-                        with st.expander("📑 View Summary"):
-                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
-                except Exception as e:
-                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    st.sidebar.markdown("## ℹ️ About")
-    st.sidebar.info(
-        "This app allows you to upload PDF documents, Markdown files, or images, "
-        "extract information from them, and query the content. "
-        "It uses OpenAI's GPT-4 model for text generation and "
-        "Milvus for efficient similarity search across sessions."
-    )
-    
-    st.sidebar.markdown("## 📖 How to use")
-    st.sidebar.info(
-        "1. Upload one or more PDF, Markdown, or image files.\n"
-        "2. Wait for the processing to complete.\n"
-        "3. Select the documents you want to query (including from previous sessions).\n"
-        "4. Enter your query in the text box.\n"
-        "5. Click 'Search' to get answers based on the selected document content.\n"
-        "6. View the answer and sources.\n"
-        "7. Optionally, export the Q&A session as a PDF."
-    )
-
-    st.sidebar.markdown("## ⚠️ Note")
-    st.sidebar.warning(
-        "This is a prototype application. Do not upload sensitive "
-        "information. In the deployed version, there will be a "
-        "private database to ensure security and privacy."
-    )
-
-# Bottom warning section with expander
-st.divider()
-# Warning Banner
-st.markdown("""
-<div class="warning-banner">
-    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
-    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
-    In the deployed version, there will be a private database to ensure security and privacy.
-</div>
-""", unsafe_allow_html=True)
-with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
     st.markdown("""
-    <div class="bottom-warning">
-        <ol style="text-align: left;">
-            <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
-            <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>
-            <li><strong>Data Storage:</strong> All uploaded data is stored in Milvus and is not secure.</li>
-            <li><strong>Accuracy:</strong> AI models may produce inaccurate or inconsistent results. Verify important information.</li>
-            <li><strong>Liability:</strong> Use this application at your own risk. We are not liable for any damages or losses.</li>
-            <li><strong>Data Usage:</strong> Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.</li>
-            <li><strong>User Responsibilities:</strong> You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.
-            <li><strong>Changes to Terms:</strong> We reserve the right to modify these terms at any time.</li>
-        </ol>
-        By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
+    <div class="warning-banner">
+        <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
+        This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
+        In the deployed version, there will be a private database to ensure security and privacy.
     </div>
     """, unsafe_allow_html=True)
+    
+    with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
+        st.markdown("""
+        <div class="bottom-warning">
+            <ol style="text-align: left;">
+                <li><strong>Multi-User Environment:</strong> Any data you upload or queries you make may be accessible to other users.</li>
+                <li><strong>No Privacy:</strong> Do not upload any sensitive or confidential information.</li>
+                <li><strong>Data Storage:</strong> All uploaded data is stored in Milvus and is not secure.</li>
+                <li><strong>Accuracy:</strong> AI models may produce inaccurate or inconsistent results. Verify important information.</li>
+                <li><strong>Liability:</strong> Use this application at your own risk. We are not liable for any damages or losses.</li>
+                <li><strong>Data Usage:</strong> Uploaded data may be used to improve the application. We do not sell or intentionally share your data with third parties.</li>
+                <li><strong>User Responsibilities:</strong> You are responsible for the content you upload and queries you make. Do not use this application for any illegal or unauthorized purpose.</li>
+                <li><strong>Changes to Terms:</strong> We reserve the right to modify these terms at any time.</li>
+            </ol>
+            By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
+        </div>
+        """, unsafe_allow_html=True)

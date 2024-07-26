@@ -502,6 +502,8 @@ try:
         st.session_state['processed_data'] = {}
     if 'file_hashes' not in st.session_state:
         st.session_state['file_hashes'] = {}
+    if 'files_to_remove' not in st.session_state:
+        st.session_state['files_to_remove'] = set()
 
     # Load all existing files from Milvus
     all_documents = get_all_documents()
@@ -515,6 +517,7 @@ try:
             st.session_state['current_session_files'] = set()
             st.session_state['processed_data'] = {}
             st.session_state['file_hashes'] = {}
+            st.session_state['files_to_remove'] = set()
             st.success("Current session cleared. You can still access previously uploaded documents.")
 
     # Query interface
@@ -671,17 +674,25 @@ try:
                 st.info(f"No content available for {file_name}.")
             
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                collection = get_or_create_collection("document_pages")
-                collection.delete(f"file_name == '{file_name}'")
-                all_documents.remove(file_name)
-                if file_name in st.session_state['current_session_files']:
-                    st.session_state['current_session_files'].remove(file_name)
-                if file_name in st.session_state['processed_data']:
-                    del st.session_state['processed_data'][file_name]
-                st.success(f"{file_name} has been removed.")
-                st.rerun()
+                st.session_state['files_to_remove'].add(file_name)
+                st.experimental_rerun()
     else:
         st.info("No documents available. Please upload some documents to get started.")
+
+    # Remove files marked for deletion
+    if st.session_state['files_to_remove']:
+        files_to_remove = list(st.session_state['files_to_remove'])
+        for file_name in files_to_remove:
+            collection = get_or_create_collection("document_pages")
+            collection.delete(f"file_name == '{file_name}'")
+            all_documents.remove(file_name)
+            if file_name in st.session_state['current_session_files']:
+                st.session_state['current_session_files'].remove(file_name)
+            if file_name in st.session_state['processed_data']:
+                del st.session_state['processed_data'][file_name]
+            st.success(f"{file_name} has been removed.")
+        st.session_state['files_to_remove'].clear()
+        st.experimental_rerun()
 
     # File upload section
     uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)

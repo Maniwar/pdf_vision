@@ -40,7 +40,7 @@ st.markdown("""
         border-radius: 10px;
     }
     .stSelectbox>div>div>select {
-        border-radius: 10px;
+        border-radius: 10px.
     }
     .stTextArea>div>div>textarea {
         border-radius: 10px;
@@ -665,3 +665,5 @@ with st.expander("⚠️ By using this application, you agree to the following t
         By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
     </div>
     """, unsafe_allow_html=True)
+""")
+

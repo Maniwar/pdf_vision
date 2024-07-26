@@ -158,27 +158,31 @@ def connect_to_milvus():
     )
 
 def get_or_create_collection(collection_name, dim=1536):
-    if utility.has_collection(collection_name):
-        return Collection(collection_name)
-    else:
-        fields = [
-            FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-            FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
-            FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=255),
-            FieldSchema(name="page_number", dtype=DataType.INT64),
-            FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim),
-            FieldSchema(name="summary", dtype=DataType.VARCHAR, max_length=65535)
-        ]
-        schema = CollectionSchema(fields, "Document pages collection")
-        collection = Collection(collection_name, schema)
-        
-        index_params = {
-            "metric_type": "L2",
-            "index_type": "IVF_FLAT",
-            "params": {"nlist": 1024}
-        }
-        collection.create_index("vector", index_params)
-        return collection
+    try:
+        if utility.has_collection(collection_name):
+            return Collection(collection_name)
+        else:
+            fields = [
+                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+                FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
+                FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=255),
+                FieldSchema(name="page_number", dtype=DataType.INT64),
+                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim),
+                FieldSchema(name="summary", dtype=DataType.VARCHAR, max_length=65535)
+            ]
+            schema = CollectionSchema(fields, "Document pages collection")
+            collection = Collection(collection_name, schema)
+            
+            index_params = {
+                "metric_type": "L2",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 1024}
+            }
+            collection.create_index("vector", index_params)
+            return collection
+    except Exception as e:
+        st.error(f"Error in creating or accessing the collection: {str(e)}")
+        return None
 
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
@@ -193,24 +197,36 @@ def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> i
     return num_tokens
 
 def get_all_documents():
-    collection = get_or_create_collection("document_pages")
-    collection.load()
-    results = collection.query(
-        expr="file_name != ''",
-        output_fields=["file_name"],
-        limit=16384
-    )
-    return list(set(doc['file_name'] for doc in results))
+    try:
+        collection = get_or_create_collection("document_pages")
+        if collection is None:
+            return []
+        collection.load()
+        results = collection.query(
+            expr="file_name != ''",
+            output_fields=["file_name"],
+            limit=16384
+        )
+        return list(set(doc['file_name'] for doc in results))
+    except Exception as e:
+        st.error(f"Error in fetching all documents: {str(e)}")
+        return []
 
 def get_document_content(file_name):
-    collection = get_or_create_collection("document_pages")
-    collection.load()
-    results = collection.query(
-        expr=f"file_name == '{file_name}'",
-        output_fields=["content", "page_number", "summary"],
-        limit=16384
-    )
-    return sorted(results, key=lambda x: x['page_number'])
+    try:
+        collection = get_or_create_collection("document_pages")
+        if collection is None:
+            return []
+        collection.load()
+        results = collection.query(
+            expr=f"file_name == '{file_name}'",
+            output_fields=["content", "page_number", "summary"],
+            limit=16384
+        )
+        return sorted(results, key=lambda x: x['page_number'])
+    except Exception as e:
+        st.error(f"Error in fetching document content: {str(e)}")
+        return []
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -324,7 +340,9 @@ def process_file(uploaded_file):
     file_extension = Path(uploaded_file.name).suffix.lower()
     
     collection = get_or_create_collection("document_pages")
-    collection.load()
+    if collection is None:
+        st.error("Error in creating or accessing the collection.")
+        return None, None, None, None
 
     if file_extension == '.pdf':
         # Process PDF
@@ -437,6 +455,10 @@ def process_file(uploaded_file):
 
 def search_documents(query, selected_documents):
     collection = get_or_create_collection("document_pages")
+    if collection is None:
+        st.error("Error in creating or accessing the collection.")
+        return []
+
     collection.load()
     
     query_vector = embeddings.embed_query(query)

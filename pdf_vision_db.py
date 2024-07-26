@@ -21,7 +21,7 @@ st.set_page_config(layout="wide")
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
 MODEL = "gpt-4o-mini"  # Latest GPT-4 Turbo model
-MAX_TOKENS = 12000 
+MAX_TOKENS = 12000
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
@@ -553,7 +553,12 @@ try:
                             image_paths = st.session_state.documents[file_name]['image_paths']
                             image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                             if image_path:
-                                st.image(image_path, use_column_width=True)
+                                try:
+                                    st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                                except Exception as e:
+                                    st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
+                            else:
+                                st.info(f"No image available for page {page['page_number']}")
             else:
                 st.info(f"No content available for {file_name}.")
             

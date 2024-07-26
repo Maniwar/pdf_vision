@@ -444,6 +444,15 @@ def search_documents(query, selected_documents):
 
 # Streamlit interface
 st.title('📄 Document Query App')
+# Initialize session state variables
+if 'documents' not in st.session_state:
+    st.session_state.documents = {}
+if 'file_hashes' not in st.session_state:
+    st.session_state.file_hashes = {}
+if 'files_to_remove' not in st.session_state:
+    st.session_state.files_to_remove = set()
+if 'qa_history' not in st.session_state:
+    st.session_state.qa_history = []
 
 # Sidebar
 with st.sidebar:
@@ -486,15 +495,11 @@ with st.sidebar:
 try:
     connect_to_milvus()
 
-    # Initialize session state variables
-    if 'documents' not in st.session_state:
-        st.session_state.documents = {}
-    if 'file_hashes' not in st.session_state:
-        st.session_state.file_hashes = {}
-    if 'files_to_remove' not in st.session_state:
-        st.session_state.files_to_remove = set()
-    if 'qa_history' not in st.session_state:
-        st.session_state.qa_history = []
+    # Query interface at the top
+    st.divider()
+    st.subheader("🔍 Query the Document(s)")
+    query = st.text_input("Enter your query about the document(s):")
+    search_button = st.button("🔎 Search")
 
     # File upload section
     uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
@@ -564,7 +569,7 @@ try:
             
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 st.session_state.files_to_remove.add(file_name)
-                st.rerun()
+                st.experimental_rerun()
     else:
         st.info("No documents available. Please upload some documents to get started.")
 
@@ -573,85 +578,79 @@ try:
         for file_name in list(st.session_state.files_to_remove):
             collection = get_or_create_collection("document_pages")
             collection.delete(f"file_name == '{file_name}'")
-            if file_name in all_documents:
-                all_documents.remove(file_name)
             if file_name in st.session_state.documents:
                 del st.session_state.documents[file_name]
             st.success(f"{file_name} has been removed.")
         st.session_state.files_to_remove.clear()
-        st.rerun()
+        st.experimental_rerun()
 
-    # Query interface
-    st.divider()
-    st.subheader("🔍 Query the Document(s)")
-    query = st.text_input("Enter your query about the document(s):")
-    if st.button("🔎 Search"):
-        if selected_documents:
-            with st.spinner('Searching...'):
-                all_pages = search_documents(query, selected_documents)
+    # Process search query
+    if search_button and selected_documents:
+        with st.spinner('Searching...'):
+            all_pages = search_documents(query, selected_documents)
+            
+            if not all_pages:
+                st.warning("No relevant results found. Please try a different query.")
+            else:
+                content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
+
+                system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
+                user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+
+                response = client.chat.completions.create(
+                    model=MODEL,
+                    messages=[
+                        {"role": "system", "content": system_content},
+                        {"role": "user", "content": user_content}
+                    ],
+                    max_tokens=MAX_TOKENS
+                )
+                st.divider()
+                st.subheader("💬 Answer:")
+                st.write(response.choices[0].message.content)
+                st.divider()
+                st.subheader("📚 Sources:")
                 
-                if not all_pages:
-                    st.warning("No relevant results found. Please try a different query.")
-                else:
-                    content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
+                # Group sources by file
+                sources_by_file = {}
+                for page in all_pages:
+                    if page['file_name'] not in sources_by_file:
+                        sources_by_file[page['file_name']] = []
+                    sources_by_file[page['file_name']].append(page)
 
-                    system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
-                    user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+                total_citation_length = 0
+                for file_name, pages in sources_by_file.items():
+                    with st.expander(f"📄 {file_name}"):
+                        for page in pages:
+                            st.markdown(f"**Page {page['page_number']} (Relevance: {1 - page['score']:.2f})**")
+                            citation_id = f"{file_name}-p{page['page_number']}"
+                            content_to_display = page['content'][:citation_length]
+                            st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
+                            total_citation_length += len(content_to_display)
+                            
+                            if file_name in st.session_state.documents:
+                                image_paths = st.session_state.documents[file_name]['image_paths']
+                                image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                                if image_path:
+                                    st.image(image_path, use_column_width=True)
+                        st.divider()
 
-                    response = client.chat.completions.create(
-                        model=MODEL,
-                        messages=[
-                            {"role": "system", "content": system_content},
-                            {"role": "user", "content": user_content}
-                        ],
-                        max_tokens=MAX_TOKENS
-                    )
-                    st.divider()
-                    st.subheader("💬 Answer:")
-                    st.write(response.choices[0].message.content)
-                    st.divider()
-                    st.subheader("📚 Sources:")
-                    
-                    # Group sources by file
-                    sources_by_file = {}
+                with st.expander("📊 Document Statistics", expanded=False):
+                    st.write(f"Total pages searched: {len(all_pages)}")
+                    st.write(f"Total citation length: {total_citation_length} characters")
                     for page in all_pages:
-                        if page['file_name'] not in sources_by_file:
-                            sources_by_file[page['file_name']] = []
-                        sources_by_file[page['file_name']].append(page)
+                        st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
 
-                    total_citation_length = 0
-                    for file_name, pages in sources_by_file.items():
-                        with st.expander(f"📄 {file_name}"):
-                            for page in pages:
-                                st.markdown(f"**Page {page['page_number']} (Relevance: {1 - page['score']:.2f})**")
-                                citation_id = f"{file_name}-p{page['page_number']}"
-                                content_to_display = page['content'][:citation_length]
-                                st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
-                                total_citation_length += len(content_to_display)
-                                
-                                if file_name in st.session_state.documents:
-                                    image_paths = st.session_state.documents[file_name]['image_paths']
-                                    image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                                    if image_path:
-                                        st.image(image_path, use_column_width=True)
-                            st.divider()
+                # Save question and answer to history
+                st.session_state.qa_history.append({
+                    'question': query,
+                    'answer': response.choices[0].message.content,
+                    'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages],
+                    'documents_queried': selected_documents
+                })
+    elif search_button:
+        st.warning("Please select at least one document to query.")
 
-                    with st.expander("📊 Document Statistics", expanded=False):
-                        st.write(f"Total pages searched: {len(all_pages)}")
-                        st.write(f"Total citation length: {total_citation_length} characters")
-                        for page in all_pages:
-                            st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
-
-                    # Save question and answer to history
-                    st.session_state.qa_history.append({
-                        'question': query,
-                        'answer': response.choices[0].message.content,
-                        'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages],
-                        'documents_queried': selected_documents
-                    })
-        else:
-            st.warning("Please select at least one document to query.")
-  
     # Display question history
     if st.session_state.qa_history:
         st.divider()
@@ -667,7 +666,7 @@ try:
         if st.button("🗑️ Clear Question History"):
             st.session_state.qa_history = []
             st.success("Question history cleared!")
-            st.rerun()
+            st.experimental_rerun()
 
         # Export results
         if st.button("📤 Export Q&A Session"):

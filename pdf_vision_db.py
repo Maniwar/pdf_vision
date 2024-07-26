@@ -569,7 +569,7 @@ try:
             
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 st.session_state.files_to_remove.add(file_name)
-                st.experimental_rerun()
+                st.rerun()
     else:
         st.info("No documents available. Please upload some documents to get started.")
 
@@ -582,7 +582,7 @@ try:
                 del st.session_state.documents[file_name]
             st.success(f"{file_name} has been removed.")
         st.session_state.files_to_remove.clear()
-        st.experimental_rerun()
+        st.rerun()
 
     # Process search query
     if search_button and selected_documents:
@@ -666,7 +666,7 @@ try:
         if st.button("🗑️ Clear Question History"):
             st.session_state.qa_history = []
             st.success("Question history cleared!")
-            st.experimental_rerun()
+            st.rerun()
 
         # Export results
         if st.button("📤 Export Q&A Session"):

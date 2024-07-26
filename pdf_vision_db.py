@@ -140,15 +140,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Warning Banner
-st.markdown("""
-<div class="warning-banner">
-    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
-    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
-    In the deployed version, there will be a private database to ensure security and privacy.
-</div>
-""", unsafe_allow_html=True)
-
 def connect_to_milvus():
     connections.connect(
         alias="default", 
@@ -753,7 +744,14 @@ if __name__ == "__main__":
         "information. In the deployed version, there will be a "
         "private database to ensure security and privacy."
     )
-
+# Warning Banner
+st.markdown("""
+<div class="warning-banner">
+    <span class="big-font">⚠️ IMPORTANT NOTICE</span><br>
+    This is a prototype application. Do not upload sensitive information as it is accessible to anyone. 
+    In the deployed version, there will be a private database to ensure security and privacy.
+</div>
+""", unsafe_allow_html=True)
 # Bottom warning section with expander
 st.divider()
 with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):

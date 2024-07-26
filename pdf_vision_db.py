@@ -139,6 +139,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
 # Warning Banner
 st.markdown("""
 <div class="warning-banner">
@@ -579,7 +580,7 @@ try:
                 st.write("Sources:")
                 for source in qa['sources']:
                     st.write(f"- File: {source['file']}, Page: {source['page']}")
-        
+
         # Add a button to clear the question history
         if st.button("🗑️ Clear Question History"):
             st.session_state['qa_history'] = []

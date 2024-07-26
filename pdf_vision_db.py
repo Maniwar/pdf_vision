@@ -200,9 +200,7 @@ def generate_summary(page_contents):
             if current_chunk_tokens + content_tokens > chunk_size:
                 chunks.append("\n".join(current_chunk))
                 current_chunk = [content]
-                current
-
-_chunk_tokens = content_tokens
+                current_chunk_tokens = content_tokens
             else:
                 current_chunk.append(content)
                 current_chunk_tokens += content_tokens
@@ -450,9 +448,7 @@ try:
                     )
                     st.divider()
                     st.subheader("💬 Answer:")
-                    st.write(response.choices
-
-[0].message.content)
+                    st.write(response.choices[0].message.content)
                     st.divider()
                     st.subheader("📚 Sources:")
                     
@@ -653,9 +649,7 @@ if __name__ == "__main__":
 
 # Bottom warning section with expander
 st.divider()
-with st.expander("⚠️ By using this
-
- application, you agree to the following terms and conditions:", expanded=True):
+with st.expander("⚠️ By using this application, you agree to the following terms and conditions:", expanded=True):
     st.markdown("""
     <div class="bottom-warning">
         <ol style="text-align: left;">

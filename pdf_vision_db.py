@@ -14,6 +14,10 @@ import hashlib
 import tiktoken
 import math
 from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType
+from docx2pdf import convert
+from PIL import Image
+import pandas as pd
+import io
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -338,9 +342,15 @@ def process_file(uploaded_file):
     image_paths = []
     page_contents = []
 
-    if file_extension == '.pdf':
-        # Process PDF
-        doc = fitz.open(temp_file_path)
+    if file_extension in ['.pdf', '.doc', '.docx']:
+        # Process PDF or convert Word to PDF and then process
+        if file_extension in ['.doc', '.docx']:
+            pdf_path = temp_file_path.rsplit('.', 1)[0] + '.pdf'
+            convert(temp_file_path, pdf_path)
+        else:
+            pdf_path = temp_file_path
+
+        doc = fitz.open(pdf_path)
         output_dir = tempfile.mkdtemp()
 
         total_pages = len(doc)
@@ -360,9 +370,46 @@ def process_file(uploaded_file):
                 st.error(f"Error processing page {page_num + 1}: {str(e)}")
 
         doc.close()
-        st.success('PDF processed successfully!')
+        st.success(f"{'PDF' if file_extension == '.pdf' else 'Word document'} processed successfully!")
+    elif file_extension in ['.xls', '.xlsx']:
+        # Process Excel file
+        df_dict = pd.read_excel(temp_file_path, sheet_name=None)
+        output_dir = tempfile.mkdtemp()
+        
+        total_sheets = len(df_dict)
+        
+        for i, (sheet_name, df) in enumerate(df_dict.items()):
+            # Convert dataframe to image
+            fig, ax = plt.subplots(figsize=(12, 6))
+            ax.axis('off')
+            ax.table(cellText=df.values, colLabels=df.columns, cellLoc='center', loc='center')
+            
+            output = os.path.join(output_dir, f"sheet{i + 1}.png")
+            plt.savefig(output, bbox_inches='tight', pad_inches=0.5)
+            plt.close(fig)
+            
+            image_paths.append((i + 1, output))
+            
+            try:
+                page_content = get_generated_data(output)
+                page_contents.append(page_content)
+                progress_bar.progress((i + 1) / total_sheets)
+            except Exception as e:
+                st.error(f"Error processing sheet {sheet_name}: {str(e)}")
+        
+        st.success('Excel file processed successfully!')
+    elif file_extension == '.txt':
+        # Process text file directly without converting to image
+        try:
+            with open(temp_file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            page_contents = [content]
+            progress_bar.progress(1.0)
+            st.success('Text file processed successfully!')
+        except Exception as e:
+            st.error(f"Error processing text file: {str(e)}")
     elif file_extension == '.md':
-    # Process Markdown using UnstructuredMarkdownLoader
+        # Process Markdown using UnstructuredMarkdownLoader (existing code)
         loader = UnstructuredMarkdownLoader(temp_file_path)
         data = loader.load()
         page_contents = [item.page_content for item in data]
@@ -372,7 +419,7 @@ def process_file(uploaded_file):
         
         st.success('Markdown processed successfully!')
     elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
-        # Process single image
+        # Process single image (existing code)
         image_paths = [(1, temp_file_path)]
         try:
             page_content = get_generated_data(temp_file_path)
@@ -387,7 +434,7 @@ def process_file(uploaded_file):
 
     summary = generate_summary(page_contents)
     
-    # Insert pages with summary only once
+    # Insert pages with summary
     try:
         for i, content in enumerate(page_contents):
             page_vector = embeddings.embed_documents([content])[0]
@@ -498,7 +545,9 @@ try:
     connect_to_milvus()
 
     # File upload section
-    uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("📤 Upload PDF, Word, Excel, Text, Markdown, or Image file(s)",
+                                    type=["pdf", "doc", "docx", "xls", "xlsx", "txt", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"],
+                                    accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             file_content = uploaded_file.getvalue()

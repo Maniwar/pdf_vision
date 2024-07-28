@@ -805,14 +805,15 @@ try:
                 )
                 st.divider()
                 st.subheader("💬 Answer:")
-                
+                                
                 # Process the response to add clickable links and confidence indicators
                 answer_text = response.choices[0].message.content
                 for page in all_pages:
                     citation_id = f"{page['file_name']}-p{page['page_number']}"
-                    replacement = f"[{citation_id}]({citation_id}){page['confidence_icon']}"
+                    _, confidence_icon = get_confidence_info(page['confidence'])
+                    replacement = f"[{citation_id}]({citation_id}){confidence_icon}"
                     answer_text = answer_text.replace(f"[{citation_id}]", replacement)
-                
+
                 st.markdown(answer_text)
                 
                 # Add JavaScript to scroll to the source when a citation is clicked

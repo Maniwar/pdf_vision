@@ -351,7 +351,8 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             'format': 'png',
             'quality': 100,
             'width': 2560,  # Example width in pixels
-            'height': 1440   # Example height in pixels
+            'height': 1440,   # Example height in pixels
+            'zoom': 1.0  # Adjusts the zoom level
         }
         
         # Split the HTML content into pages

@@ -421,6 +421,10 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
         # Process each image for AI text extraction
         total_pages = len(image_paths)
         for i, (page_num, image_path) in enumerate(image_paths):
+            if image_path is None:
+                page_contents.append("")  # Skip this page due to previous error
+                continue
+            
             try:
                 page_content = get_generated_data(image_path)
                 page_contents.append(page_content)
@@ -437,6 +441,7 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
+
 
 def process_txt(file_path, page_progress_bar, page_status_text):
     page_status_text.text("Processing TXT file")

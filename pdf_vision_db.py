@@ -687,45 +687,48 @@ with st.sidebar:
     )
 
 # Main app section for file upload and processing
-# File upload section
-uploaded_files = st.file_uploader("📤 Upload PDF, Word, TXT, Excel, or Image file(s)",
-                                  type=["pdf", "doc", "docx", "txt", "xls", "xlsx", "png", "jpg", "jpeg", "tiff", "bmp", "gif"],
-                                  accept_multiple_files=True)
+# Main app
+try:
+    connect_to_milvus()
 
-if uploaded_files:
-    overall_progress_bar = st.progress(0)
-    overall_status_text = st.empty()
-    
-    for file_index, uploaded_file in enumerate(uploaded_files):
-        file_content = uploaded_file.getvalue()
-        file_hash = get_file_hash(file_content)
+    # File upload section
+    uploaded_files = st.file_uploader("📤 Upload PDF, Word, TXT, Excel, or Image file(s)", 
+                                      type=["pdf", "doc", "docx", "txt", "xls", "xlsx", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], 
+                                      accept_multiple_files=True)
+    if uploaded_files:
+        overall_progress_bar = st.progress(0)
+        overall_status_text = st.empty()
         
-        if file_hash in st.session_state.file_hashes:
-            existing_file_name = st.session_state.file_hashes[file_hash]
-            st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
-            # Update overall progress
-            overall_progress = ((file_index + 1) * 100) / len(uploaded_files)
-            overall_progress_bar.progress(int(overall_progress))
-            overall_status_text.text(f"Skipped file {file_index + 1} of {len(uploaded_files)}: {uploaded_file.name} (already processed)")
-        else:
-            try:
-                with st.spinner('Processing file... This may take a while for large documents.'):
-                    collection, image_paths, page_contents, summary = process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, len(uploaded_files))
-                if collection is not None:
-                    st.session_state.documents[uploaded_file.name] = {
-                        'image_paths': image_paths,
-                        'page_contents': page_contents,
-                        'summary': summary
-                    }
-                    st.session_state.file_hashes[file_hash] = uploaded_file.name
-                    st.success(f"File processed and stored in vector database!")
-                    with st.expander("📑 View Summary"):
-                        st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
-            except Exception as e:
-                st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-    
-    overall_progress_bar.progress(100)
-    overall_status_text.text("All files processed!")
+        for file_index, uploaded_file in enumerate(uploaded_files):
+            file_content = uploaded_file.getvalue()
+            file_hash = get_file_hash(file_content)
+            
+            if file_hash in st.session_state.file_hashes:
+                existing_file_name = st.session_state.file_hashes[file_hash]
+                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
+                # Update overall progress
+                overall_progress = ((file_index + 1) * 100) / len(uploaded_files)
+                overall_progress_bar.progress(int(overall_progress))
+                overall_status_text.text(f"Skipped file {file_index + 1} of {len(uploaded_files)}: {uploaded_file.name} (already processed)")
+            else:
+                try:
+                    with st.spinner('Processing file... This may take a while for large documents.'):
+                        collection, image_paths, page_contents, summary = process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, len(uploaded_files))
+                    if collection is not None:
+                        st.session_state.documents[uploaded_file.name] = {
+                            'image_paths': image_paths,
+                            'page_contents': page_contents,
+                            'summary': summary
+                        }
+                        st.session_state.file_hashes[file_hash] = uploaded_file.name
+                        st.success(f"File processed and stored in vector database!")
+                        with st.expander("📑 View Summary"):
+                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
+                except Exception as e:
+                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
+        
+        overall_progress_bar.progress(100)
+        overall_status_text.text("All files processed!")
 
     # Document selection section
     st.divider()
@@ -836,7 +839,6 @@ if uploaded_files:
                             if image_path:
                                 try:
                                     st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                                    #st.write(f"Debug: Displaying image from {image_path}")
                                 except Exception as e:
                                     st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
                             else:

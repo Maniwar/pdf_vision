@@ -19,7 +19,7 @@ import fitz
 from docx import Document
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
-from docx2html import convert
+import mammoth
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")

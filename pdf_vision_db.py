@@ -362,6 +362,40 @@ def process_excel(file_path):
     
     return [(i+1, None) for i in range(len(page_contents))], page_contents
 
+def process_pdf(file_path):
+    doc = fitz.open(file_path)
+    temp_dir = tempfile.mkdtemp()
+    image_paths = []
+    page_contents = []
+
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        
+        # Render page to an image
+        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Increase resolution
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        
+        # Save the image
+        image_path = os.path.join(temp_dir, f"page{page_num + 1}.png")
+        img.save(image_path, format="PNG")
+        image_paths.append((page_num + 1, image_path))
+        
+        try:
+            # Extract text from the page
+            text = page.get_text()
+            
+            # If text extraction yields no results, use OCR via get_generated_data
+            if not text.strip():
+                page_content = get_generated_data(image_path)
+            else:
+                page_content = text
+            
+            page_contents.append(page_content)
+        except Exception as e:
+            st.error(f"Error processing page {page_num + 1}: {str(e)}")
+
+    doc.close()
+    return image_paths, page_contents
 
 def generate_summary(page_contents):
     total_tokens = sum(num_tokens_from_string(content) for content in page_contents)

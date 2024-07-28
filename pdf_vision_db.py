@@ -19,6 +19,7 @@ import fitz
 from docx import Document
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
+from docx2html import convert
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -310,55 +311,57 @@ def process_pdf(file_path):
     doc.close()
     return image_paths, page_contents
 
+def docx_to_html(docx_path):
+    return convert(docx_path)
+
+def html_to_pdf(html_content, output_pdf_path):
+    pdfkit.from_string(html_content, output_pdf_path)
+
+def pdf_to_images(pdf_path):
+    doc = fitz.open(pdf_path)
+    temp_dir = tempfile.mkdtemp()
+    image_paths = []
+
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        pix = page.get_pixmap()
+        image_path = os.path.join(temp_dir, f"page{page_num + 1}.png")
+        pix.save(image_path)
+        image_paths.append((page_num + 1, image_path))
+
+    doc.close()
+    return image_paths
 def process_doc_docx(file_path):
     try:
-        doc = Document(file_path)
-        full_text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
+        # Convert DOCX to HTML
+        html_content = docx_to_html(file_path)
+        
+        # Save the HTML content to a temporary file
+        temp_html_path = os.path.join(tempfile.gettempdir(), 'temp.html')
+        with open(temp_html_path, 'w', encoding='utf-8') as html_file:
+            html_file.write(html_content)
+        
+        # Convert HTML to PDF
+        temp_pdf_path = os.path.join(tempfile.gettempdir(), 'temp.pdf')
+        html_to_pdf(html_content, temp_pdf_path)
+        
+        # Convert PDF to images
+        image_paths = pdf_to_images(temp_pdf_path)
+        page_contents = []
 
-        # Log the extracted text for debugging
-        st.write(f"Extracted text: {full_text}")
+        # Process each image for AI text extraction
+        for page_num, image_path in image_paths:
+            try:
+                page_content = get_generated_data(image_path)
+                page_contents.append(page_content)
+            except Exception as e:
+                st.error(f"Error processing page {page_num}: {str(e)}")
+                page_contents.append("")
 
-        # Create a larger image to accommodate more text
-        img_width, img_height = 1200, 1600
-        img = Image.new('RGB', (img_width, img_height), color='white')
-        d = ImageDraw.Draw(img)
-
-        # Use a default font if the desired font is not available
-        try:
-            font = ImageFont.truetype("arial.ttf", 14)
-        except IOError:
-            font = ImageFont.load_default()
-
-        # Wrap text to fit within image width
-        margin = 20
-        offset = 20
-        for line in textwrap.wrap(full_text, width=80):
-            d.text((margin, offset), line, font=font, fill=(0, 0, 0))
-            offset += d.textsize(line, font=font)[1] + 5
-
-        temp_dir = tempfile.mkdtemp()
-        # Generate image path using the document name and page number
-        doc_name = Path(file_path).stem
-        image_path = os.path.join(temp_dir, f"{doc_name}_page1.png")
-        img.save(image_path)
-
-        # Display the generated image to verify the text is there
-        st.image(image_path, caption='Generated image with text', use_column_width=True)
-
-        try:
-            page_content = get_generated_data(image_path)
-        except Exception as e:
-            st.error(f"Error processing document image: {str(e)}")
-            page_content = full_text
-
-        return [(1, image_path)], [page_content]
-    except ImportError:
-        st.error("Unable to process DOC/DOCX files. The 'python-docx' library is not installed.")
-        return [], []
+        return image_paths, page_contents
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
-
 
 def process_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:

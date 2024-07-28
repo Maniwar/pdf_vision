@@ -23,7 +23,6 @@ import mammoth
 from pyvirtualdisplay import Display
 import imgkit
 import plotly.graph_objs as go
-from streamlit.components.v1 import html
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")

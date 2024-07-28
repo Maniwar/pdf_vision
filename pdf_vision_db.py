@@ -206,6 +206,16 @@ def get_all_documents():
         return []
 
 def get_document_content(file_name):
+    if file_name in st.session_state.documents:
+        return [
+            {
+                'content': content,
+                'page_number': i + 1,
+                'summary': st.session_state.documents[file_name]['summary']
+            }
+            for i, content in enumerate(st.session_state.documents[file_name]['page_contents'])
+        ]
+    
     try:
         collection = get_or_create_collection("document_pages")
         if collection is None:
@@ -220,6 +230,7 @@ def get_document_content(file_name):
     except Exception as e:
         st.error(f"Error in fetching document content: {str(e)}")
         return []
+
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -447,6 +458,18 @@ def process_file(uploaded_file):
         st.error(f"Error inserting pages: {str(e)}")
 
     progress_bar.progress(100)
+
+    # Store the processed data in session state
+    st.session_state.documents[uploaded_file.name] = {
+        'image_paths': image_paths,
+        'page_contents': page_contents,
+        'summary': summary
+    }
+
+    # Debug output
+    st.success(f"File processed and stored in vector database!")
+    st.write(f"Debug: Image paths for {uploaded_file.name}: {image_paths}")
+    st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
 
     return collection, image_paths, page_contents, summary
 
@@ -679,6 +702,7 @@ try:
                             if image_path:
                                 try:
                                     st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                                    st.write(f"Debug: Displaying image from {image_path}")
                                 except Exception as e:
                                     st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
                             else:

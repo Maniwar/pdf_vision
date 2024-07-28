@@ -290,6 +290,7 @@ def save_uploadedfile(uploadedfile):
     with open(file_path, "wb") as f:
         f.write(uploadedfile.getbuffer())
     return file_path
+
 def process_pdf(file_path, page_progress_bar, page_status_text):
     doc = fitz.open(file_path)
     temp_dir = tempfile.mkdtemp()
@@ -392,6 +393,7 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
         
         # Convert HTML to images
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
+        
         page_contents = []
 
         # Process each image for AI text extraction

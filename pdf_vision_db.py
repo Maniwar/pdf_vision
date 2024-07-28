@@ -335,13 +335,12 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
 
 def docx_to_html(docx_path):
     with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file)
+        result = mammoth.convert_to_html(docx_file, convert_options=mammoth.convert_options.extend_options({
+            "preserve_page_breaks": True
+        }))
         html = result.value
         
-        # Add page break markers for wkhtmltoimage
-        html = html.replace('</p><p>', '</p><div style="page-break-after:always;"><span style="display:none">&nbsp;</span></div><p>')
-        
-        # Add minimal CSS to reduce white space
+        # Add minimal CSS to reduce white space and handle page breaks
         html = f"""
         <html>
         <head>
@@ -355,8 +354,11 @@ def docx_to_html(docx_path):
                     margin: 0;
                     padding: 0;
                 }}
-                div.page-break {{
+                hr {{
                     page-break-after: always;
+                    border: none;
+                    margin: 0;
+                    padding: 0;
                 }}
             </style>
         </head>
@@ -384,19 +386,19 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '0',  # example width, adjust as needed
-            'height': '0'  # let height be determined by content
+            'width': '1024',  # Set a fixed width
+            'height': '0'  # Let height be determined by content
         }
         
         # Split the HTML content into pages
-        pages = html_content.split('<div class="page-break"></div>')
+        pages = html_content.split('<hr style="page-break-before: always;">')
         total_pages = len(pages)
         
         for i, page in enumerate(pages):
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
-                f.write(f"<html><body style='margin: 0; padding: 0;'>{page}</body></html>")
+                f.write(f"<html><body>{page}</body></html>")
             
             # Convert the HTML file to an image
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")

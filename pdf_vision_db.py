@@ -349,10 +349,10 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         image_paths = []
         options = {
             'format': 'png',
-            'width': 'auto',  # Automatic height to fit content
-            'height': 'auto',  # Automatic height to fit content
             'quality': 100,
-            'zoom': 2  # Adjusts the zoom level to scale the content
+            'zoom': 2,
+            'width': 1200,  # Set a specific width
+            'height': 1600  # Set a specific height
         }
         
         # Split the HTML content into pages
@@ -376,6 +376,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
     return image_paths
+
 
 def html_to_pdf(html_content, output_pdf_path):
     pdfkit.from_string(html_content, output_pdf_path)

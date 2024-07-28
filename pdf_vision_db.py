@@ -334,11 +334,14 @@ def process_doc_docx(file_path):
         offset = 20
         for line in textwrap.wrap(full_text, width=80):
             d.text((margin, offset), line, font=font, fill=(0, 0, 0))
-            offset += font.getsize(line)[1] + 5
+            offset += d.textsize(line, font=font)[1] + 5
 
         temp_dir = tempfile.mkdtemp()
         image_path = os.path.join(temp_dir, "document.png")
         img.save(image_path)
+
+        # Display the generated image to verify the text is there
+        st.image(image_path, caption='Generated image with text', use_column_width=True)
 
         try:
             page_content = get_generated_data(image_path)
@@ -353,6 +356,7 @@ def process_doc_docx(file_path):
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
+
 
 def process_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:

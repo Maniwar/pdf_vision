@@ -23,6 +23,7 @@ import mammoth
 from pyvirtualdisplay import Display
 import imgkit
 import plotly.graph_objs as go
+import numpy as np
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -338,10 +339,7 @@ def docx_to_html(docx_path):
         result = mammoth.convert_to_html(docx_file)
         html = result.value
         
-        # Add page break markers for wkhtmltoimage
-        html = html.replace('</p><div class="page-break"></div><p>')
-        
-        # Add minimal CSS to reduce white space
+        # Add minimal CSS to maintain document structure and style
         html = f"""
         <html>
         <head>
@@ -352,14 +350,23 @@ def docx_to_html(docx_path):
                     font-family: Arial, sans-serif;
                 }}
                 p {{
-                    margin: 0;
-                    padding: 0;
+                    margin-bottom: 1em;
                 }}
-                div.page-break {{
-                    page-break-after: always;
-                    display: block;
-                    margin-bottom: 0;
-                    padding-bottom: 0;
+                h1, h2, h3, h4, h5, h6 {{
+                    margin-top: 1em;
+                    margin-bottom: 0.5em;
+                }}
+                table {{
+                    border-collapse: collapse;
+                    margin-bottom: 1em;
+                }}
+                td, th {{
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                }}
+                @page {{
+                    size: letter;
+                    margin: 2cm;
                 }}
             </style>
         </head>

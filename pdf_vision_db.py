@@ -184,6 +184,12 @@ def get_or_create_collection(collection_name, dim=1536):
         st.error(f"Error in creating or accessing the collection: {str(e)}")
         return None
 
+def toggle_content_visibility(key):
+    if key not in st.session_state:
+        st.session_state[key] = False
+    st.session_state[key] = not st.session_state[key]
+
+
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
 
@@ -840,7 +846,11 @@ try:
                             st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
                             
                             if len(page['content']) > citation_length:
-                                if st.button("Show Full Content", key=f"full_content_{file_name}_{page['page_number']}"):
+                                toggle_key = f"full_content_{file_name}_{page['page_number']}"
+                                if st.button("Toggle Full Content", key=f"button_{toggle_key}", on_click=toggle_content_visibility, args=(toggle_key,)):
+                                    pass  # The on_click function handles the toggling
+                                
+                                if toggle_key in st.session_state and st.session_state[toggle_key]:
                                     st.markdown(full_content)
                             
                             total_citation_length += len(content_to_display)
@@ -850,7 +860,11 @@ try:
                                 image_paths = st.session_state.documents[file_name]['image_paths']
                                 image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                                 if image_path:
-                                    if st.button("Show Image", key=f"image_{file_name}_{page['page_number']}"):
+                                    image_toggle_key = f"image_{file_name}_{page['page_number']}"
+                                    if st.button("Toggle Image", key=f"button_{image_toggle_key}", on_click=toggle_content_visibility, args=(image_toggle_key,)):
+                                        pass  # The on_click function handles the toggling
+                                    
+                                    if image_toggle_key in st.session_state and st.session_state[image_toggle_key]:
                                         st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
                         
                         st.markdown("---")

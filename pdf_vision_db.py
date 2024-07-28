@@ -19,6 +19,7 @@ import fitz
 from docx import Document
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
+import traceback
 
 
 # Set page configuration to wide mode
@@ -316,28 +317,40 @@ def process_doc_docx(file_path):
         doc = Document(file_path)
         full_text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
         
-        # Create a larger image to accommodate more text
-        img_width, img_height = 1200, 1600
+        # Create an image with a more reasonable size
+        img_width, img_height = 800, 1100  # Standard A4 size ratio
         img = Image.new('RGB', (img_width, img_height), color='white')
-        d = ImageDraw.Draw(img)
+        draw = ImageDraw.Draw(img)
 
-        # Use a default font if the desired font is not available
+        # Try to use a common font, fallback to default if not available
         try:
-            font = ImageFont.truetype("arial.ttf", 14)
+            font = ImageFont.truetype("arial.ttf", 12)
         except IOError:
             font = ImageFont.load_default()
 
-        # Wrap text to fit within image width
-        margin = 20
-        offset = 20
-        for line in textwrap.wrap(full_text, width=80):
-            d.text((margin, offset), line, font=font, fill=(0, 0, 0))
-            offset += font.getsize(line)[1] + 5
+        # Calculate maximum width for text
+        max_width = img_width - 40  # 20px margin on each side
 
+        # Wrap and draw text
+        y_text = 20
+        for line in full_text.split('\n'):
+            wrapped_lines = textwrap.wrap(line, width=max_width // font.getsize('x')[0])
+            for wrapped_line in wrapped_lines:
+                draw.text((20, y_text), wrapped_line, font=font, fill="black")
+                y_text += font.getsize(wrapped_line)[1] + 5
+
+                if y_text > img_height - 20:  # Stop if we've reached the bottom of the image
+                    break
+            
+            if y_text > img_height - 20:
+                break
+
+        # Save image
         temp_dir = tempfile.mkdtemp()
         image_path = os.path.join(temp_dir, "document.png")
         img.save(image_path)
 
+        # Generate content from the image
         try:
             page_content = get_generated_data(image_path)
         except Exception as e:
@@ -350,8 +363,9 @@ def process_doc_docx(file_path):
         return [], []
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
         return [], []
-
 
 
 def process_txt(file_path):
@@ -509,7 +523,6 @@ def process_file(uploaded_file):
         return collection, image_paths, page_contents, summary
     except Exception as e:
         st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-        import traceback
         st.error(f"Traceback: {traceback.format_exc()}")
         
         # Additional debugging information

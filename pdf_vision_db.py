@@ -466,11 +466,11 @@ def process_file(uploaded_file):
             st.error(f"No content extracted from the file: {uploaded_file.name}")
             return None, None, None, None
 
-        st.write(f"Debug: Content extracted successfully. Number of pages: {len(page_contents)}")
+        #st.write(f"Debug: Content extracted successfully. Number of pages: {len(page_contents)}")
 
         summary = generate_summary(page_contents)
         
-        st.write("Debug: Summary generated successfully.")
+        #st.write("Debug: Summary generated successfully.")
         
         # Insert pages with summary
         for i, content in enumerate(page_contents):
@@ -495,9 +495,9 @@ def process_file(uploaded_file):
         }
 
         # Debug output
-        st.success(f"File processed and stored in vector database!")
-        st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
-        st.write(f"Debug: Image paths: {image_paths}")
+        # st.success(f"File processed and stored in vector database!")
+        # st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
+        # st.write(f"Debug: Image paths: {image_paths}")
         
         # Check if image files exist
         for _, img_path in image_paths:

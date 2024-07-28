@@ -335,11 +335,28 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
 
 def docx_to_html(docx_path):
     with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file)
+        result = mammoth.convert_to_html(docx_file, convert_options=mammoth.convert_options.extend_options({
+            "ignore_empty_paragraphs": False
+        }))
         html = result.value
         
-        # Manually insert page breaks after each paragraph
-        html = html.replace('</p>', '</p><hr class="page-break" />')
+        # Use python-docx to get actual page breaks
+        doc = Document(docx_path)
+        page_breaks = []
+        for i, para in enumerate(doc.paragraphs):
+            if para.style.name.startswith('Page Break'):
+                page_breaks.append(i)
+        
+        # Split HTML into paragraphs
+        paragraphs = html.split('</p>')
+        
+        # Insert page breaks
+        for i in reversed(page_breaks):
+            if i < len(paragraphs):
+                paragraphs.insert(i, '<hr class="page-break" />')
+        
+        # Rejoin paragraphs
+        html = '</p>'.join(paragraphs)
         
         # Add minimal CSS to reduce white space and handle page breaks
         html = f"""
@@ -387,7 +404,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '0',  # Set a fixed width
+            'width': '1024',  # Set a fixed width
             'height': '0'  # Let height be determined by content
         }
         
@@ -395,7 +412,11 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         pages = html_content.split('<hr class="page-break" />')
         total_pages = len(pages)
         
+        print(f"Debug: Total pages after splitting: {total_pages}")
+        
         for i, page in enumerate(pages):
+            print(f"Debug: Processing page {i + 1}, content length: {len(page)}")
+            
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
@@ -407,17 +428,19 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
                 imgkit.from_file(temp_html_path, image_path, options=options)
                 crop_image(image_path)
                 image_paths.append((i + 1, image_path))
+                print(f"Debug: Successfully created image for page {i + 1}")
             except Exception as e:
                 st.error(f"Error processing page {i + 1}: {str(e)}")
                 image_paths.append((i + 1, None))  # Record the error but continue processing
+                print(f"Debug: Error creating image for page {i + 1}: {str(e)}")
 
             # Update progress
             progress = (i + 1) / total_pages
             page_progress_bar.progress(progress)
             page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
+    print(f"Debug: Final number of images created: {len(image_paths)}")
     return image_paths
-
 
 def html_to_pdf(html_content, output_pdf_path):
     pdfkit.from_string(html_content, output_pdf_path)

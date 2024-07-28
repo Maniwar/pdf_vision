@@ -406,19 +406,15 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '1024',  # Set a fixed width
+            'width': '0',  # Set a fixed width
             'height': '0'  # Let height be determined by content
         }
         
         # Split the HTML content into pages
-        pages = html_content.split('<hr class="page-break" />')
+        pages = html_content.split('<div class="page-break"></div>')
         total_pages = len(pages)
         
-        print(f"Debug: Total pages after splitting: {total_pages}")
-        
         for i, page in enumerate(pages):
-            print(f"Debug: Processing page {i + 1}, content length: {len(page)}")
-            
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
@@ -430,18 +426,15 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
                 imgkit.from_file(temp_html_path, image_path, options=options)
                 crop_image(image_path)
                 image_paths.append((i + 1, image_path))
-                print(f"Debug: Successfully created image for page {i + 1}")
             except Exception as e:
                 st.error(f"Error processing page {i + 1}: {str(e)}")
                 image_paths.append((i + 1, None))  # Record the error but continue processing
-                print(f"Debug: Error creating image for page {i + 1}: {str(e)}")
 
             # Update progress
             progress = (i + 1) / total_pages
             page_progress_bar.progress(progress)
             page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
-    print(f"Debug: Final number of images created: {len(image_paths)}")
     return image_paths
 
 def html_to_pdf(html_content, output_pdf_path):
@@ -470,9 +463,9 @@ def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
 
 def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
-        # Convert DOCX to HTML
+        # Convert DOCX to HTML with page breaks
         page_status_text.text("Converting DOC/DOCX to HTML")
-        html_content = docx_to_html(file_path)
+        html_content = extract_docx_content_with_page_breaks(file_path)
         
         # Convert HTML to images
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
@@ -502,6 +495,7 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
+
 
 
 def process_txt(file_path, page_progress_bar, page_status_text):

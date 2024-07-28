@@ -317,7 +317,7 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
         image_path = os.path.join(temp_dir, f"page{page_num + 1}.png")
         pix.save(image_path)
         image_paths.append((page_num + 1, image_path))
-        
+
         try:
             page_content = get_generated_data(image_path)
             page_contents.append(page_content)
@@ -620,32 +620,42 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
 
         file_status_text.text("Generating summary...")
         file_progress_bar.progress(40)
-        summary = generate_summary(page_contents, file_progress_bar, file_status_text)  # Fixed: added missing arguments
+        summary = generate_summary(page_contents, file_progress_bar, file_status_text)
         
         file_status_text.text("Storing pages in vector database...")
         file_progress_bar.progress(60)
         
         total_pages = len(page_contents)
         for i, content in enumerate(page_contents):
-            page_vector = embeddings.embed_documents([content])[0]
-            entity = {
-                "content": content,
-                "file_name": uploaded_file.name,
-                "page_number": i + 1,
-                "vector": page_vector,
-                "summary": summary
-            }
-            collection.insert([entity])
-            progress_percentage = 60 + (i + 1) / total_pages * 35  # Progress from 60% to 95%
-            file_progress_bar.progress(int(progress_percentage))
-            file_status_text.text(f"Storing page {i+1} of {total_pages}...")
-            page_progress_bar.progress(int((i + 1) / total_pages * 100))
-            page_status_text.text(f"Storing page {i+1} of {total_pages}")
+            page_number = i + 1
+            # Check if the page already exists in the collection
+            query_result = collection.query(
+                expr=f"file_name == '{uploaded_file.name}' and page_number == {page_number}",
+                output_fields=["id"],
+                limit=1
+            )
+            if query_result:
+                st.info(f"Page {page_number} of '{uploaded_file.name}' already exists in Milvus.")
+            else:
+                page_vector = embeddings.embed_documents([content])[0]
+                entity = {
+                    "content": content,
+                    "file_name": uploaded_file.name,
+                    "page_number": page_number,
+                    "vector": page_vector,
+                    "summary": summary
+                }
+                collection.insert([entity])
+                progress_percentage = 60 + (i + 1) / total_pages * 35  # Progress from 60% to 95%
+                file_progress_bar.progress(int(progress_percentage))
+                file_status_text.text(f"Storing page {i+1} of {total_pages}...")
+                page_progress_bar.progress(int((i + 1) / total_pages * 100))
+                page_status_text.text(f"Storing page {i+1} of {total_pages}")
 
-            # Update overall progress
-            overall_progress = (file_index * 100 + progress_percentage) / total_files
-            overall_progress_bar.progress(int(overall_progress))
-            overall_status_text.text(f"Processing file {file_index + 1} of {total_files}: {uploaded_file.name}")
+                # Update overall progress
+                overall_progress = (file_index * 100 + progress_percentage) / total_files
+                overall_progress_bar.progress(int(overall_progress))
+                overall_status_text.text(f"Processing file {file_index + 1} of {total_files}: {uploaded_file.name}")
 
         file_progress_bar.progress(100)
         file_status_text.text("Processing complete!")
@@ -666,14 +676,15 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
         st.error(f"Traceback: {traceback.format_exc()}")
         
         # Additional debugging information
-        st.write(f"Debug: File extension: {file_extension}")
-        st.write(f"Debug: Temp file path: {temp_file_path}")
-        if os.path.exists(temp_file_path):
-            st.write(f"Debug: Temp file size: {os.path.getsize(temp_file_path)} bytes")
-        else:
-            st.write("Debug: Temp file does not exist")
+        # st.write(f"Debug: File extension: {file_extension}")
+        # st.write(f"Debug: Temp file path: {temp_file_path}")
+        # if os.path.exists(temp_file_path):
+        #     st.write(f"Debug: Temp file size: {os.path.getsize(temp_file_path)} bytes")
+        # else:
+        #     st.write("Debug: Temp file does not exist")
         
         return None, None, None, None
+
 
 def search_documents(query, selected_documents):
     collection = get_or_create_collection("document_pages")

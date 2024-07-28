@@ -20,3 +20,4 @@ python-dotenv
 pandas
 openpyxl
 docx2pdf
+matplotlib

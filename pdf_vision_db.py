@@ -335,7 +335,10 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
 
 def docx_to_html(docx_path):
     with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file)
+        custom_style_map = {
+            "p[style-name='Section Break']": "div.page-break"
+        }
+        result = mammoth.convert_to_html(docx_file, style_map=custom_style_map)
         html = result.value
         
         # Add minimal CSS to maintain document structure and style
@@ -367,6 +370,11 @@ def docx_to_html(docx_path):
                     size: letter;
                     margin: 2cm;
                 }}
+                .page-break {{
+                    page-break-after: always;
+                    height: 0;
+                    display: block;
+                }}
             </style>
         </head>
         <body>
@@ -374,7 +382,7 @@ def docx_to_html(docx_path):
         </body>
         </html>
         """
-        
+
         return html
 
 

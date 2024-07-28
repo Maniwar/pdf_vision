@@ -783,7 +783,7 @@ try:
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     search_button = st.button("🔎 Search")
-
+    
     if search_button and selected_documents:
         with st.spinner('Searching...'):
             all_pages = search_documents(query, selected_documents)
@@ -836,13 +836,11 @@ try:
                                 content_to_display = page['content'][:citation_length]
                                 full_content = page['content']
                                 
-                                # Create a unique key for each source
-                                key = f"source_{file_name}_{page['page_number']}"
+                                st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
                                 
-                                if st.button("Show full content", key=f"show_{key}"):
-                                    st.markdown(f"[{citation_id}] {full_content}")
-                                else:
-                                    st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
+                                if len(page['content']) > citation_length:
+                                    with st.expander("Show full content"):
+                                        st.markdown(full_content)
                                 
                                 total_citation_length += len(content_to_display)
                             
@@ -851,7 +849,7 @@ try:
                                     image_paths = st.session_state.documents[file_name]['image_paths']
                                     image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                                     if image_path:
-                                        if st.button("Show Image", key=f"image_{key}"):
+                                        with st.expander("Show Image"):
                                             st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
                             
                             st.markdown("---")

@@ -20,7 +20,6 @@ from docx import Document
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
 
-
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
 

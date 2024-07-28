@@ -22,4 +22,3 @@ openpyxl
 matplotlib
 python-docx
 tabulate
-textwrap

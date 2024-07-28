@@ -16,7 +16,6 @@ from pymilvus import connections, utility, Collection, FieldSchema, CollectionSc
 import pandas as pd
 import io
 import fitz
-import docx2txt
 from PIL import Image, ImageDraw
 
 # Set page configuration to wide mode

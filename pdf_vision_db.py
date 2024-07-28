@@ -315,7 +315,10 @@ def process_doc_docx(file_path):
     try:
         doc = Document(file_path)
         full_text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
-        
+
+        # Log the extracted text for debugging
+        st.write(f"Extracted text: {full_text}")
+
         # Create a larger image to accommodate more text
         img_width, img_height = 1200, 1600
         img = Image.new('RGB', (img_width, img_height), color='white')
@@ -351,8 +354,6 @@ def process_doc_docx(file_path):
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
-
-
 
 def process_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:

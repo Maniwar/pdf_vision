@@ -349,7 +349,8 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         image_paths = []
         options = {
             'format': 'png',
-            'quality': 100
+            'quality': 100,
+            'disable-smart-width': ''
         }
         
         # Split the HTML content into pages

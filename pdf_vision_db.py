@@ -654,15 +654,12 @@ def search_documents(query, selected_documents):
     all_pages = []
     for hit in results[0]:
         confidence = calculate_confidence(hit.score)
-        color, icon = get_confidence_info(confidence)
         page = {
             'file_name': hit.entity.get('file_name'),
             'content': hit.entity.get('content'),
             'page_number': hit.entity.get('page_number'),
             'score': hit.score,
             'confidence': confidence,
-            'confidence_color': color,
-            'confidence_icon': icon,
             'summary': hit.entity.get('summary')
         }
         all_pages.append(page)
@@ -837,25 +834,23 @@ try:
                 
                 st.divider()
                 st.subheader("📚 Sources:")
-                
+                                
                 # Group sources by file
                 sources_by_file = {}
                 for page in all_pages:
-                    if page['file_name'] not in sources_by_file:
-                        sources_by_file[page['file_name']] = []
-                    sources_by_file[page['file_name']].append(page)
+                    sources_by_file.setdefault(page['file_name'], []).append(page)
 
                 total_citation_length = 0
                 for file_name, pages in sources_by_file.items():
                     st.markdown(f"### 📄 {file_name}")
                     for page in pages:
                         confidence = page['confidence']
-                        color = page['confidence_color']
+                        color, icon = get_confidence_info(confidence)
                         
                         col1, col2 = st.columns([1, 9])
                         
                         with col1:
-                            st.markdown(f"<span style='color:{color};'>●</span> **{confidence:.1f}%**", unsafe_allow_html=True)
+                            st.markdown(f"<span style='color:{color};'>●</span> {icon} **{confidence:.1f}%**", unsafe_allow_html=True)
                         
                         with col2:
                             citation_id = f"{file_name}-p{page['page_number']}"

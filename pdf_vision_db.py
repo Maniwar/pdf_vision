@@ -17,11 +17,6 @@ import pandas as pd
 import io
 import fitz
 from docx import Document
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Paragraph
-from reportlab.lib.units import inch
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
 import traceback
@@ -295,59 +290,59 @@ def save_uploadedfile(uploadedfile):
         f.write(uploadedfile.getbuffer())
     return file_path
 
-def docx_to_pdf(docx_path, pdf_path):
+
+def docx_to_images(docx_path):
     doc = Document(docx_path)
-    pdf = SimpleDocTemplate(pdf_path, pagesize=letter)
-    styles = getSampleStyleSheet()
-    flowables = []
-
-    for para in doc.paragraphs:
-        if para.style.name.startswith('Heading'):
-            flowables.append(Paragraph(para.text, styles['Heading1']))
-        else:
-            flowables.append(Paragraph(para.text, styles['Normal']))
-
-    pdf.build(flowables)
+    images = []
+    
+    # You may need to adjust this path to a suitable font file
+    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+    
+    for page_num, para in enumerate(doc.paragraphs):
+        # Create a new image for each paragraph (you might want to combine multiple paragraphs per image)
+        img = Image.new('RGB', (800, 600), color='white')
+        d = ImageDraw.Draw(img)
+        
+        # Draw the text on the image
+        d.text((10, 10), para.text, font=font, fill='black')
+        
+        # Convert image to bytes
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='PNG')
+        img_byte_arr = img_byte_arr.getvalue()
+        
+        images.append((page_num + 1, img_byte_arr))
+    
+    return images
 
 def process_doc_docx(file_path):
     try:
-        # Create a temporary directory for the PDF
+        image_paths = docx_to_images(file_path)
+        
+        # Now we need to save these images temporarily to use with get_generated_data
         temp_dir = tempfile.mkdtemp()
-        pdf_path = os.path.join(temp_dir, "converted_document.pdf")
+        saved_image_paths = []
+        page_contents = []
         
-        # Convert DOCX to PDF
-        docx_to_pdf(file_path, pdf_path)
+        for page_num, img_bytes in image_paths:
+            temp_image_path = os.path.join(temp_dir, f"page_{page_num}.png")
+            with open(temp_image_path, "wb") as f:
+                f.write(img_bytes)
+            saved_image_paths.append((page_num, temp_image_path))
+            
+            try:
+                page_content = get_generated_data(temp_image_path)
+                page_contents.append(page_content)
+            except Exception as e:
+                st.error(f"Error processing page {page_num}: {str(e)}")
         
-        # Now process the PDF
-        return process_pdf(pdf_path)
+        return saved_image_paths, page_contents
     
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         import traceback
         st.error(f"Traceback: {traceback.format_exc()}")
         return [], []
-    
-def process_pdf(file_path):
-    doc = fitz.open(file_path)
-    temp_dir = tempfile.mkdtemp()
-    image_paths = []
-    page_contents = []
-
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        pix = page.get_pixmap()
-        image_path = os.path.join(temp_dir, f"page{page_num + 1}.png")
-        pix.save(image_path)
-        image_paths.append((page_num + 1, image_path))
-        
-        try:
-            page_content = get_generated_data(image_path)
-            page_contents.append(page_content)
-        except Exception as e:
-            st.error(f"Error processing page {page_num + 1}: {str(e)}")
-
-    doc.close()
-    return image_paths, page_contents
 
 def process_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:

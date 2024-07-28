@@ -248,13 +248,13 @@ def calculate_confidence(score):
     confidence = (1 - score) * 100
     return confidence
 
-def get_confidence_color(confidence):
+def get_confidence_info(confidence):
     if confidence >= 90:
-        return "green"
+        return "green", "🟢"  # Green circle for high confidence
     elif confidence >= 60:
-        return "orange"
+        return "orange", "🟠"  # Orange circle for medium confidence
     else:
-        return "red"
+        return "red", "🔴"  # Red circle for low confidence
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -654,13 +654,15 @@ def search_documents(query, selected_documents):
     all_pages = []
     for hit in results[0]:
         confidence = calculate_confidence(hit.score)
+        color, icon = get_confidence_info(confidence)
         page = {
             'file_name': hit.entity.get('file_name'),
             'content': hit.entity.get('content'),
             'page_number': hit.entity.get('page_number'),
             'score': hit.score,
             'confidence': confidence,
-            'confidence_color': get_confidence_color(confidence),
+            'confidence_color': color,
+            'confidence_icon': icon,
             'summary': hit.entity.get('summary')
         }
         all_pages.append(page)
@@ -783,7 +785,7 @@ try:
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     search_button = st.button("🔎 Search")
-            
+                
     if search_button and selected_documents:
         with st.spinner('Searching...'):
             all_pages = search_documents(query, selected_documents)
@@ -806,7 +808,33 @@ try:
                 )
                 st.divider()
                 st.subheader("💬 Answer:")
-                st.write(response.choices[0].message.content)
+                
+                # Process the response to add clickable links and confidence indicators
+                answer_text = response.choices[0].message.content
+                for page in all_pages:
+                    citation_id = f"{page['file_name']}-p{page['page_number']}"
+                    replacement = f"[{citation_id}]({citation_id}){page['confidence_icon']}"
+                    answer_text = answer_text.replace(f"[{citation_id}]", replacement)
+                
+                st.markdown(answer_text)
+                
+                # Add JavaScript to scroll to the source when a citation is clicked
+                st.markdown("""
+                <script>
+                const citations = document.querySelectorAll('a[href^="#"]');
+                citations.forEach(citation => {
+                    citation.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const targetId = this.getAttribute('href').slice(1);
+                        const targetElement = document.getElementById(targetId);
+                        if (targetElement) {
+                            targetElement.scrollIntoView({behavior: 'smooth'});
+                        }
+                    });
+                });
+                </script>
+                """, unsafe_allow_html=True)
+                
                 st.divider()
                 st.subheader("📚 Sources:")
                 
@@ -831,6 +859,7 @@ try:
                         
                         with col2:
                             citation_id = f"{file_name}-p{page['page_number']}"
+                            st.markdown(f"<div id='{citation_id}'></div>", unsafe_allow_html=True)
                             st.markdown(f"**Page {page['page_number']}**")
                             
                             content_to_display = page['content'][:citation_length]

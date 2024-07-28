@@ -334,58 +334,39 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
     return image_paths, page_contents
 
 def docx_to_html(docx_path):
-    try:
-        with open(docx_path, "rb") as docx_file:
-            result = mammoth.convert_to_html(docx_file, convert_image=mammoth.images.img_element)
-            html = result.value
-            messages = result.messages
-            
-            # Add minimal CSS to maintain document structure and style
-            html = f"""
-            <html>
-            <head>
-                <style>
-                    body {{
-                        margin: 0;
-                        padding: 0;
-                        font-family: Arial, sans-serif;
-                    }}
-                    p {{
-                        margin-bottom: 1em;
-                    }}
-                    h1, h2, h3, h4, h5, h6 {{
-                        margin-top: 1em;
-                        margin-bottom: 0.5em;
-                    }}
-                    table {{
-                        border-collapse: collapse;
-                        margin-bottom: 1em;
-                    }}
-                    td, th {{
-                        border: 1px solid #ddd;
-                        padding: 8px;
-                    }}
-                    img {{
-                        max-width: 100%;
-                        height: auto;
-                    }}
-                    @page {{
-                        size: letter;
-                        margin: 2cm;
-                    }}
-                </style>
-            </head>
-            <body>
-                {html}
-            </body>
-            </html>
-            """
-            
-            return html, messages
-    except Exception as e:
-        st.error(f"Error in docx_to_html: {str(e)}")
-        return "", []  # Return empty string for HTML and empty list for messages in case of error
-
+    with open(docx_path, "rb") as docx_file:
+        result = mammoth.convert_to_html(docx_file)
+        html = result.value
+        
+        # Add page break markers for wkhtmltoimage
+        html = html.replace('</p><p>', '</p><div style="page-break-after:always;"><span style="display:none">&nbsp;</span></div><p>')
+        
+        # Add minimal CSS to reduce white space
+        html = f"""
+        <html>
+        <head>
+            <style>
+                body {{
+                    margin: 0;
+                    padding: 0;
+                    font-family: Arial, sans-serif;
+                }}
+                p {{
+                    margin: 0;
+                    padding: 0;
+                }}
+                div.page-break {{
+                    page-break-after: always;
+                }}
+            </style>
+        </head>
+        <body>
+            {html}
+        </body>
+        </html>
+        """
+        
+        return html
 
 def crop_image(image_path):
     with Image.open(image_path) as img:
@@ -403,34 +384,37 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '1024',  # Set a fixed width
+            'width': '0',  # example width, adjust as needed
             'height': '0'  # let height be determined by content
         }
         
-        # Create a temporary HTML file for the entire document
-        temp_html_path = os.path.join(temp_dir, "document.html")
-        with open(temp_html_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+        # Split the HTML content into pages
+        pages = html_content.split('<div class="page-break"></div>')
+        total_pages = len(pages)
         
-        # Convert the HTML file to a PDF
-        pdf_path = os.path.join(temp_dir, "document.pdf")
-        try:
-            pdfkit.from_file(temp_html_path, pdf_path, options=options)
-        except Exception as e:
-            st.error(f"Error converting HTML to PDF: {str(e)}")
-            return []
+        for i, page in enumerate(pages):
+            # Create a temporary HTML file for each page
+            temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
+            with open(temp_html_path, 'w', encoding='utf-8') as f:
+                f.write(f"<html><body style='margin: 0; padding: 0;'>{page}</body></html>")
+            
+            # Convert the HTML file to an image
+            image_path = os.path.join(temp_dir, f"page{i + 1}.png")
+            try:
+                imgkit.from_file(temp_html_path, image_path, options=options)
+                crop_image(image_path)
+                image_paths.append((i + 1, image_path))
+            except Exception as e:
+                st.error(f"Error processing page {i + 1}: {str(e)}")
+                image_paths.append((i + 1, None))  # Record the error but continue processing
 
-        # Convert PDF to images
-        try:
-            image_paths = pdf_to_images(pdf_path, page_progress_bar, page_status_text)
-            if not isinstance(image_paths, list):
-                st.error("pdf_to_images did not return a list as expected")
-                return []
-        except Exception as e:
-            st.error(f"Error converting PDF to images: {str(e)}")
-            return []
+            # Update progress
+            progress = (i + 1) / total_pages
+            page_progress_bar.progress(progress)
+            page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
     return image_paths
+
 
 def html_to_pdf(html_content, output_pdf_path):
     pdfkit.from_string(html_content, output_pdf_path)
@@ -458,76 +442,39 @@ def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
 
 def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
-        st.write(f"DEBUG: Starting DOCX processing for file: {file_path}")
-        
         # Convert DOCX to HTML
         page_status_text.text("Converting DOC/DOCX to HTML")
-        html_content, messages = docx_to_html(file_path)
-        
-        if not html_content:
-            st.error("Failed to convert DOCX to HTML. The document might be empty or corrupted.")
-            return [], []
-        
-        st.write(f"DEBUG: HTML conversion complete. HTML length: {len(html_content)}")
-        
-        # Log any messages from the conversion process
-        for message in messages:
-            if message.type == "warning":
-                st.warning(f"Warning during conversion: {message.message}")
-            elif message.type == "error":
-                st.error(f"Error during conversion: {message.message}")
+        html_content = docx_to_html(file_path)
         
         # Convert HTML to images
-        st.write("DEBUG: Starting HTML to images conversion")
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
-        if not isinstance(image_paths, list):
-            st.error("Unexpected return value from html_to_images function")
-            return [], []
-        st.write(f"DEBUG: HTML to images conversion complete. Number of images: {len(image_paths)}")
-        
-        if not image_paths:
-            st.error("Failed to convert document to images.")
-            return [], []
         
         page_contents = []
 
         # Process each image for AI text extraction
         total_pages = len(image_paths)
-        for i, image_info in enumerate(image_paths):
-            if isinstance(image_info, tuple) and len(image_info) == 2:
-                page_num, image_path = image_info
-            else:
-                st.error(f"Unexpected image info format for item {i}")
-                continue
-            
-            st.write(f"DEBUG: Processing page {page_num}")
+        for i, (page_num, image_path) in enumerate(image_paths):
             if image_path is None:
-                st.write(f"DEBUG: Skipping page {page_num} due to missing image")
                 page_contents.append("")  # Skip this page due to previous error
                 continue
             
             try:
                 page_content = get_generated_data(image_path)
                 page_contents.append(page_content)
-                st.write(f"DEBUG: Successfully extracted content for page {page_num}")
             except Exception as e:
                 st.error(f"Error processing page {page_num}: {str(e)}")
                 page_contents.append("")
-                st.write(f"DEBUG: Failed to extract content for page {page_num}")
 
             # Update progress
             progress = (i + 1) / total_pages
             page_progress_bar.progress(progress)
             page_status_text.text(f"Processing DOC/DOCX page {i + 1} of {total_pages}")
 
-        st.write(f"DEBUG: DOCX processing complete. Total pages processed: {len(page_contents)}")
         return image_paths, page_contents
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
-        import traceback
-        st.error(f"Traceback: {traceback.format_exc()}")
-        st.write("DEBUG: DOCX processing failed")
         return [], []
+
 
 def process_txt(file_path, page_progress_bar, page_status_text):
     page_status_text.text("Processing TXT file")

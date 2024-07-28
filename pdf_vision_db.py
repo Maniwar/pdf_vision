@@ -467,7 +467,7 @@ def process_file(uploaded_file):
     }
 
     # Debug output
-    st.success(f"File processed and stored in vector database!")
+    #st.success(f"File processed and stored in vector database!")
     #st.write(f"Debug: Image paths for {uploaded_file.name}: {image_paths}")
     #st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
 

@@ -270,6 +270,13 @@ def get_generated_data(image_path):
         f.write(uploadedfile.getbuffer())
     return file_path
 
+def save_uploadedfile(uploadedfile):
+    temp_dir = tempfile.mkdtemp()
+    file_path = os.path.join(temp_dir, uploadedfile.name)
+    with open(file_path, "wb") as f:
+        f.write(uploadedfile.getbuffer())
+    return file_path
+
 def process_pdf(file_path):
     pdf = PdfDocument()
     pdf.LoadFromFile(file_path)

@@ -399,7 +399,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '1024',  # Set a fixed width
+            'width': '0',  # Set a fixed width
             'height': '0'  # let height be determined by content
         }
         
@@ -417,11 +417,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             return []
 
         # Convert PDF to images
-        try:
-            image_paths = pdf_to_images(pdf_path, page_progress_bar, page_status_text)
-        except Exception as e:
-            st.error(f"Error converting PDF to images: {str(e)}")
-            return []
+        image_paths = pdf_to_images(pdf_path, page_progress_bar, page_status_text)
 
     return image_paths
 
@@ -493,6 +489,8 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
         return image_paths, page_contents
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
         return [], []
 
 

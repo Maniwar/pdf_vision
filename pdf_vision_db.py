@@ -830,7 +830,7 @@ try:
                     st.markdown(page_contents[0]['summary'])
                 
                 for page in page_contents:
-                    with st.expander(f"Page {page['page_number']}"):
+                    with st.expander(f"📑Page {page['page_number']}"):
                         st.markdown(page['content'])
                         
                         if file_name in st.session_state.documents:

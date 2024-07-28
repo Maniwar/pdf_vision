@@ -14,10 +14,11 @@ import hashlib
 import tiktoken
 import math
 from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType
-from docx2pdf import convert
+import docx
 from PIL import Image
 import pandas as pd
 import io
+import matplotlib.pyplot as plt
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -342,15 +343,9 @@ def process_file(uploaded_file):
     image_paths = []
     page_contents = []
 
-    if file_extension in ['.pdf', '.doc', '.docx']:
-        # Process PDF or convert Word to PDF and then process
-        if file_extension in ['.doc', '.docx']:
-            pdf_path = temp_file_path.rsplit('.', 1)[0] + '.pdf'
-            convert(temp_file_path, pdf_path)
-        else:
-            pdf_path = temp_file_path
-
-        doc = fitz.open(pdf_path)
+    if file_extension == '.pdf':
+        # Process PDF (existing code)
+        doc = fitz.open(temp_file_path)
         output_dir = tempfile.mkdtemp()
 
         total_pages = len(doc)
@@ -370,7 +365,36 @@ def process_file(uploaded_file):
                 st.error(f"Error processing page {page_num + 1}: {str(e)}")
 
         doc.close()
-        st.success(f"{'PDF' if file_extension == '.pdf' else 'Word document'} processed successfully!")
+        st.success('PDF processed successfully!')
+    elif file_extension == '.docx':
+        # Process .docx file
+        doc = docx.Document(temp_file_path)
+        output_dir = tempfile.mkdtemp()
+        
+        total_paragraphs = len(doc.paragraphs)
+        
+        for i, paragraph in enumerate(doc.paragraphs):
+            # Create an image with the paragraph text
+            img = Image.new('RGB', (800, 600), color = (255, 255, 255))
+            d = ImageDraw.Draw(img)
+            font = ImageFont.load_default()
+            d.text((10,10), paragraph.text, fill=(0,0,0), font=font)
+            
+            output = os.path.join(output_dir, f"page{i + 1}.png")
+            img.save(output)
+            image_paths.append((i + 1, output))
+            
+            try:
+                page_content = get_generated_data(output)
+                page_contents.append(page_content)
+                progress_bar.progress((i + 1) / total_paragraphs)
+            except Exception as e:
+                st.error(f"Error processing paragraph {i + 1}: {str(e)}")
+        
+        st.success('.docx file processed successfully!')
+    elif file_extension == '.doc':
+        st.error("Sorry, .doc files are not supported in this cloud environment. Please convert to .docx and try again.")
+        return None, None, None, None
     elif file_extension in ['.xls', '.xlsx']:
         # Process Excel file
         df_dict = pd.read_excel(temp_file_path, sheet_name=None)

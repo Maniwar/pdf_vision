@@ -16,7 +16,10 @@ from pymilvus import connections, utility, Collection, FieldSchema, CollectionSc
 import pandas as pd
 import io
 import fitz
-from PIL import Image, ImageDraw
+from docx import Document
+from PIL import Image, ImageDraw, ImageFont
+import textwrap
+
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -309,25 +312,47 @@ def process_pdf(file_path):
     return image_paths, page_contents
 
 def process_doc_docx(file_path):
-    doc = Document(file_path)
-    full_text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
-    
-    temp_dir = tempfile.mkdtemp()
-    image_path = os.path.join(temp_dir, "document.png")
-    
-    # Convert text to image
-    img = Image.new('RGB', (800, 1000), color='white')
-    d = ImageDraw.Draw(img)
-    d.text((10,10), full_text, fill=(0,0,0))
-    img.save(image_path)
-
     try:
-        page_content = get_generated_data(image_path)
-    except Exception as e:
-        st.error(f"Error processing document: {str(e)}")
-        page_content = full_text
+        doc = Document(file_path)
+        full_text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
+        
+        # Create a larger image to accommodate more text
+        img_width, img_height = 1200, 1600
+        img = Image.new('RGB', (img_width, img_height), color='white')
+        d = ImageDraw.Draw(img)
 
-    return [(1, image_path)], [page_content]
+        # Use a default font if the desired font is not available
+        try:
+            font = ImageFont.truetype("arial.ttf", 14)
+        except IOError:
+            font = ImageFont.load_default()
+
+        # Wrap text to fit within image width
+        margin = 20
+        offset = 20
+        for line in textwrap.wrap(full_text, width=80):
+            d.text((margin, offset), line, font=font, fill=(0, 0, 0))
+            offset += font.getsize(line)[1] + 5
+
+        temp_dir = tempfile.mkdtemp()
+        image_path = os.path.join(temp_dir, "document.png")
+        img.save(image_path)
+
+        try:
+            page_content = get_generated_data(image_path)
+        except Exception as e:
+            st.error(f"Error processing document image: {str(e)}")
+            page_content = full_text
+
+        return [(1, image_path)], [page_content]
+    except ImportError:
+        st.error("Unable to process DOC/DOCX files. The 'python-docx' library is not installed.")
+        return [], []
+    except Exception as e:
+        st.error(f"Error processing DOC/DOCX file: {str(e)}")
+        return [], []
+
+
 
 def process_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -420,29 +445,34 @@ def process_file(uploaded_file):
     image_paths = []
     page_contents = []
 
-    if file_extension == '.pdf':
-        image_paths, page_contents = process_pdf(temp_file_path)
-    elif file_extension in ['.doc', '.docx']:
-        image_paths, page_contents = process_doc_docx(temp_file_path)
-    elif file_extension == '.txt':
-        image_paths, page_contents = process_txt(temp_file_path)
-    elif file_extension in ['.xls', '.xlsx']:
-        image_paths, page_contents = process_excel(temp_file_path)
-    elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
-        image_paths = [(1, temp_file_path)]
-        try:
+    try:
+        if file_extension == '.pdf':
+            image_paths, page_contents = process_pdf(temp_file_path)
+        elif file_extension in ['.doc', '.docx']:
+            image_paths, page_contents = process_doc_docx(temp_file_path)
+        elif file_extension == '.txt':
+            image_paths, page_contents = process_txt(temp_file_path)
+        elif file_extension in ['.xls', '.xlsx']:
+            image_paths, page_contents = process_excel(temp_file_path)
+        elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
+            image_paths = [(1, temp_file_path)]
             page_content = get_generated_data(temp_file_path)
             page_contents = [page_content]
-        except Exception as e:
-            st.error(f"Error processing image: {str(e)}")
-    else:
-        st.error(f"Unsupported file format: {file_extension}")
-        return None, None, None, None
+        else:
+            st.error(f"Unsupported file format: {file_extension}")
+            return None, None, None, None
 
-    summary = generate_summary(page_contents)
-    
-    # Insert pages with summary
-    try:
+        if not page_contents:
+            st.error(f"No content extracted from the file: {uploaded_file.name}")
+            return None, None, None, None
+
+        st.write(f"Debug: Content extracted successfully. Number of pages: {len(page_contents)}")
+
+        summary = generate_summary(page_contents)
+        
+        st.write("Debug: Summary generated successfully.")
+        
+        # Insert pages with summary
         for i, content in enumerate(page_contents):
             page_vector = embeddings.embed_documents([content])[0]
             entity = {
@@ -454,24 +484,43 @@ def process_file(uploaded_file):
             }
             collection.insert([entity])
             progress_bar.progress((i + 1) / len(page_contents))
+
+        progress_bar.progress(100)
+
+        # Store the processed data in session state
+        st.session_state.documents[uploaded_file.name] = {
+            'image_paths': image_paths,
+            'page_contents': page_contents,
+            'summary': summary
+        }
+
+        # Debug output
+        st.success(f"File processed and stored in vector database!")
+        st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
+        st.write(f"Debug: Image paths: {image_paths}")
+        
+        # Check if image files exist
+        for _, img_path in image_paths:
+            if img_path and os.path.exists(img_path):
+                st.write(f"Debug: Image file exists: {img_path}")
+            else:
+                st.write(f"Debug: Image file does not exist: {img_path}")
+
+        return collection, image_paths, page_contents, summary
     except Exception as e:
-        st.error(f"Error inserting pages: {str(e)}")
-
-    progress_bar.progress(100)
-
-    # Store the processed data in session state
-    st.session_state.documents[uploaded_file.name] = {
-        'image_paths': image_paths,
-        'page_contents': page_contents,
-        'summary': summary
-    }
-
-    # Debug output
-    #st.success(f"File processed and stored in vector database!")
-    #st.write(f"Debug: Image paths for {uploaded_file.name}: {image_paths}")
-    #st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
-
-    return collection, image_paths, page_contents, summary
+        st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
+        
+        # Additional debugging information
+        st.write(f"Debug: File extension: {file_extension}")
+        st.write(f"Debug: Temp file path: {temp_file_path}")
+        if os.path.exists(temp_file_path):
+            st.write(f"Debug: Temp file size: {os.path.getsize(temp_file_path)} bytes")
+        else:
+            st.write("Debug: Temp file does not exist")
+        
+        return None, None, None, None
 
 def search_documents(query, selected_documents):
     collection = get_or_create_collection("document_pages")

@@ -922,7 +922,7 @@ try:
                             st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
                             
                             if len(page['content']) > citation_length:
-                                with st.expander("Show Full Content"):
+                                with st.expander("📑Show Full Content"):
                                     st.markdown(full_content)
                             
                             total_citation_length += len(content_to_display)
@@ -931,7 +931,7 @@ try:
                             image_paths = st.session_state.documents[file_name]['image_paths']
                             image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                             if image_path:
-                                with st.expander("Show Image"):
+                                with st.expander("🖼️Show Image"):
                                     st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
                         
                         st.markdown("---")

@@ -20,6 +20,8 @@ from docx import Document
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
 import mammoth
+from xvfbwrapper import Xvfb  # Import xvfbwrapper for headless mode
+import imgkit
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -316,6 +318,21 @@ def docx_to_html(docx_path):
         result = mammoth.convert_to_html(docx_file)
         return result.value
 
+def html_to_images(html_content):
+    with Xvfb() as xvfb:
+        temp_dir = tempfile.mkdtemp()
+        image_paths = []
+        options = {
+            'format': 'png',
+            'quality': 100
+        }
+        pages = html_content.split('<div style="page-break-after:always"><span style="display:none">&nbsp;</span></div>')
+        for i, page in enumerate(pages):
+            image_path = os.path.join(temp_dir, f"page{i + 1}.png")
+            imgkit.from_string(page, image_path, options=options)
+            image_paths.append((i + 1, image_path))
+    return image_paths
+
 def html_to_pdf(html_content, output_pdf_path):
     pdfkit.from_string(html_content, output_pdf_path)
 
@@ -339,17 +356,8 @@ def process_doc_docx(file_path):
         # Convert DOCX to HTML
         html_content = docx_to_html(file_path)
         
-        # Save the HTML content to a temporary file
-        temp_html_path = os.path.join(tempfile.gettempdir(), 'temp.html')
-        with open(temp_html_path, 'w', encoding='utf-8') as html_file:
-            html_file.write(html_content)
-        
-        # Convert HTML to PDF
-        temp_pdf_path = os.path.join(tempfile.gettempdir(), 'temp.pdf')
-        html_to_pdf(html_content, temp_pdf_path)
-        
-        # Convert PDF to images
-        image_paths = pdf_to_images(temp_pdf_path)
+        # Convert HTML to images
+        image_paths = html_to_images(html_content)
         page_contents = []
 
         # Process each image for AI text extraction
@@ -365,6 +373,7 @@ def process_doc_docx(file_path):
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
+
 
 def process_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:

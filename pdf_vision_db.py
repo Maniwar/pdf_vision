@@ -633,53 +633,8 @@ with st.sidebar:
 # Main app
 try:
     connect_to_milvus()
-
-    # File upload section
-    uploaded_files = st.file_uploader("📤 Upload PDF, Word, TXT, Excel, or Image file(s)", 
-                                      type=["pdf", "doc", "docx", "txt", "xls", "xlsx", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], 
-                                      accept_multiple_files=True)
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            file_content = uploaded_file.getvalue()
-            file_hash = get_file_hash(file_content)
-            
-            if file_hash in st.session_state.file_hashes:
-                existing_file_name = st.session_state.file_hashes[file_hash]
-                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
-            else:
-                try:
-                    with st.spinner('Processing file... This may take a while for large documents.'):
-                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
-                    if collection is not None:
-                        st.session_state.documents[uploaded_file.name] = {
-                            'image_paths': image_paths,
-                            'page_contents': page_contents,
-                            'summary': summary
-                        }
-                        st.session_state.file_hashes[file_hash] = uploaded_file.name
-                        st.success(f"File processed and stored in vector database!")
-                        with st.expander("📑 View Summary"):
-                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
-                except Exception as e:
-                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-
-    # Document selection section
-    st.divider()
-    st.subheader("📂 All Available Documents")
-
-    all_documents = list(set(get_all_documents() + list(st.session_state.documents.keys())))
-
-    if all_documents:
-        selected_documents = st.multiselect(
-            "Select documents to view or query:",
-            options=all_documents,
-            default=list(st.session_state.documents.keys())
-        )
-    else:
-        st.info("No documents available. Please upload some documents to get started.")
-        selected_documents = []
-
-    # Query interface and answer display
+    
+        # Query interface and answer display
     st.divider()
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
@@ -750,6 +705,53 @@ try:
                 })
     elif search_button:
         st.warning("Please select at least one document to query.")
+
+    # File upload section
+    uploaded_files = st.file_uploader("📤 Upload PDF, Word, TXT, Excel, or Image file(s)", 
+                                      type=["pdf", "doc", "docx", "txt", "xls", "xlsx", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], 
+                                      accept_multiple_files=True)
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            file_content = uploaded_file.getvalue()
+            file_hash = get_file_hash(file_content)
+            
+            if file_hash in st.session_state.file_hashes:
+                existing_file_name = st.session_state.file_hashes[file_hash]
+                st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
+            else:
+                try:
+                    with st.spinner('Processing file... This may take a while for large documents.'):
+                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
+                    if collection is not None:
+                        st.session_state.documents[uploaded_file.name] = {
+                            'image_paths': image_paths,
+                            'page_contents': page_contents,
+                            'summary': summary
+                        }
+                        st.session_state.file_hashes[file_hash] = uploaded_file.name
+                        st.success(f"File processed and stored in vector database!")
+                        with st.expander("📑 View Summary"):
+                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
+                except Exception as e:
+                    st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
+
+    # Document selection section
+    st.divider()
+    st.subheader("📂 All Available Documents")
+
+    all_documents = list(set(get_all_documents() + list(st.session_state.documents.keys())))
+
+    if all_documents:
+        selected_documents = st.multiselect(
+            "Select documents to view or query:",
+            options=all_documents,
+            default=list(st.session_state.documents.keys())
+        )
+    else:
+        st.info("No documents available. Please upload some documents to get started.")
+        selected_documents = []
+
+
 
     # Document content display
     if selected_documents:

@@ -384,6 +384,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
+            'disable-smart-width': '',
             'width': '0',  # example width, adjust as needed
             'height': '0'  # let height be determined by content
         }

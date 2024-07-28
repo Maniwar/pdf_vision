@@ -9,7 +9,7 @@ PyMuPDF # instead of fitz
 unstructured
 markdown
 langchain-openai
-Pillow>=8.0.0  
+Pillow
 pytesseract
 markdown2
 pdfkit
@@ -22,4 +22,4 @@ openpyxl
 matplotlib
 python-docx
 tabulate
-docx2html
+mammoth

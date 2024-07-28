@@ -312,7 +312,9 @@ def process_pdf(file_path):
     return image_paths, page_contents
 
 def docx_to_html(docx_path):
-    return convert(docx_path)
+    with open(docx_path, "rb") as docx_file:
+        result = mammoth.convert_to_html(docx_file)
+        return result.value
 
 def html_to_pdf(html_content, output_pdf_path):
     pdfkit.from_string(html_content, output_pdf_path)
@@ -331,6 +333,7 @@ def pdf_to_images(pdf_path):
 
     doc.close()
     return image_paths
+
 def process_doc_docx(file_path):
     try:
         # Convert DOCX to HTML

@@ -339,7 +339,7 @@ def docx_to_html(docx_path):
         html = result.value
         
         # Add page break markers for wkhtmltoimage
-        html = html.replace('</p><p>', '</p><div style="page-break-after:always;"><span style="display:none">&nbsp;</span></div><p>')
+        html = html.replace('</p><p>', '</p><div class="page-break"></div><p>')
         
         # Add minimal CSS to reduce white space
         html = f"""
@@ -357,6 +357,9 @@ def docx_to_html(docx_path):
                 }}
                 div.page-break {{
                     page-break-after: always;
+                    display: block;
+                    margin-bottom: 0;
+                    padding-bottom: 0;
                 }}
             </style>
         </head>
@@ -367,6 +370,7 @@ def docx_to_html(docx_path):
         """
         
         return html
+
 
 def crop_image(image_path):
     with Image.open(image_path) as img:

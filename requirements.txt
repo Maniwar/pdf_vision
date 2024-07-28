@@ -21,6 +21,4 @@ pandas
 openpyxl
 matplotlib
 python-docx
-spire.doc
-spire.pdf
 tabulate

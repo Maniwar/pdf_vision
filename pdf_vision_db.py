@@ -13,11 +13,11 @@ import hashlib
 import tiktoken
 import math
 from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType
-from spire.doc import Document as SpireDocument
-from spire.doc.common import *
-from spire.pdf import PdfDocument
 import pandas as pd
 import io
+import fitz
+import docx2txt
+from PIL import Image, ImageDraw
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -167,7 +167,6 @@ def get_or_create_collection(collection_name, dim=1536):
             ]
             schema = CollectionSchema(fields, "Document pages collection")
             collection = Collection(collection_name, schema)
-            
             index_params = {
                 "metric_type": "L2",
                 "index_type": "IVF_FLAT",
@@ -278,49 +277,47 @@ def save_uploadedfile(uploadedfile):
     return file_path
 
 def process_pdf(file_path):
-    pdf = PdfDocument()
-    pdf.LoadFromFile(file_path)
+    doc = fitz.open(file_path)
     temp_dir = tempfile.mkdtemp()
     image_paths = []
     page_contents = []
 
-    for i in range(pdf.Pages.Count):
-        image_path = os.path.join(temp_dir, f"page{i+1}.png")
-        pdf.SaveAsImage(i, image_path)
-        image_paths.append((i+1, image_path))
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        pix = page.get_pixmap()
+        image_path = os.path.join(temp_dir, f"page{page_num + 1}.png")
+        pix.save(image_path)
+        image_paths.append((page_num + 1, image_path))
         
         try:
             page_content = get_generated_data(image_path)
             page_contents.append(page_content)
         except Exception as e:
-            st.error(f"Error processing page {i+1}: {str(e)}")
+            st.error(f"Error processing page {page_num + 1}: {str(e)}")
 
-    pdf.Close()
+    doc.close()
     return image_paths, page_contents
 
 def process_doc_docx(file_path):
-    document = SpireDocument()
-    document.LoadFromFile(file_path)
-    image_streams = document.SaveImageToStreams(ImageType.Bitmap)
+    doc = Document(file_path)
+    full_text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
     
     temp_dir = tempfile.mkdtemp()
-    image_paths = []
-    page_contents = []
+    image_path = os.path.join(temp_dir, "document.png")
     
-    for i, image_stream in enumerate(image_streams):
-        image_path = os.path.join(temp_dir, f"page{i+1}.png")
-        with open(image_path, 'wb') as image_file:
-            image_file.write(image_stream.ToArray())
-        image_paths.append((i+1, image_path))
-        
-        try:
-            page_content = get_generated_data(image_path)
-            page_contents.append(page_content)
-        except Exception as e:
-            st.error(f"Error processing page {i+1}: {str(e)}")
-    
-    document.Close()
-    return image_paths, page_contents
+    # Convert text to image
+    img = Image.new('RGB', (800, 1000), color='white')
+    d = ImageDraw.Draw(img)
+    d.text((10,10), full_text, fill=(0,0,0))
+    img.save(image_path)
+
+    try:
+        page_content = get_generated_data(image_path)
+    except Exception as e:
+        st.error(f"Error processing document: {str(e)}")
+        page_content = full_text
+
+    return [(1, image_path)], [page_content]
 
 def process_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:

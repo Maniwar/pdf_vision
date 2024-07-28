@@ -348,10 +348,9 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         temp_dir = tempfile.mkdtemp()
         image_paths = []
         options = {
-            'format': 'png',
+            'format': 'jpg',
             'quality': 100,
-            'width': 2560,
-            'zoom': 1.5,  # Adjusts the zoom level to scale the content
+            'zoom': 1.5  # Adjusts the zoom level to scale the content
         }
         
         # Split the HTML content into pages

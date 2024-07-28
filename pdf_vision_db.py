@@ -23,6 +23,7 @@ import mammoth
 from pyvirtualdisplay import Display
 import imgkit
 import plotly.graph_objs as go
+import numpy as np
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -338,7 +339,10 @@ def docx_to_html(docx_path):
         result = mammoth.convert_to_html(docx_file)
         html = result.value
         
-        # Add minimal CSS to maintain document structure and style
+        # Add page break markers for wkhtmltoimage
+        html = html.replace('</p><div class="page-break"></div><p>')
+        
+        # Add minimal CSS to reduce white space
         html = f"""
         <html>
         <head>
@@ -349,23 +353,14 @@ def docx_to_html(docx_path):
                     font-family: Arial, sans-serif;
                 }}
                 p {{
-                    margin-bottom: 1em;
+                    margin: 0;
+                    padding: 0;
                 }}
-                h1, h2, h3, h4, h5, h6 {{
-                    margin-top: 1em;
-                    margin-bottom: 0.5em;
-                }}
-                table {{
-                    border-collapse: collapse;
-                    margin-bottom: 1em;
-                }}
-                td, th {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                }}
-                @page {{
-                    size: letter;
-                    margin: 2cm;
+                div.page-break {{
+                    page-break-after: always;
+                    display: block;
+                    margin-bottom: 0;
+                    padding-bottom: 0;
                 }}
             </style>
         </head>
@@ -390,48 +385,38 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         temp_dir = tempfile.mkdtemp()
         image_paths = []
         
-        # Use fixed width and let height be determined by content
+        # Use dynamic width and height calculation
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '0',  # Fixed width, adjust as needed
-            'height': '0'
+            'width': '0',  # example width, adjust as needed
+            'height': '0'  # let height be determined by content
         }
         
-        # Create a temporary HTML file for the entire content
-        temp_html_path = os.path.join(temp_dir, "full_document.html")
-        with open(temp_html_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+        # Split the HTML content into pages
+        pages = html_content.split('<div class="page-break"></div>')
+        total_pages = len(pages)
         
-        # Convert HTML to PDF
-        pdf_path = os.path.join(temp_dir, "document.pdf")
-        try:
-            pdfkit.from_file(temp_html_path, pdf_path, options=options)
-        except Exception as e:
-            st.error(f"Error converting HTML to PDF: {str(e)}")
-            return []
-
-        # Use PyMuPDF to split PDF into images
-        try:
-            doc = fitz.open(pdf_path)
-            total_pages = len(doc)
+        for i, page in enumerate(pages):
+            # Create a temporary HTML file for each page
+            temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
+            with open(temp_html_path, 'w', encoding='utf-8') as f:
+                f.write(f"<html><body style='margin: 0; padding: 0;'>{page}</body></html>")
             
-            for i in range(total_pages):
-                page = doc[i]
-                pix = page.get_pixmap()
-                image_path = os.path.join(temp_dir, f"page{i + 1}.png")
-                pix.save(image_path)
+            # Convert the HTML file to an image
+            image_path = os.path.join(temp_dir, f"page{i + 1}.png")
+            try:
+                imgkit.from_file(temp_html_path, image_path, options=options)
+                crop_image(image_path)
                 image_paths.append((i + 1, image_path))
+            except Exception as e:
+                st.error(f"Error processing page {i + 1}: {str(e)}")
+                image_paths.append((i + 1, None))  # Record the error but continue processing
 
-                # Update progress
-                progress = (i + 1) / total_pages
-                page_progress_bar.progress(progress)
-                page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
-
-            doc.close()
-        except Exception as e:
-            st.error(f"Error processing PDF: {str(e)}")
-            return []
+            # Update progress
+            progress = (i + 1) / total_pages
+            page_progress_bar.progress(progress)
+            page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
     return image_paths
 

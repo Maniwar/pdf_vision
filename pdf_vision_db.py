@@ -15,7 +15,7 @@ import tiktoken
 import math
 from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType
 import docx
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import pandas as pd
 import io
 import matplotlib.pyplot as plt

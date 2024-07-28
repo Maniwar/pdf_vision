@@ -461,6 +461,25 @@ def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
     doc.close()
     return image_paths
 
+
+def extract_docx_content_with_page_breaks(docx_path):
+    doc = Document(docx_path)
+    html_content = ""
+    page_breaks = []
+
+    for para in doc.paragraphs:
+        # Check for manual page breaks
+        if para.style.name == 'Page Break':
+            page_breaks.append('<div class="page-break"></div>')
+        # Convert each paragraph to HTML using mammoth
+        html_content += mammoth.convert_to_html(para.text).value
+
+    # Insert page breaks in the HTML content
+    for i in reversed(page_breaks):
+        html_content.insert(i, '<div class="page-break"></div>')
+
+    return html_content
+
 def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
         # Convert DOCX to HTML with page breaks
@@ -495,6 +514,7 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
+
 
 
 

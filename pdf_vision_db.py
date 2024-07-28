@@ -334,53 +334,57 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
     return image_paths, page_contents
 
 def docx_to_html(docx_path):
-    with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file, convert_image=mammoth.images.img_element)
-        html = result.value
-        messages = result.messages
-        
-        # Add minimal CSS to maintain document structure and style
-        html = f"""
-        <html>
-        <head>
-            <style>
-                body {{
-                    margin: 0;
-                    padding: 0;
-                    font-family: Arial, sans-serif;
-                }}
-                p {{
-                    margin-bottom: 1em;
-                }}
-                h1, h2, h3, h4, h5, h6 {{
-                    margin-top: 1em;
-                    margin-bottom: 0.5em;
-                }}
-                table {{
-                    border-collapse: collapse;
-                    margin-bottom: 1em;
-                }}
-                td, th {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                }}
-                img {{
-                    max-width: 100%;
-                    height: auto;
-                }}
-                @page {{
-                    size: letter;
-                    margin: 2cm;
-                }}
-            </style>
-        </head>
-        <body>
-            {html}
-        </body>
-        </html>
-        """
-        
-        return html, messages
+    try:
+        with open(docx_path, "rb") as docx_file:
+            result = mammoth.convert_to_html(docx_file, convert_image=mammoth.images.img_element)
+            html = result.value
+            messages = result.messages
+            
+            # Add minimal CSS to maintain document structure and style
+            html = f"""
+            <html>
+            <head>
+                <style>
+                    body {{
+                        margin: 0;
+                        padding: 0;
+                        font-family: Arial, sans-serif;
+                    }}
+                    p {{
+                        margin-bottom: 1em;
+                    }}
+                    h1, h2, h3, h4, h5, h6 {{
+                        margin-top: 1em;
+                        margin-bottom: 0.5em;
+                    }}
+                    table {{
+                        border-collapse: collapse;
+                        margin-bottom: 1em;
+                    }}
+                    td, th {{
+                        border: 1px solid #ddd;
+                        padding: 8px;
+                    }}
+                    img {{
+                        max-width: 100%;
+                        height: auto;
+                    }}
+                    @page {{
+                        size: letter;
+                        margin: 2cm;
+                    }}
+                </style>
+            </head>
+            <body>
+                {html}
+            </body>
+            </html>
+            """
+            
+            return html, messages
+    except Exception as e:
+        st.error(f"Error in docx_to_html: {str(e)}")
+        return "", []  # Return empty string for HTML and empty list for messages in case of error
 
 
 def crop_image(image_path):
@@ -458,12 +462,12 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
         
         # Convert DOCX to HTML
         page_status_text.text("Converting DOC/DOCX to HTML")
-        html_result = docx_to_html(file_path)
-        if isinstance(html_result, tuple) and len(html_result) == 2:
-            html_content, messages = html_result
-        else:
-            st.error("Unexpected return value from docx_to_html function")
+        html_content, messages = docx_to_html(file_path)
+        
+        if not html_content:
+            st.error("Failed to convert DOCX to HTML. The document might be empty or corrupted.")
             return [], []
+        
         st.write(f"DEBUG: HTML conversion complete. HTML length: {len(html_content)}")
         
         # Log any messages from the conversion process
@@ -524,7 +528,6 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
         st.error(f"Traceback: {traceback.format_exc()}")
         st.write("DEBUG: DOCX processing failed")
         return [], []
-
 
 def process_txt(file_path, page_progress_bar, page_status_text):
     page_status_text.text("Processing TXT file")

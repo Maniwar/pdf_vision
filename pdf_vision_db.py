@@ -23,7 +23,6 @@ import mammoth
 from pyvirtualdisplay import Display
 import imgkit
 import plotly.graph_objs as go
-import numpy as np
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")

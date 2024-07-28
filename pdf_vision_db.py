@@ -14,11 +14,6 @@ import hashlib
 import tiktoken
 import math
 from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType
-import docx
-from PIL import Image, ImageDraw, ImageFont
-import pandas as pd
-import io
-import matplotlib.pyplot as plt
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -344,7 +339,7 @@ def process_file(uploaded_file):
     page_contents = []
 
     if file_extension == '.pdf':
-        # Process PDF (existing code)
+        # Process PDF
         doc = fitz.open(temp_file_path)
         output_dir = tempfile.mkdtemp()
 
@@ -366,74 +361,8 @@ def process_file(uploaded_file):
 
         doc.close()
         st.success('PDF processed successfully!')
-    elif file_extension == '.docx':
-        # Process .docx file
-        doc = docx.Document(temp_file_path)
-        output_dir = tempfile.mkdtemp()
-        
-        total_paragraphs = len(doc.paragraphs)
-        
-        for i, paragraph in enumerate(doc.paragraphs):
-            # Create an image with the paragraph text
-            img = Image.new('RGB', (800, 600), color = (255, 255, 255))
-            d = ImageDraw.Draw(img)
-            font = ImageFont.load_default()
-            d.text((10,10), paragraph.text, fill=(0,0,0), font=font)
-            
-            output = os.path.join(output_dir, f"page{i + 1}.png")
-            img.save(output)
-            image_paths.append((i + 1, output))
-            
-            try:
-                page_content = get_generated_data(output)
-                page_contents.append(page_content)
-                progress_bar.progress((i + 1) / total_paragraphs)
-            except Exception as e:
-                st.error(f"Error processing paragraph {i + 1}: {str(e)}")
-        
-        st.success('.docx file processed successfully!')
-    elif file_extension == '.doc':
-        st.error("Sorry, .doc files are not supported. Please convert to .docx and try again.")
-        return None, None, None, None
-    elif file_extension in ['.xls', '.xlsx']:
-        # Process Excel file
-        df_dict = pd.read_excel(temp_file_path, sheet_name=None)
-        output_dir = tempfile.mkdtemp()
-        
-        total_sheets = len(df_dict)
-        
-        for i, (sheet_name, df) in enumerate(df_dict.items()):
-            # Convert dataframe to image
-            fig, ax = plt.subplots(figsize=(12, 6))
-            ax.axis('off')
-            ax.table(cellText=df.values, colLabels=df.columns, cellLoc='center', loc='center')
-            
-            output = os.path.join(output_dir, f"sheet{i + 1}.png")
-            plt.savefig(output, bbox_inches='tight', pad_inches=0.5)
-            plt.close(fig)
-            
-            image_paths.append((i + 1, output))
-            
-            try:
-                page_content = get_generated_data(output)
-                page_contents.append(page_content)
-                progress_bar.progress((i + 1) / total_sheets)
-            except Exception as e:
-                st.error(f"Error processing sheet {sheet_name}: {str(e)}")
-        
-        st.success('Excel file processed successfully!')
-    elif file_extension == '.txt':
-        # Process text file directly without converting to image
-        try:
-            with open(temp_file_path, 'r', encoding='utf-8') as file:
-                content = file.read()
-            page_contents = [content]
-            progress_bar.progress(1.0)
-            st.success('Text file processed successfully!')
-        except Exception as e:
-            st.error(f"Error processing text file: {str(e)}")
     elif file_extension == '.md':
-        # Process Markdown using UnstructuredMarkdownLoader (existing code)
+    # Process Markdown using UnstructuredMarkdownLoader
         loader = UnstructuredMarkdownLoader(temp_file_path)
         data = loader.load()
         page_contents = [item.page_content for item in data]
@@ -443,7 +372,7 @@ def process_file(uploaded_file):
         
         st.success('Markdown processed successfully!')
     elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
-        # Process single image (existing code)
+        # Process single image
         image_paths = [(1, temp_file_path)]
         try:
             page_content = get_generated_data(temp_file_path)
@@ -458,7 +387,7 @@ def process_file(uploaded_file):
 
     summary = generate_summary(page_contents)
     
-    # Insert pages with summary
+    # Insert pages with summary only once
     try:
         for i, content in enumerate(page_contents):
             page_vector = embeddings.embed_documents([content])[0]
@@ -569,9 +498,7 @@ try:
     connect_to_milvus()
 
     # File upload section
-    uploaded_files = st.file_uploader("📤 Upload PDF, Word, Excel, Text, Markdown, or Image file(s)",
-                                    type=["pdf", "doc", "docx", "xls", "xlsx", "txt", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"],
-                                    accept_multiple_files=True)
+    uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             file_content = uploaded_file.getvalue()

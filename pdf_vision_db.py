@@ -468,8 +468,8 @@ def process_file(uploaded_file):
 
     # Debug output
     st.success(f"File processed and stored in vector database!")
-    st.write(f"Debug: Image paths for {uploaded_file.name}: {image_paths}")
-    st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
+    #st.write(f"Debug: Image paths for {uploaded_file.name}: {image_paths}")
+    #st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
 
     return collection, image_paths, page_contents, summary
 
@@ -702,7 +702,7 @@ try:
                             if image_path:
                                 try:
                                     st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                                    st.write(f"Debug: Displaying image from {image_path}")
+                                    #st.write(f"Debug: Displaying image from {image_path}")
                                 except Exception as e:
                                     st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
                             else:

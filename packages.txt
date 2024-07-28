@@ -1,2 +1,2 @@
 xvfb
-wkhtmltoimage
+wkhtmltopdf

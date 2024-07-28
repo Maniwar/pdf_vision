@@ -6,6 +6,7 @@ from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import UnstructuredMarkdownLoader
+import fitz  # PyMuPDF for handling PDFs
 import tempfile
 import markdown2
 import pdfkit
@@ -13,10 +14,6 @@ import hashlib
 import tiktoken
 import math
 from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType
-import pandas as pd
-import io
-import fitz
-from PIL import Image, ImageDraw
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -166,6 +163,7 @@ def get_or_create_collection(collection_name, dim=1536):
             ]
             schema = CollectionSchema(fields, "Document pages collection")
             collection = Collection(collection_name, schema)
+            
             index_params = {
                 "metric_type": "L2",
                 "index_type": "IVF_FLAT",
@@ -206,16 +204,6 @@ def get_all_documents():
         return []
 
 def get_document_content(file_name):
-    if file_name in st.session_state.documents:
-        return [
-            {
-                'content': content,
-                'page_number': i + 1,
-                'summary': st.session_state.documents[file_name]['summary']
-            }
-            for i, content in enumerate(st.session_state.documents[file_name]['page_contents'])
-        ]
-    
     try:
         collection = get_or_create_collection("document_pages")
         if collection is None:
@@ -230,7 +218,6 @@ def get_document_content(file_name):
     except Exception as e:
         st.error(f"Error in fetching document content: {str(e)}")
         return []
-
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -272,81 +259,12 @@ def get_generated_data(image_path):
     )
     return response.choices[0].message.content
 
-
-    temp_dir = tempfile.mkdtemp()
-    file_path = os.path.join(temp_dir, uploadedfile.name)
-    with open(file_path, "wb") as f:
-        f.write(uploadedfile.getbuffer())
-    return file_path
-
 def save_uploadedfile(uploadedfile):
     temp_dir = tempfile.mkdtemp()
     file_path = os.path.join(temp_dir, uploadedfile.name)
     with open(file_path, "wb") as f:
         f.write(uploadedfile.getbuffer())
     return file_path
-
-def process_pdf(file_path):
-    doc = fitz.open(file_path)
-    temp_dir = tempfile.mkdtemp()
-    image_paths = []
-    page_contents = []
-
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        pix = page.get_pixmap()
-        image_path = os.path.join(temp_dir, f"page{page_num + 1}.png")
-        pix.save(image_path)
-        image_paths.append((page_num + 1, image_path))
-        
-        try:
-            page_content = get_generated_data(image_path)
-            page_contents.append(page_content)
-        except Exception as e:
-            st.error(f"Error processing page {page_num + 1}: {str(e)}")
-
-    doc.close()
-    return image_paths, page_contents
-
-def process_doc_docx(file_path):
-    doc = Document(file_path)
-    full_text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
-    
-    temp_dir = tempfile.mkdtemp()
-    image_path = os.path.join(temp_dir, "document.png")
-    
-    # Convert text to image
-    img = Image.new('RGB', (800, 1000), color='white')
-    d = ImageDraw.Draw(img)
-    d.text((10,10), full_text, fill=(0,0,0))
-    img.save(image_path)
-
-    try:
-        page_content = get_generated_data(image_path)
-    except Exception as e:
-        st.error(f"Error processing document: {str(e)}")
-        page_content = full_text
-
-    return [(1, image_path)], [page_content]
-
-def process_txt(file_path):
-    with open(file_path, 'r', encoding='utf-8') as file:
-        content = file.read()
-    return [(1, None)], [content]  # No image paths for TXT files
-
-def process_excel(file_path):
-    def dataframe_to_markdown(df):
-        return df.to_markdown(index=False)
-
-    excel_file = pd.ExcelFile(file_path)
-    page_contents = []
-    for sheet_name in excel_file.sheet_names:
-        df = pd.read_excel(file_path, sheet_name=sheet_name)
-        markdown_content = f"## Sheet: {sheet_name}\n\n{dataframe_to_markdown(df)}"
-        page_contents.append(markdown_content)
-    
-    return [(i+1, None) for i in range(len(page_contents))], page_contents
-
 
 def generate_summary(page_contents):
     total_tokens = sum(num_tokens_from_string(content) for content in page_contents)
@@ -421,18 +339,46 @@ def process_file(uploaded_file):
     page_contents = []
 
     if file_extension == '.pdf':
-        image_paths, page_contents = process_pdf(temp_file_path)
-    elif file_extension in ['.doc', '.docx']:
-        image_paths, page_contents = process_doc_docx(temp_file_path)
-    elif file_extension == '.txt':
-        image_paths, page_contents = process_txt(temp_file_path)
-    elif file_extension in ['.xls', '.xlsx']:
-        image_paths, page_contents = process_excel(temp_file_path)
+        # Process PDF
+        doc = fitz.open(temp_file_path)
+        output_dir = tempfile.mkdtemp()
+
+        total_pages = len(doc)
+        
+        for page_num in range(total_pages):
+            page = doc.load_page(page_num)
+            pix = page.get_pixmap()
+            output = os.path.join(output_dir, f"page{page_num + 1}.png")
+            pix.save(output)
+            image_paths.append((page_num + 1, output))
+            
+            try:
+                page_content = get_generated_data(output)
+                page_contents.append(page_content)
+                progress_bar.progress((page_num + 1) / total_pages)
+            except Exception as e:
+                st.error(f"Error processing page {page_num + 1}: {str(e)}")
+
+        doc.close()
+        st.success('PDF processed successfully!')
+    elif file_extension == '.md':
+    # Process Markdown using UnstructuredMarkdownLoader
+        loader = UnstructuredMarkdownLoader(temp_file_path)
+        data = loader.load()
+        page_contents = [item.page_content for item in data]
+        
+        for i, _ in enumerate(page_contents):
+            progress_bar.progress((i + 1) / len(page_contents))
+        
+        st.success('Markdown processed successfully!')
     elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
+        # Process single image
         image_paths = [(1, temp_file_path)]
         try:
             page_content = get_generated_data(temp_file_path)
             page_contents = [page_content]
+            progress_bar.progress(1.0)
+            st.success('Image processed successfully!')
         except Exception as e:
             st.error(f"Error processing image: {str(e)}")
     else:
@@ -441,7 +387,7 @@ def process_file(uploaded_file):
 
     summary = generate_summary(page_contents)
     
-    # Insert pages with summary
+    # Insert pages with summary only once
     try:
         for i, content in enumerate(page_contents):
             page_vector = embeddings.embed_documents([content])[0]
@@ -453,23 +399,10 @@ def process_file(uploaded_file):
                 "summary": summary
             }
             collection.insert([entity])
-            progress_bar.progress((i + 1) / len(page_contents))
     except Exception as e:
         st.error(f"Error inserting pages: {str(e)}")
 
     progress_bar.progress(100)
-
-    # Store the processed data in session state
-    st.session_state.documents[uploaded_file.name] = {
-        'image_paths': image_paths,
-        'page_contents': page_contents,
-        'summary': summary
-    }
-
-    # Debug output
-    st.success(f"File processed and stored in vector database!")
-    st.write(f"Debug: Image paths for {uploaded_file.name}: {image_paths}")
-    st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
 
     return collection, image_paths, page_contents, summary
 
@@ -565,9 +498,7 @@ try:
     connect_to_milvus()
 
     # File upload section
-    uploaded_files = st.file_uploader("📤 Upload PDF, Word, TXT, Excel, or Image file(s)", 
-                                      type=["pdf", "doc", "docx", "txt", "xls", "xlsx", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], 
-                                      accept_multiple_files=True)
+    uploaded_files = st.file_uploader("📤 Upload PDF, Markdown, or Image file(s)", type=["pdf", "md", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             file_content = uploaded_file.getvalue()
@@ -702,7 +633,6 @@ try:
                             if image_path:
                                 try:
                                     st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                                    st.write(f"Debug: Displaying image from {image_path}")
                                 except Exception as e:
                                     st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
                             else:

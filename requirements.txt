@@ -25,4 +25,3 @@ tabulate
 mammoth
 imgkit
 pyvirtualdisplay
-xvfbwrapper

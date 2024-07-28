@@ -22,7 +22,7 @@ import textwrap
 import mammoth
 from pyvirtualdisplay import Display
 import imgkit
-import xvfbwrapper
+
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
 

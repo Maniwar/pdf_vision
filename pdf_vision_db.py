@@ -322,7 +322,12 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
 def docx_to_html(docx_path):
     with open(docx_path, "rb") as docx_file:
         result = mammoth.convert_to_html(docx_file)
-        return result.value
+        html = result.value
+        
+        # Add page break markers
+        html = html.replace('</p><p>', '</p><div style="page-break-after:always"><span style="display:none">&nbsp;</span></div><p>')
+        
+        return html
 
 def html_to_images(html_content, page_progress_bar, page_status_text):
     with Display():
@@ -332,11 +337,20 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             'format': 'png',
             'quality': 100
         }
+        
+        # Split the HTML content into pages
         pages = html_content.split('<div style="page-break-after:always"><span style="display:none">&nbsp;</span></div>')
         total_pages = len(pages)
+        
         for i, page in enumerate(pages):
+            # Create a temporary HTML file for each page
+            temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
+            with open(temp_html_path, 'w', encoding='utf-8') as f:
+                f.write(f"<html><body>{page}</body></html>")
+            
+            # Convert the HTML file to an image
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
-            imgkit.from_string(page, image_path, options=options)
+            imgkit.from_file(temp_html_path, image_path, options=options)
             image_paths.append((i + 1, image_path))
             
             # Update progress

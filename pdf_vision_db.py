@@ -350,7 +350,12 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'disable-smart-width': ''
+            'width': 2560,
+            'disable-smart-width': '',  # Ensures the width is as specified
+            'zoom': 1.5,  # Adjusts the zoom level to scale the content
+            'no-outline': '',  # Removes the default outline around the image
+            'encoding': 'UTF-8',
+            'enable-local-file-access': ''  # Allows access to local files
         }
         
         # Split the HTML content into pages

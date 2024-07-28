@@ -461,24 +461,64 @@ def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
     doc.close()
     return image_paths
 
-
 def extract_docx_content_with_page_breaks(docx_path):
+    import mammoth
+    from docx import Document
+
+    # Use mammoth to convert docx to HTML
+    with open(docx_path, "rb") as docx_file:
+        result = mammoth.convert_to_html(docx_file, ignore_empty_paragraphs=False)
+        html = result.value
+
+    # Use python-docx to identify page breaks
     doc = Document(docx_path)
-    html_content = ""
     page_breaks = []
+    for i, para in enumerate(doc.paragraphs):
+        if para.text == "":
+            if para.style.name == "Normal":
+                page_breaks.append(i)
 
-    for para in doc.paragraphs:
-        # Check for manual page breaks
-        if para.style.name == 'Page Break':
-            page_breaks.append('<div class="page-break"></div>')
-        # Convert each paragraph to HTML using mammoth
-        html_content += mammoth.convert_to_html(para.text).value
+    # Split HTML into paragraphs
+    paragraphs = html.split('</p>')
 
-    # Insert page breaks in the HTML content
+    # Insert page breaks
     for i in reversed(page_breaks):
-        html_content.insert(i, '<div class="page-break"></div>')
+        if i < len(paragraphs):
+            paragraphs.insert(i, '<div class="page-break"></div>')
 
-    return html_content
+    # Rejoin paragraphs
+    html_with_breaks = '</p>'.join(paragraphs)
+
+    # Add minimal CSS to handle page breaks
+    html_with_breaks = f"""
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+            }}
+            p {{
+                margin: 0;
+                padding: 0;
+            }}
+            div.page-break {{
+                page-break-after: always;
+                border: none;
+                margin: 0;
+                padding: 0;
+            }}
+        </style>
+    </head>
+    <body>
+        {html_with_breaks}
+    </body>
+    </html>
+    """
+
+    return html_with_breaks
+
 
 def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
@@ -514,8 +554,6 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
-
-
 
 
 def process_txt(file_path, page_progress_bar, page_status_text):

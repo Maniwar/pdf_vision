@@ -544,7 +544,7 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
 
         file_status_text.text("Generating summary...")
         file_progress_bar.progress(40)
-        summary = generate_summary(page_contents)
+        summary = generate_summary(page_contents, file_progress_bar, file_status_text)  # Fixed: added missing arguments
         
         file_status_text.text("Storing pages in vector database...")
         file_progress_bar.progress(60)

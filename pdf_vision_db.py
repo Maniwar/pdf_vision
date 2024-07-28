@@ -23,6 +23,7 @@ import mammoth
 from pyvirtualdisplay import Display
 import imgkit
 import plotly.graph_objs as go
+from streamlit.components.v1 import html
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -249,7 +250,37 @@ def get_confidence_color(confidence):
         return "orange"
     else:
         return "red"
-
+# Add this function to create a custom toggle button
+def toggle_button(label, key):
+    return html(f"""
+        <style>
+            .toggle-button {{
+                background-color: #4CAF50;
+                border: none;
+                color: white;
+                padding: 10px 20px;
+                text-align: center;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 16px;
+                margin: 4px 2px;
+                cursor: pointer;
+                border-radius: 4px;
+            }}
+        </style>
+        <button class="toggle-button" onclick="
+            var state = sessionStorage.getItem('{key}') === 'true';
+            state = !state;
+            sessionStorage.setItem('{key}', state);
+            var event = new CustomEvent('toggleEvent', {{ detail: {{ key: '{key}', state: state }} }});
+            window.dispatchEvent(event);
+        ">{label}</button>
+        <script>
+            window.addEventListener('toggleEvent', function(event) {{
+                Streamlit.setComponentValue(event.detail);
+            }})
+        </script>
+    """, height=60)
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
@@ -783,7 +814,7 @@ try:
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     search_button = st.button("🔎 Search")
-    
+        
     if search_button and selected_documents:
         with st.spinner('Searching...'):
             all_pages = search_documents(query, selected_documents)
@@ -824,7 +855,7 @@ try:
                             confidence = page['confidence']
                             color = page['confidence_color']
                             
-                            col1, col2, col3 = st.columns([1, 8, 1])
+                            col1, col2 = st.columns([1, 9])
                             
                             with col1:
                                 st.markdown(f"<span style='color:{color};'>●</span> **{confidence:.1f}%**", unsafe_allow_html=True)
@@ -839,18 +870,19 @@ try:
                                 st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
                                 
                                 if len(page['content']) > citation_length:
-                                    with st.expander("Show full content"):
+                                    show_full_content = toggle_button("Toggle Full Content", f"full_content_{file_name}_{page['page_number']}")
+                                    if show_full_content:
                                         st.markdown(full_content)
                                 
                                 total_citation_length += len(content_to_display)
                             
-                            with col3:
-                                if file_name in st.session_state.documents:
-                                    image_paths = st.session_state.documents[file_name]['image_paths']
-                                    image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                                    if image_path:
-                                        with st.expander("Show Image"):
-                                            st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                            if file_name in st.session_state.documents:
+                                image_paths = st.session_state.documents[file_name]['image_paths']
+                                image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                                if image_path:
+                                    show_image = toggle_button("Toggle Image", f"image_{file_name}_{page['page_number']}")
+                                    if show_image:
+                                        st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
                             
                             st.markdown("---")
 
@@ -867,6 +899,7 @@ try:
                     'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
                     'documents_queried': selected_documents
                 })
+                
     elif search_button:
         st.warning("Please select at least one document to query.")
 

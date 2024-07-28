@@ -349,6 +349,8 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         image_paths = []
         options = {
             'format': 'png',
+            'width': 'auto',  # Automatic height to fit content
+            'height': 'auto',  # Automatic height to fit content
             'quality': 100,
             'zoom': 2  # Adjusts the zoom level to scale the content
         }

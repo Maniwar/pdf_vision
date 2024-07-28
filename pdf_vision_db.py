@@ -23,7 +23,6 @@ import mammoth
 from pyvirtualdisplay import Display
 import imgkit
 import plotly.graph_objs as go
-import numpy as np
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -395,7 +394,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '1024',  # Fixed width, adjust as needed
+            'width': '0',  # Fixed width, adjust as needed
             'height': '0'
         }
         

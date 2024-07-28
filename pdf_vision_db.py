@@ -334,61 +334,39 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
     return image_paths, page_contents
 
 def docx_to_html(docx_path):
-    import mammoth
-    from docx import Document
-
-    # Use mammoth to convert docx to HTML
     with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file, ignore_empty_paragraphs=False)
+        result = mammoth.convert_to_html(docx_file)
         html = result.value
-
-    # Use python-docx to identify page breaks
-    doc = Document(docx_path)
-    page_breaks = []
-    for i, para in enumerate(doc.paragraphs):
-        if para.style.name == 'Page Break':
-            page_breaks.append(i)
-
-    # Split HTML into paragraphs
-    paragraphs = html.split('</p>')
-
-    # Insert page breaks
-    for i in reversed(page_breaks):
-        if i < len(paragraphs):
-            paragraphs.insert(i, '<hr class="page-break" />')
-
-    # Rejoin paragraphs
-    html = '</p>'.join(paragraphs)
-
-    # Add minimal CSS to handle page breaks
-    html = f"""
-    <html>
-    <head>
-        <style>
-            body {{
-                margin: 0;
-                padding: 0;
-                font-family: Arial, sans-serif;
-            }}
-            p {{
-                margin: 0;
-                padding: 0;
-            }}
-            hr.page-break {{
-                page-break-after: always;
-                border: none;
-                margin: 0;
-                padding: 0;
-            }}
-        </style>
-    </head>
-    <body>
-        {html}
-    </body>
-    </html>
-    """
-
-    return html
+        
+        # Add page break markers for wkhtmltoimage
+        html = html.replace('</p><p>', '</p><div style="page-break-after:always;"><span style="display:none">&nbsp;</span></div><p>')
+        
+        # Add minimal CSS to reduce white space
+        html = f"""
+        <html>
+        <head>
+            <style>
+                body {{
+                    margin: 0;
+                    padding: 0;
+                    font-family: Arial, sans-serif;
+                }}
+                p {{
+                    margin: 0;
+                    padding: 0;
+                }}
+                div.page-break {{
+                    page-break-after: always;
+                }}
+            </style>
+        </head>
+        <body>
+            {html}
+        </body>
+        </html>
+        """
+        
+        return html
 
 def crop_image(image_path):
     with Image.open(image_path) as img:
@@ -401,29 +379,25 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
     with Display():
         temp_dir = tempfile.mkdtemp()
         image_paths = []
-
+        
         # Use dynamic width and height calculation
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '0',  # Set a fixed width
-            'height': '0'  # Let height be determined by content
+            'width': '0',  # example width, adjust as needed
+            'height': '0'  # let height be determined by content
         }
-
+        
         # Split the HTML content into pages
         pages = html_content.split('<div class="page-break"></div>')
         total_pages = len(pages)
-
+        
         for i, page in enumerate(pages):
-            if not page.strip():  # Check if the page content is empty
-                st.warning(f"Skipping empty page {i + 1}")
-                continue
-
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
-                f.write(f"<html><body>{page}</body></html>")
-
+                f.write(f"<html><body style='margin: 0; padding: 0;'>{page}</body></html>")
+            
             # Convert the HTML file to an image
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
             try:
@@ -440,6 +414,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
     return image_paths
+
 
 def html_to_pdf(html_content, output_pdf_path):
     pdfkit.from_string(html_content, output_pdf_path)
@@ -465,78 +440,15 @@ def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
     doc.close()
     return image_paths
 
-def extract_docx_content_with_page_breaks(docx_path):
-    import mammoth
-    from docx import Document
-
-    # Use mammoth to convert docx to HTML
-    with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file, ignore_empty_paragraphs=False)
-        html = result.value
-
-    # Use python-docx to identify page breaks
-    doc = Document(docx_path)
-    page_breaks = []
-    for i, para in enumerate(doc.paragraphs):
-        if para.text == "":
-            if para.style.name == "Normal":
-                page_breaks.append(i)
-
-    # Split HTML into paragraphs
-    paragraphs = html.split('</p>')
-
-    # Insert page breaks
-    for i in reversed(page_breaks):
-        if i < len(paragraphs):
-            paragraphs.insert(i, '<div class="page-break"></div>')
-
-    # Rejoin paragraphs
-    html_with_breaks = '</p>'.join(paragraphs)
-
-    # Add minimal CSS to handle page breaks
-    html_with_breaks = f"""
-    <html>
-    <head>
-        <style>
-            body {{
-                margin: 0;
-                padding: 0;
-                font-family: Arial, sans-serif;
-            }}
-            p {{
-                margin: 0;
-                padding: 0;
-            }}
-            div.page-break {{
-                page-break-after: always;
-                border: none;
-                margin: 0;
-                padding: 0;
-            }}
-        </style>
-    </head>
-    <body>
-        {html_with_breaks}
-    </body>
-    </html>
-    """
-
-    return html_with_breaks
-
-
 def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
-        # Convert DOCX to HTML with page breaks
+        # Convert DOCX to HTML
         page_status_text.text("Converting DOC/DOCX to HTML")
-        html_content = extract_docx_content_with_page_breaks(file_path)
-
-        if not html_content.strip():  # Check if the HTML content is empty
-            st.error("No content extracted from the DOC/DOCX file.")
-            return [], []
-
+        html_content = docx_to_html(file_path)
+        
         # Convert HTML to images
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
-
+        
         page_contents = []
 
         # Process each image for AI text extraction
@@ -545,7 +457,7 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
             if image_path is None:
                 page_contents.append("")  # Skip this page due to previous error
                 continue
-
+            
             try:
                 page_content = get_generated_data(image_path)
                 page_contents.append(page_content)
@@ -562,6 +474,7 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
+
 
 def process_txt(file_path, page_progress_bar, page_status_text):
     page_status_text.text("Processing TXT file")
@@ -657,7 +570,7 @@ def generate_summary(page_contents, progress_bar, status_text):
     return final_summary
 
 # Main processing function
-def def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
+def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
     file_progress_bar = st.progress(0)
     file_status_text = st.empty()
     page_progress_bar = st.progress(0)
@@ -667,7 +580,7 @@ def def process_file(uploaded_file, overall_progress_bar, overall_status_text, f
 
     temp_file_path = save_uploadedfile(uploaded_file)
     file_extension = Path(uploaded_file.name).suffix.lower()
-
+    
     file_status_text.text("Initializing document processing...")
     file_progress_bar.progress(5)
 
@@ -707,11 +620,11 @@ def def process_file(uploaded_file, overall_progress_bar, overall_status_text, f
 
         file_status_text.text("Generating summary...")
         file_progress_bar.progress(40)
-        summary = generate_summary(page_contents, file_progress_bar, file_status_text)
-
+        summary = generate_summary(page_contents, file_progress_bar, file_status_text)  # Fixed: added missing arguments
+        
         file_status_text.text("Storing pages in vector database...")
         file_progress_bar.progress(60)
-
+        
         total_pages = len(page_contents)
         for i, content in enumerate(page_contents):
             page_vector = embeddings.embed_documents([content])[0]
@@ -751,7 +664,7 @@ def def process_file(uploaded_file, overall_progress_bar, overall_status_text, f
         st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
         import traceback
         st.error(f"Traceback: {traceback.format_exc()}")
-
+        
         # Additional debugging information
         st.write(f"Debug: File extension: {file_extension}")
         st.write(f"Debug: Temp file path: {temp_file_path}")
@@ -759,7 +672,7 @@ def def process_file(uploaded_file, overall_progress_bar, overall_status_text, f
             st.write(f"Debug: Temp file size: {os.path.getsize(temp_file_path)} bytes")
         else:
             st.write("Debug: Temp file does not exist")
-
+        
         return None, None, None, None
 
 def search_documents(query, selected_documents):

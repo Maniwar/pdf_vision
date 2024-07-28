@@ -399,7 +399,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '0',  # Set a fixed width
+            'width': '1024',  # Set a fixed width
             'height': '0'  # let height be determined by content
         }
         
@@ -417,10 +417,13 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             return []
 
         # Convert PDF to images
-        image_paths = pdf_to_images(pdf_path, page_progress_bar, page_status_text)
+        try:
+            image_paths = pdf_to_images(pdf_path, page_progress_bar, page_status_text)
+        except Exception as e:
+            st.error(f"Error converting PDF to images: {str(e)}")
+            return []
 
     return image_paths
-
 
 def html_to_pdf(html_content, output_pdf_path):
     pdfkit.from_string(html_content, output_pdf_path)
@@ -461,6 +464,10 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
         
         # Convert HTML to images
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
+        
+        if not image_paths:
+            st.error("Failed to convert document to images.")
+            return [], []
         
         page_contents = []
 

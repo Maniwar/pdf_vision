@@ -20,7 +20,7 @@ from docx import Document
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
 import mammoth
-from xvfbwrapper import Xvfb  # Import xvfbwrapper for headless mode
+from pyvirtualdisplay import Display
 import imgkit
 
 # Set page configuration to wide mode
@@ -319,7 +319,7 @@ def docx_to_html(docx_path):
         return result.value
 
 def html_to_images(html_content):
-    with Xvfb() as xvfb:
+    with Display():
         temp_dir = tempfile.mkdtemp()
         image_paths = []
         options = {

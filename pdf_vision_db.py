@@ -351,8 +351,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             'format': 'png',
             'quality': 100,
             'zoom': 2,
-            'width': 1200,  # Set a specific width
-            'height': 1600  # Set a specific height
+            'disable-smart-width': ''
         }
         
         # Split the HTML content into pages
@@ -363,9 +362,9 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
-                f.write(f"<html><body>{page}</body></html>")
+                f.write(f"<html><body style='margin: 0; padding: 0;'>{page}</body></html>")
             
-            # Convert the HTML file to an image
+            # Use imgkit to convert the HTML file to an image
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
             imgkit.from_file(temp_html_path, image_path, options=options)
             image_paths.append((i + 1, image_path))
@@ -376,6 +375,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
     return image_paths
+
 
 
 def html_to_pdf(html_content, output_pdf_path):

@@ -399,7 +399,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '0',  # Set a fixed width
+            'width': '1024',  # Set a fixed width
             'height': '0'  # let height be determined by content
         }
         
@@ -417,7 +417,14 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             return []
 
         # Convert PDF to images
-        image_paths = pdf_to_images(pdf_path, page_progress_bar, page_status_text)
+        try:
+            image_paths = pdf_to_images(pdf_path, page_progress_bar, page_status_text)
+            if not isinstance(image_paths, list):
+                st.error("pdf_to_images did not return a list as expected")
+                return []
+        except Exception as e:
+            st.error(f"Error converting PDF to images: {str(e)}")
+            return []
 
     return image_paths
 
@@ -447,9 +454,17 @@ def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
 
 def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
+        st.write(f"DEBUG: Starting DOCX processing for file: {file_path}")
+        
         # Convert DOCX to HTML
         page_status_text.text("Converting DOC/DOCX to HTML")
-        html_content, messages = docx_to_html(file_path)
+        html_result = docx_to_html(file_path)
+        if isinstance(html_result, tuple) and len(html_result) == 2:
+            html_content, messages = html_result
+        else:
+            st.error("Unexpected return value from docx_to_html function")
+            return [], []
+        st.write(f"DEBUG: HTML conversion complete. HTML length: {len(html_content)}")
         
         # Log any messages from the conversion process
         for message in messages:
@@ -459,7 +474,12 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
                 st.error(f"Error during conversion: {message.message}")
         
         # Convert HTML to images
+        st.write("DEBUG: Starting HTML to images conversion")
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
+        if not isinstance(image_paths, list):
+            st.error("Unexpected return value from html_to_images function")
+            return [], []
+        st.write(f"DEBUG: HTML to images conversion complete. Number of images: {len(image_paths)}")
         
         if not image_paths:
             st.error("Failed to convert document to images.")
@@ -469,28 +489,40 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
 
         # Process each image for AI text extraction
         total_pages = len(image_paths)
-        for i, (page_num, image_path) in enumerate(image_paths):
+        for i, image_info in enumerate(image_paths):
+            if isinstance(image_info, tuple) and len(image_info) == 2:
+                page_num, image_path = image_info
+            else:
+                st.error(f"Unexpected image info format for item {i}")
+                continue
+            
+            st.write(f"DEBUG: Processing page {page_num}")
             if image_path is None:
+                st.write(f"DEBUG: Skipping page {page_num} due to missing image")
                 page_contents.append("")  # Skip this page due to previous error
                 continue
             
             try:
                 page_content = get_generated_data(image_path)
                 page_contents.append(page_content)
+                st.write(f"DEBUG: Successfully extracted content for page {page_num}")
             except Exception as e:
                 st.error(f"Error processing page {page_num}: {str(e)}")
                 page_contents.append("")
+                st.write(f"DEBUG: Failed to extract content for page {page_num}")
 
             # Update progress
             progress = (i + 1) / total_pages
             page_progress_bar.progress(progress)
             page_status_text.text(f"Processing DOC/DOCX page {i + 1} of {total_pages}")
 
+        st.write(f"DEBUG: DOCX processing complete. Total pages processed: {len(page_contents)}")
         return image_paths, page_contents
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         import traceback
         st.error(f"Traceback: {traceback.format_exc()}")
+        st.write("DEBUG: DOCX processing failed")
         return [], []
 
 

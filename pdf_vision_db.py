@@ -334,59 +334,61 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
     return image_paths, page_contents
 
 def docx_to_html(docx_path):
+    import mammoth
+    from docx import Document
+
+    # Use mammoth to convert docx to HTML
     with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file, convert_options=mammoth.convert_options.extend_options({
-            "ignore_empty_paragraphs": False
-        }))
+        result = mammoth.convert_to_html(docx_file, ignore_empty_paragraphs=False)
         html = result.value
-        
-        # Use python-docx to get actual page breaks
-        doc = Document(docx_path)
-        page_breaks = []
-        for i, para in enumerate(doc.paragraphs):
-            if para.style.name.startswith('Page Break'):
-                page_breaks.append(i)
-        
-        # Split HTML into paragraphs
-        paragraphs = html.split('</p>')
-        
-        # Insert page breaks
-        for i in reversed(page_breaks):
-            if i < len(paragraphs):
-                paragraphs.insert(i, '<hr class="page-break" />')
-        
-        # Rejoin paragraphs
-        html = '</p>'.join(paragraphs)
-        
-        # Add minimal CSS to reduce white space and handle page breaks
-        html = f"""
-        <html>
-        <head>
-            <style>
-                body {{
-                    margin: 0;
-                    padding: 0;
-                    font-family: Arial, sans-serif;
-                }}
-                p {{
-                    margin: 0;
-                    padding: 0;
-                }}
-                hr.page-break {{
-                    page-break-after: always;
-                    border: none;
-                    margin: 0;
-                    padding: 0;
-                }}
-            </style>
-        </head>
-        <body>
-            {html}
-        </body>
-        </html>
-        """
-        
-        return html
+
+    # Use python-docx to identify page breaks
+    doc = Document(docx_path)
+    page_breaks = []
+    for i, para in enumerate(doc.paragraphs):
+        if para.style.name == 'Page Break':
+            page_breaks.append(i)
+
+    # Split HTML into paragraphs
+    paragraphs = html.split('</p>')
+
+    # Insert page breaks
+    for i in reversed(page_breaks):
+        if i < len(paragraphs):
+            paragraphs.insert(i, '<hr class="page-break" />')
+
+    # Rejoin paragraphs
+    html = '</p>'.join(paragraphs)
+
+    # Add minimal CSS to handle page breaks
+    html = f"""
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+            }}
+            p {{
+                margin: 0;
+                padding: 0;
+            }}
+            hr.page-break {{
+                page-break-after: always;
+                border: none;
+                margin: 0;
+                padding: 0;
+            }}
+        </style>
+    </head>
+    <body>
+        {html}
+    </body>
+    </html>
+    """
+
+    return html
 
 def crop_image(image_path):
     with Image.open(image_path) as img:

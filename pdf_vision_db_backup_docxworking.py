@@ -290,14 +290,14 @@ def save_uploadedfile(uploadedfile):
     with open(file_path, "wb") as f:
         f.write(uploadedfile.getbuffer())
     return file_path
-
-def process_pdf(file_path):
+def process_pdf(file_path, page_progress_bar, page_status_text):
     doc = fitz.open(file_path)
     temp_dir = tempfile.mkdtemp()
     image_paths = []
     page_contents = []
 
-    for page_num in range(len(doc)):
+    total_pages = len(doc)
+    for page_num in range(total_pages):
         page = doc[page_num]
         pix = page.get_pixmap()
         image_path = os.path.join(temp_dir, f"page{page_num + 1}.png")
@@ -309,6 +309,12 @@ def process_pdf(file_path):
             page_contents.append(page_content)
         except Exception as e:
             st.error(f"Error processing page {page_num + 1}: {str(e)}")
+            page_contents.append("")
+
+        # Update progress
+        progress = (page_num + 1) / total_pages
+        page_progress_bar.progress(progress)
+        page_status_text.text(f"Processing PDF page {page_num + 1} of {total_pages}")
 
     doc.close()
     return image_paths, page_contents
@@ -318,7 +324,7 @@ def docx_to_html(docx_path):
         result = mammoth.convert_to_html(docx_file)
         return result.value
 
-def html_to_images(html_content):
+def html_to_images(html_content, page_progress_bar, page_status_text):
     with Display():
         temp_dir = tempfile.mkdtemp()
         image_paths = []
@@ -327,41 +333,56 @@ def html_to_images(html_content):
             'quality': 100
         }
         pages = html_content.split('<div style="page-break-after:always"><span style="display:none">&nbsp;</span></div>')
+        total_pages = len(pages)
         for i, page in enumerate(pages):
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
             imgkit.from_string(page, image_path, options=options)
             image_paths.append((i + 1, image_path))
+            
+            # Update progress
+            progress = (i + 1) / total_pages
+            page_progress_bar.progress(progress)
+            page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
+
     return image_paths
 
 def html_to_pdf(html_content, output_pdf_path):
     pdfkit.from_string(html_content, output_pdf_path)
 
-def pdf_to_images(pdf_path):
+def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
     doc = fitz.open(pdf_path)
     temp_dir = tempfile.mkdtemp()
     image_paths = []
 
-    for page_num in range(len(doc)):
+    total_pages = len(doc)
+    for page_num in range(total_pages):
         page = doc[page_num]
         pix = page.get_pixmap()
         image_path = os.path.join(temp_dir, f"page{page_num + 1}.png")
         pix.save(image_path)
         image_paths.append((page_num + 1, image_path))
 
+        # Update progress
+        progress = (page_num + 1) / total_pages
+        page_progress_bar.progress(progress)
+        page_status_text.text(f"Converting PDF page {page_num + 1} of {total_pages} to image")
+
     doc.close()
     return image_paths
 
-def process_doc_docx(file_path):
+def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
         # Convert DOCX to HTML
+        page_status_text.text("Converting DOC/DOCX to HTML")
         html_content = docx_to_html(file_path)
         
         # Convert HTML to images
-        image_paths = html_to_images(html_content)
+        image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
         page_contents = []
 
         # Process each image for AI text extraction
-        for page_num, image_path in image_paths:
+        total_pages = len(image_paths)
+        for i, (page_num, image_path) in enumerate(image_paths):
             try:
                 page_content = get_generated_data(image_path)
                 page_contents.append(page_content)
@@ -369,32 +390,45 @@ def process_doc_docx(file_path):
                 st.error(f"Error processing page {page_num}: {str(e)}")
                 page_contents.append("")
 
+            # Update progress
+            progress = (i + 1) / total_pages
+            page_progress_bar.progress(progress)
+            page_status_text.text(f"Processing DOC/DOCX page {i + 1} of {total_pages}")
+
         return image_paths, page_contents
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
         return [], []
 
-
-def process_txt(file_path):
+def process_txt(file_path, page_progress_bar, page_status_text):
+    page_status_text.text("Processing TXT file")
     with open(file_path, 'r', encoding='utf-8') as file:
         content = file.read()
+    page_progress_bar.progress(1.0)
+    page_status_text.text("TXT file processing complete")
     return [(1, None)], [content]  # No image paths for TXT files
 
-def process_excel(file_path):
+def process_excel(file_path, page_progress_bar, page_status_text):
     def dataframe_to_markdown(df):
         return df.to_markdown(index=False)
 
     excel_file = pd.ExcelFile(file_path)
     page_contents = []
-    for sheet_name in excel_file.sheet_names:
+    
+    total_sheets = len(excel_file.sheet_names)
+    for i, sheet_name in enumerate(excel_file.sheet_names):
         df = pd.read_excel(file_path, sheet_name=sheet_name)
         markdown_content = f"## Sheet: {sheet_name}\n\n{dataframe_to_markdown(df)}"
         page_contents.append(markdown_content)
+        
+        # Update progress
+        progress = (i + 1) / total_sheets
+        page_progress_bar.progress(progress)
+        page_status_text.text(f"Processing Excel sheet {i + 1} of {total_sheets}")
     
     return [(i+1, None) for i in range(len(page_contents))], page_contents
 
-
-def generate_summary(page_contents):
+def generate_summary(page_contents, progress_bar, status_text):
     total_tokens = sum(num_tokens_from_string(content) for content in page_contents)
     
     if total_tokens > MAX_TOKENS:
@@ -419,6 +453,7 @@ def generate_summary(page_contents):
         
         summaries = []
         for i, chunk in enumerate(chunks):
+            status_text.text(f"Summarizing chunk {i + 1} of {len(chunks)}")
             chunk_summary = client.chat.completions.create(
                 model=MODEL,
                 messages=[
@@ -428,7 +463,12 @@ def generate_summary(page_contents):
                 max_tokens=MAX_TOKENS // 4  # Limit the summary size for each chunk
             ).choices[0].message.content
             summaries.append(chunk_summary)
+            
+            # Update progress
+            progress = (i + 1) / len(chunks)
+            progress_bar.progress(progress)
         
+        status_text.text("Generating final summary")
         final_summary = client.chat.completions.create(
             model=MODEL,
             messages=[
@@ -439,6 +479,7 @@ def generate_summary(page_contents):
         ).choices[0].message.content
     else:
         # If the document is not too large, we can summarize it in one go
+        status_text.text("Generating summary")
         final_summary = client.chat.completions.create(
             model=MODEL,
             messages=[
@@ -448,16 +489,25 @@ def generate_summary(page_contents):
             max_tokens=MAX_TOKENS // 2  # Limit the summary size
         ).choices[0].message.content
     
+    progress_bar.progress(1.0)
+    status_text.text("Summary generation complete")
     return final_summary
 
-def process_file(uploaded_file):
+# Main processing function
+def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
+    file_progress_bar = st.progress(0)
+    file_status_text = st.empty()
+    page_progress_bar = st.progress(0)
+    page_status_text = st.empty()
+
     st.subheader(f"Processing: {uploaded_file.name}")
-    
-    progress_bar = st.progress(0)
-    
+
     temp_file_path = save_uploadedfile(uploaded_file)
     file_extension = Path(uploaded_file.name).suffix.lower()
     
+    file_status_text.text("Initializing document processing...")
+    file_progress_bar.progress(5)
+
     collection = get_or_create_collection("document_pages")
     if collection is None:
         st.error("Error in creating or accessing the collection.")
@@ -467,18 +517,23 @@ def process_file(uploaded_file):
     page_contents = []
 
     try:
+        file_status_text.text("Extracting content from file...")
+        file_progress_bar.progress(10)
+
         if file_extension == '.pdf':
-            image_paths, page_contents = process_pdf(temp_file_path)
+            image_paths, page_contents = process_pdf(temp_file_path, page_progress_bar, page_status_text)
         elif file_extension in ['.doc', '.docx']:
-            image_paths, page_contents = process_doc_docx(temp_file_path)
+            image_paths, page_contents = process_doc_docx(temp_file_path, page_progress_bar, page_status_text)
         elif file_extension == '.txt':
-            image_paths, page_contents = process_txt(temp_file_path)
+            image_paths, page_contents = process_txt(temp_file_path, page_progress_bar, page_status_text)
         elif file_extension in ['.xls', '.xlsx']:
-            image_paths, page_contents = process_excel(temp_file_path)
+            image_paths, page_contents = process_excel(temp_file_path, page_progress_bar, page_status_text)
         elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
             image_paths = [(1, temp_file_path)]
             page_content = get_generated_data(temp_file_path)
             page_contents = [page_content]
+            page_progress_bar.progress(100)
+            page_status_text.text("Image processed")
         else:
             st.error(f"Unsupported file format: {file_extension}")
             return None, None, None, None
@@ -487,13 +542,14 @@ def process_file(uploaded_file):
             st.error(f"No content extracted from the file: {uploaded_file.name}")
             return None, None, None, None
 
-        #st.write(f"Debug: Content extracted successfully. Number of pages: {len(page_contents)}")
-
-        summary = generate_summary(page_contents)
+        file_status_text.text("Generating summary...")
+        file_progress_bar.progress(40)
+        summary = generate_summary(page_contents, file_progress_bar, file_status_text)  # Fixed: added missing arguments
         
-        #st.write("Debug: Summary generated successfully.")
+        file_status_text.text("Storing pages in vector database...")
+        file_progress_bar.progress(60)
         
-        # Insert pages with summary
+        total_pages = len(page_contents)
         for i, content in enumerate(page_contents):
             page_vector = embeddings.embed_documents([content])[0]
             entity = {
@@ -504,9 +560,21 @@ def process_file(uploaded_file):
                 "summary": summary
             }
             collection.insert([entity])
-            progress_bar.progress((i + 1) / len(page_contents))
+            progress_percentage = 60 + (i + 1) / total_pages * 35  # Progress from 60% to 95%
+            file_progress_bar.progress(int(progress_percentage))
+            file_status_text.text(f"Storing page {i+1} of {total_pages}...")
+            page_progress_bar.progress(int((i + 1) / total_pages * 100))
+            page_status_text.text(f"Storing page {i+1} of {total_pages}")
 
-        progress_bar.progress(100)
+            # Update overall progress
+            overall_progress = (file_index * 100 + progress_percentage) / total_files
+            overall_progress_bar.progress(int(overall_progress))
+            overall_status_text.text(f"Processing file {file_index + 1} of {total_files}: {uploaded_file.name}")
+
+        file_progress_bar.progress(100)
+        file_status_text.text("Processing complete!")
+        page_progress_bar.progress(100)
+        page_status_text.text("All pages processed!")
 
         # Store the processed data in session state
         st.session_state.documents[uploaded_file.name] = {
@@ -514,18 +582,6 @@ def process_file(uploaded_file):
             'page_contents': page_contents,
             'summary': summary
         }
-
-        # Debug output
-        # st.success(f"File processed and stored in vector database!")
-        # st.write(f"Debug: Number of pages/contents: {len(page_contents)}")
-        # st.write(f"Debug: Image paths: {image_paths}")
-        
-        # Check if image files exist
-        for _, img_path in image_paths:
-            if img_path and os.path.exists(img_path):
-                st.write(f"Debug: Image file exists: {img_path}")
-            else:
-                st.write(f"Debug: Image file does not exist: {img_path}")
 
         return collection, image_paths, page_contents, summary
     except Exception as e:
@@ -630,6 +686,7 @@ with st.sidebar:
         "private database to ensure security and privacy."
     )
 
+# Main app section for file upload and processing
 # Main app
 try:
     connect_to_milvus()
@@ -639,17 +696,24 @@ try:
                                       type=["pdf", "doc", "docx", "txt", "xls", "xlsx", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], 
                                       accept_multiple_files=True)
     if uploaded_files:
-        for uploaded_file in uploaded_files:
+        overall_progress_bar = st.progress(0)
+        overall_status_text = st.empty()
+        
+        for file_index, uploaded_file in enumerate(uploaded_files):
             file_content = uploaded_file.getvalue()
             file_hash = get_file_hash(file_content)
             
             if file_hash in st.session_state.file_hashes:
                 existing_file_name = st.session_state.file_hashes[file_hash]
                 st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
+                # Update overall progress
+                overall_progress = ((file_index + 1) * 100) / len(uploaded_files)
+                overall_progress_bar.progress(int(overall_progress))
+                overall_status_text.text(f"Skipped file {file_index + 1} of {len(uploaded_files)}: {uploaded_file.name} (already processed)")
             else:
                 try:
                     with st.spinner('Processing file... This may take a while for large documents.'):
-                        collection, image_paths, page_contents, summary = process_file(uploaded_file)
+                        collection, image_paths, page_contents, summary = process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, len(uploaded_files))
                     if collection is not None:
                         st.session_state.documents[uploaded_file.name] = {
                             'image_paths': image_paths,
@@ -658,10 +722,13 @@ try:
                         }
                         st.session_state.file_hashes[file_hash] = uploaded_file.name
                         st.success(f"File processed and stored in vector database!")
-                        with st.expander("📑 View Summary"):
-                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
+                        # with st.expander("📑 View Summary"):
+                        #     st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
+        
+        overall_progress_bar.progress(100)
+        overall_status_text.text("All files processed!")
 
     # Document selection section
     st.divider()
@@ -759,11 +826,11 @@ try:
             st.subheader(f"📄 {file_name}")
             page_contents = get_document_content(file_name)
             if page_contents:
-                with st.expander("📑 Document Summary", expanded=True):
+                with st.expander("🗂️ Document Summary", expanded=True):
                     st.markdown(page_contents[0]['summary'])
                 
                 for page in page_contents:
-                    with st.expander(f"Page {page['page_number']}"):
+                    with st.expander(f"📑Page {page['page_number']}"):
                         st.markdown(page['content'])
                         
                         if file_name in st.session_state.documents:
@@ -772,7 +839,6 @@ try:
                             if image_path:
                                 try:
                                     st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                                    #st.write(f"Debug: Displaying image from {image_path}")
                                 except Exception as e:
                                     st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
                             else:

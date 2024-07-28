@@ -393,7 +393,7 @@ def process_file(uploaded_file):
         
         st.success('.docx file processed successfully!')
     elif file_extension == '.doc':
-        st.error("Sorry, .doc files are not supported in this cloud environment. Please convert to .docx and try again.")
+        st.error("Sorry, .doc files are not supported. Please convert to .docx and try again.")
         return None, None, None, None
     elif file_extension in ['.xls', '.xlsx']:
         # Process Excel file

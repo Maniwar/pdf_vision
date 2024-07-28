@@ -250,37 +250,7 @@ def get_confidence_color(confidence):
         return "orange"
     else:
         return "red"
-# Add this function to create a custom toggle button
-def toggle_button(label, key):
-    return html(f"""
-        <style>
-            .toggle-button {{
-                background-color: #4CAF50;
-                border: none;
-                color: white;
-                padding: 10px 20px;
-                text-align: center;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 16px;
-                margin: 4px 2px;
-                cursor: pointer;
-                border-radius: 4px;
-            }}
-        </style>
-        <button class="toggle-button" onclick="
-            var state = sessionStorage.getItem('{key}') === 'true';
-            state = !state;
-            sessionStorage.setItem('{key}', state);
-            var event = new CustomEvent('toggleEvent', {{ detail: {{ key: '{key}', state: state }} }});
-            window.dispatchEvent(event);
-        ">{label}</button>
-        <script>
-            window.addEventListener('toggleEvent', function(event) {{
-                Streamlit.setComponentValue(event.detail);
-            }})
-        </script>
-    """, height=60)
+
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
@@ -870,8 +840,14 @@ try:
                                 st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
                                 
                                 if len(page['content']) > citation_length:
-                                    show_full_content = toggle_button("Toggle Full Content", f"full_content_{file_name}_{page['page_number']}")
-                                    if show_full_content:
+                                    toggle_key = f"full_content_{file_name}_{page['page_number']}"
+                                    if toggle_key not in st.session_state:
+                                        st.session_state[toggle_key] = False
+                                    
+                                    if st.button("Toggle Full Content", key=f"button_{toggle_key}"):
+                                        st.session_state[toggle_key] = not st.session_state[toggle_key]
+                                    
+                                    if st.session_state[toggle_key]:
                                         st.markdown(full_content)
                                 
                                 total_citation_length += len(content_to_display)
@@ -880,8 +856,14 @@ try:
                                 image_paths = st.session_state.documents[file_name]['image_paths']
                                 image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                                 if image_path:
-                                    show_image = toggle_button("Toggle Image", f"image_{file_name}_{page['page_number']}")
-                                    if show_image:
+                                    image_toggle_key = f"image_{file_name}_{page['page_number']}"
+                                    if image_toggle_key not in st.session_state:
+                                        st.session_state[image_toggle_key] = False
+                                    
+                                    if st.button("Toggle Image", key=f"button_{image_toggle_key}"):
+                                        st.session_state[image_toggle_key] = not st.session_state[image_toggle_key]
+                                    
+                                    if st.session_state[image_toggle_key]:
                                         st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
                             
                             st.markdown("---")

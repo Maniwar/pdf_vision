@@ -335,10 +335,11 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
 
 def docx_to_html(docx_path):
     with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file, convert_options=mammoth.convert_options.extend_options({
-            "preserve_page_breaks": True
-        }))
+        result = mammoth.convert_to_html(docx_file)
         html = result.value
+        
+        # Manually insert page breaks after each paragraph
+        html = html.replace('</p>', '</p><hr class="page-break" />')
         
         # Add minimal CSS to reduce white space and handle page breaks
         html = f"""
@@ -354,7 +355,7 @@ def docx_to_html(docx_path):
                     margin: 0;
                     padding: 0;
                 }}
-                hr {{
+                hr.page-break {{
                     page-break-after: always;
                     border: none;
                     margin: 0;
@@ -386,12 +387,12 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '1024',  # Set a fixed width
+            'width': '0',  # Set a fixed width
             'height': '0'  # Let height be determined by content
         }
         
         # Split the HTML content into pages
-        pages = html_content.split('<hr style="page-break-before: always;">')
+        pages = html_content.split('<hr class="page-break" />')
         total_pages = len(pages)
         
         for i, page in enumerate(pages):

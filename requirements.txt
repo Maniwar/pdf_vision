@@ -6,7 +6,7 @@ langchain-milvus
 langchain_community
 pypdf
 PyMuPDF # instead of fitz
-unstructured 
+unstructured
 markdown
 langchain-openai
 Pillow

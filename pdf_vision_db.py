@@ -341,56 +341,22 @@ def docx_to_html(docx_path):
         # Add page break markers for wkhtmltoimage
         html = html.replace('</p><p>', '</p><div style="page-break-after:always;"><span style="display:none">&nbsp;</span></div><p>')
         
-        # Add minimal CSS to reduce white space
-        html = f"""
-        <html>
-        <head>
-            <style>
-                body {{
-                    margin: 0;
-                    padding: 0;
-                    font-family: Arial, sans-serif;
-                }}
-                p {{
-                    margin: 0;
-                    padding: 0;
-                }}
-                div.page-break {{
-                    page-break-after: always;
-                }}
-            </style>
-        </head>
-        <body>
-            {html}
-        </body>
-        </html>
-        """
-        
         return html
 
-def crop_image(image_path):
-    with Image.open(image_path) as img:
-        bbox = img.getbbox()
-        if bbox:
-            img = img.crop(bbox)
-        img.save(image_path)
 
 def html_to_images(html_content, page_progress_bar, page_status_text):
     with Display():
         temp_dir = tempfile.mkdtemp()
         image_paths = []
-        
-        # Use dynamic width and height calculation
         options = {
             'format': 'png',
             'quality': 100,
-            'disable-smart-width': '',
-            'width': '0',  # example width, adjust as needed
-            'height': '0'  # let height be determined by content
+            'zoom': 2,
+            'disable-smart-width': ''
         }
         
         # Split the HTML content into pages
-        pages = html_content.split('<div class="page-break"></div>')
+        pages = html_content.split('<div style="page-break-after:always;"><span style="display:none">&nbsp;</span></div>')
         total_pages = len(pages)
         
         for i, page in enumerate(pages):
@@ -403,7 +369,6 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
             try:
                 imgkit.from_file(temp_html_path, image_path, options=options)
-                crop_image(image_path)
                 image_paths.append((i + 1, image_path))
             except Exception as e:
                 st.error(f"Error processing page {i + 1}: {str(e)}")
@@ -415,6 +380,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
     return image_paths
+
 
 
 def html_to_pdf(html_content, output_pdf_path):

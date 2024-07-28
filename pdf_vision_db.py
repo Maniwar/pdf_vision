@@ -281,7 +281,7 @@ Transcribe and categorize all visible information from the image precisely as it
 
 def get_generated_data(image_path):
     base64_image = encode_image(image_path)
-    
+
     response = client.chat.completions.create(
         model=MODEL,
         messages=[
@@ -296,12 +296,6 @@ def get_generated_data(image_path):
     )
     return response.choices[0].message.content
 
-
-    temp_dir = tempfile.mkdtemp()
-    file_path = os.path.join(temp_dir, uploadedfile.name)
-    with open(file_path, "wb") as f:
-        f.write(uploadedfile.getbuffer())
-    return file_path
 
 def save_uploadedfile(uploadedfile):
     temp_dir = tempfile.mkdtemp()
@@ -789,7 +783,7 @@ try:
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     search_button = st.button("🔎 Search")
-        
+            
     if search_button and selected_documents:
         with st.spinner('Searching...'):
             all_pages = search_documents(query, selected_documents)
@@ -830,7 +824,7 @@ try:
                         confidence = page['confidence']
                         color = page['confidence_color']
                         
-                        col1, col2, col3 = st.columns([1, 8, 1])
+                        col1, col2 = st.columns([1, 9])
                         
                         with col1:
                             st.markdown(f"<span style='color:{color};'>●</span> **{confidence:.1f}%**", unsafe_allow_html=True)
@@ -845,26 +839,17 @@ try:
                             st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
                             
                             if len(page['content']) > citation_length:
-                                toggle_key = f"full_content_{file_name}_{page['page_number']}"
-                                if st.button("Toggle Full Content", key=f"button_{toggle_key}", on_click=toggle_content_visibility, args=(toggle_key,)):
-                                    pass  # The on_click function handles the toggling
-                                
-                                if toggle_key in st.session_state and st.session_state[toggle_key]:
+                                with st.expander("Show Full Content"):
                                     st.markdown(full_content)
                             
                             total_citation_length += len(content_to_display)
                         
-                        with col3:
-                            if file_name in st.session_state.documents:
-                                image_paths = st.session_state.documents[file_name]['image_paths']
-                                image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                                if image_path:
-                                    image_toggle_key = f"image_{file_name}_{page['page_number']}"
-                                    if st.button("Toggle Image", key=f"button_{image_toggle_key}", on_click=toggle_content_visibility, args=(image_toggle_key,)):
-                                        pass  # The on_click function handles the toggling
-                                    
-                                    if image_toggle_key in st.session_state and st.session_state[image_toggle_key]:
-                                        st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                        if file_name in st.session_state.documents:
+                            image_paths = st.session_state.documents[file_name]['image_paths']
+                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                            if image_path:
+                                with st.expander("Show Image"):
+                                    st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
                         
                         st.markdown("---")
 
@@ -881,6 +866,7 @@ try:
                     'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
                     'documents_queried': selected_documents
                 })
+
 
                 
     elif search_button:

@@ -722,8 +722,8 @@ try:
                         }
                         st.session_state.file_hashes[file_hash] = uploaded_file.name
                         st.success(f"File processed and stored in vector database!")
-                        with st.expander("📑 View Summary"):
-                            st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
+                        # with st.expander("📑 View Summary"):
+                        #     st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
         
@@ -826,7 +826,7 @@ try:
             st.subheader(f"📄 {file_name}")
             page_contents = get_document_content(file_name)
             if page_contents:
-                with st.expander("📑 Document Summary", expanded=True):
+                with st.expander("🗂️ Document Summary", expanded=True):
                     st.markdown(page_contents[0]['summary'])
                 
                 for page in page_contents:

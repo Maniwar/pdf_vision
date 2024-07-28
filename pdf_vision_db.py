@@ -349,10 +349,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         image_paths = []
         options = {
             'format': 'png',
-            'quality': 100,
-            'width': 2560,  # Example width in pixels
-            'disable-smart-width': '',  # Ensures the width is as specified
-            'zoom': 2.0  # Adjusts the zoom level for better content fitting
+            'quality': 100
         }
         
         # Split the HTML content into pages

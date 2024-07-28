@@ -820,53 +820,40 @@ try:
 
                 total_citation_length = 0
                 for file_name, pages in sources_by_file.items():
-                    with st.expander(f"📄 {file_name}", expanded=True):
-                        for page in pages:
-                            confidence = page['confidence']
-                            color = page['confidence_color']
+                    st.markdown(f"### 📄 {file_name}")
+                    for page in pages:
+                        confidence = page['confidence']
+                        color = page['confidence_color']
+                        
+                        col1, col2, col3 = st.columns([1, 8, 1])
+                        
+                        with col1:
+                            st.markdown(f"<span style='color:{color};'>●</span> **{confidence:.1f}%**", unsafe_allow_html=True)
+                        
+                        with col2:
+                            citation_id = f"{file_name}-p{page['page_number']}"
+                            st.markdown(f"**Page {page['page_number']}**")
                             
-                            col1, col2 = st.columns([1, 9])
+                            content_to_display = page['content'][:citation_length]
+                            full_content = page['content']
                             
-                            with col1:
-                                st.markdown(f"<span style='color:{color};'>●</span> **{confidence:.1f}%**", unsafe_allow_html=True)
+                            st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
                             
-                            with col2:
-                                citation_id = f"{file_name}-p{page['page_number']}"
-                                st.markdown(f"**Page {page['page_number']}**")
-                                
-                                content_to_display = page['content'][:citation_length]
-                                full_content = page['content']
-                                
-                                st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
-                                
-                                if len(page['content']) > citation_length:
-                                    toggle_key = f"full_content_{file_name}_{page['page_number']}"
-                                    if toggle_key not in st.session_state:
-                                        st.session_state[toggle_key] = False
-                                    
-                                    if st.button("Toggle Full Content", key=f"button_{toggle_key}"):
-                                        st.session_state[toggle_key] = not st.session_state[toggle_key]
-                                    
-                                    if st.session_state[toggle_key]:
-                                        st.markdown(full_content)
-                                
-                                total_citation_length += len(content_to_display)
+                            if len(page['content']) > citation_length:
+                                if st.button("Show Full Content", key=f"full_content_{file_name}_{page['page_number']}"):
+                                    st.markdown(full_content)
                             
+                            total_citation_length += len(content_to_display)
+                        
+                        with col3:
                             if file_name in st.session_state.documents:
                                 image_paths = st.session_state.documents[file_name]['image_paths']
                                 image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                                 if image_path:
-                                    image_toggle_key = f"image_{file_name}_{page['page_number']}"
-                                    if image_toggle_key not in st.session_state:
-                                        st.session_state[image_toggle_key] = False
-                                    
-                                    if st.button("Toggle Image", key=f"button_{image_toggle_key}"):
-                                        st.session_state[image_toggle_key] = not st.session_state[image_toggle_key]
-                                    
-                                    if st.session_state[image_toggle_key]:
+                                    if st.button("Show Image", key=f"image_{file_name}_{page['page_number']}"):
                                         st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                            
-                            st.markdown("---")
+                        
+                        st.markdown("---")
 
                 with st.expander("📊 Document Statistics", expanded=False):
                     st.write(f"Total pages searched: {len(all_pages)}")
@@ -881,6 +868,7 @@ try:
                     'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
                     'documents_queried': selected_documents
                 })
+
                 
     elif search_button:
         st.warning("Please select at least one document to query.")

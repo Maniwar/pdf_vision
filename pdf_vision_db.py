@@ -335,11 +335,9 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
 
 def docx_to_html(docx_path):
     with open(docx_path, "rb") as docx_file:
-        custom_style_map = {
-            "p[style-name='Section Break']": "div.page-break"
-        }
-        result = mammoth.convert_to_html(docx_file, style_map=custom_style_map)
+        result = mammoth.convert_to_html(docx_file, convert_image=mammoth.images.img_element)
         html = result.value
+        messages = result.messages
         
         # Add minimal CSS to maintain document structure and style
         html = f"""
@@ -366,14 +364,13 @@ def docx_to_html(docx_path):
                     border: 1px solid #ddd;
                     padding: 8px;
                 }}
+                img {{
+                    max-width: 100%;
+                    height: auto;
+                }}
                 @page {{
                     size: letter;
                     margin: 2cm;
-                }}
-                .page-break {{
-                    page-break-after: always;
-                    height: 0;
-                    display: block;
                 }}
             </style>
         </head>
@@ -382,8 +379,8 @@ def docx_to_html(docx_path):
         </body>
         </html>
         """
-
-        return html
+        
+        return html, messages
 
 
 def crop_image(image_path):
@@ -402,34 +399,25 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '0',  # example width, adjust as needed
+            'width': '0',  # Set a fixed width
             'height': '0'  # let height be determined by content
         }
         
-        # Split the HTML content into pages
-        pages = html_content.split('<div class="page-break"></div>')
-        total_pages = len(pages)
+        # Create a temporary HTML file for the entire document
+        temp_html_path = os.path.join(temp_dir, "document.html")
+        with open(temp_html_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
         
-        for i, page in enumerate(pages):
-            # Create a temporary HTML file for each page
-            temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
-            with open(temp_html_path, 'w', encoding='utf-8') as f:
-                f.write(f"<html><body style='margin: 0; padding: 0;'>{page}</body></html>")
-            
-            # Convert the HTML file to an image
-            image_path = os.path.join(temp_dir, f"page{i + 1}.png")
-            try:
-                imgkit.from_file(temp_html_path, image_path, options=options)
-                crop_image(image_path)
-                image_paths.append((i + 1, image_path))
-            except Exception as e:
-                st.error(f"Error processing page {i + 1}: {str(e)}")
-                image_paths.append((i + 1, None))  # Record the error but continue processing
+        # Convert the HTML file to a PDF
+        pdf_path = os.path.join(temp_dir, "document.pdf")
+        try:
+            pdfkit.from_file(temp_html_path, pdf_path, options=options)
+        except Exception as e:
+            st.error(f"Error converting HTML to PDF: {str(e)}")
+            return []
 
-            # Update progress
-            progress = (i + 1) / total_pages
-            page_progress_bar.progress(progress)
-            page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
+        # Convert PDF to images
+        image_paths = pdf_to_images(pdf_path, page_progress_bar, page_status_text)
 
     return image_paths
 
@@ -462,7 +450,14 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
         # Convert DOCX to HTML
         page_status_text.text("Converting DOC/DOCX to HTML")
-        html_content = docx_to_html(file_path)
+        html_content, messages = docx_to_html(file_path)
+        
+        # Log any messages from the conversion process
+        for message in messages:
+            if message.type == "warning":
+                st.warning(f"Warning during conversion: {message.message}")
+            elif message.type == "error":
+                st.error(f"Error during conversion: {message.message}")
         
         # Convert HTML to images
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)

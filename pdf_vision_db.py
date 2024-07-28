@@ -379,15 +379,18 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
     with Display():
         temp_dir = tempfile.mkdtemp()
         image_paths = []
+        
+        # Use dynamic width and height calculation
         options = {
             'format': 'png',
             'quality': 100,
-            'zoom': 2,
-            'disable-smart-width': ''
+            'disable-smart-width': '',
+            'width': '0',  # example width, adjust as needed
+            'height': '0'  # let height be determined by content
         }
         
         # Split the HTML content into pages
-        pages = html_content.split('<div style="page-break-after:always;"><span style="display:none">&nbsp;</span></div>')
+        pages = html_content.split('<div class="page-break"></div>')
         total_pages = len(pages)
         
         for i, page in enumerate(pages):
@@ -412,7 +415,6 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
     return image_paths
-
 
 
 def html_to_pdf(html_content, output_pdf_path):

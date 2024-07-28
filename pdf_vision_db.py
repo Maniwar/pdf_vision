@@ -785,127 +785,90 @@ try:
     search_button = st.button("🔎 Search")
 
     if search_button and selected_documents:
-        with st.spinner('Searching...'):
-            all_pages = search_documents(query, selected_documents)
+    with st.spinner('Searching...'):
+        all_pages = search_documents(query, selected_documents)
+        
+        if not all_pages:
+            st.warning("No relevant results found. Please try a different query.")
+        else:
+            content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
+
+            system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
+            user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {"role": "system", "content": system_content},
+                    {"role": "user", "content": user_content}
+                ],
+                max_tokens=MAX_TOKENS
+            )
+            st.divider()
+            st.subheader("💬 Answer:")
+            st.write(response.choices[0].message.content)
+            st.divider()
+            st.subheader("📚 Sources:")
             
-            if not all_pages:
-                st.warning("No relevant results found. Please try a different query.")
-            else:
-                content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
+            # Group sources by file
+            sources_by_file = {}
+            for page in all_pages:
+                if page['file_name'] not in sources_by_file:
+                    sources_by_file[page['file_name']] = []
+                sources_by_file[page['file_name']].append(page)
 
-                system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
-                user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-
-                response = client.chat.completions.create(
-                    model=MODEL,
-                    messages=[
-                        {"role": "system", "content": system_content},
-                        {"role": "user", "content": user_content}
-                    ],
-                    max_tokens=MAX_TOKENS
-                )
-                st.divider()
-                st.subheader("💬 Answer:")
-                st.write(response.choices[0].message.content)
-                st.divider()
-                st.subheader("📚 Sources:")
-
-                # Group sources by file
-                sources_by_file = {}
-                for page in all_pages:
-                    if page['file_name'] not in sources_by_file:
-                        sources_by_file[page['file_name']] = []
-                    sources_by_file[page['file_name']].append(page)
-
-                total_citation_length = 0
-                for file_name, pages in sources_by_file.items():
-                    with st.expander(f"📄 {file_name}"):
-                        for page in pages:
-                            confidence = page['confidence']
-                            color = page['confidence_color']
-
-                            # Create a plotly figure for the confidence indicator
-                            fig = go.Figure(go.Indicator(
-                                mode = "gauge+number",
-                                value = confidence,
-                                domain = {'x': [0, 1], 'y': [0, 1]},
-                                gauge = {
-                                    'axis': {'range': [None, 100]},
-                                    'bar': {'color': color},
-                                    'steps': [
-                                        {'range': [0, 60], 'color': "lightgray"},
-                                        {'range': [60, 90], 'color': "gray"},
-                                        {'range': [90, 100], 'color': "darkgray"}
-                                    ],
-                                }
-                            ))
-                            fig.update_layout(height=100, width=150)
-
-                            col1, col2 = st.columns([1, 4])
-                            with col1:
-                                st.plotly_chart(fig, use_container_width=True)
-                            with col2:
-                                st.markdown(f"**Page {page['page_number']}**")
-                                citation_id = f"{file_name}-p{page['page_number']}"
-                                content_to_display = page['content'][:citation_length]
-
-                                # Create a hover effect for the content
-                                hover_html = f"""
-                                <style>
-                                .tooltip {{
-                                position: relative;
-                                display: inline-block;
-                                border-bottom: 1px dotted black;
-                                }}
-                                .tooltip .tooltiptext {{
-                                visibility: hidden;
-                                width: 250px;
-                                background-color: #555;
-                                color: #fff;
-                                text-align: center;
-                                border-radius: 6px;
-                                padding: 5px;
-                                position: absolute;
-                                z-index: 1;
-                                bottom: 125%;
-                                left: 50%;
-                                margin-left: -125px;
-                                opacity: 0;
-                                transition: opacity 0.3s;
-                                }}
-                                .tooltip:hover .tooltiptext {{
-                                visibility: visible;
-                                opacity: 1;
-                                }}
-                                </style>
-                                <div class="tooltip">[{citation_id}] {content_to_display}
-                                <span class="tooltiptext">{page['content']}</span>
-                                </div>
-                                """
-                                st.markdown(hover_html, unsafe_allow_html=True)
-                                
-                                total_citation_length += len(content_to_display)
+            total_citation_length = 0
+            for file_name, pages in sources_by_file.items():
+                with st.expander(f"📄 {file_name}", expanded=True):
+                    for page in pages:
+                        confidence = page['confidence']
+                        color = page['confidence_color']
+                        
+                        col1, col2, col3 = st.columns([1, 8, 1])
+                        
+                        with col1:
+                            st.markdown(f"<span style='color:{color};'>●</span> **{confidence:.1f}%**", unsafe_allow_html=True)
+                        
+                        with col2:
+                            citation_id = f"{file_name}-p{page['page_number']}"
+                            st.markdown(f"**Page {page['page_number']}**")
                             
+                            content_to_display = page['content'][:citation_length]
+                            full_content = page['content']
+                            
+                            # Create a unique key for each source
+                            key = f"source_{file_name}_{page['page_number']}"
+                            
+                            if st.button("Show full content", key=f"show_{key}"):
+                                st.markdown(f"[{citation_id}] {full_content}")
+                            else:
+                                st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
+                            
+                            total_citation_length += len(content_to_display)
+                        
+                        with col3:
                             if file_name in st.session_state.documents:
                                 image_paths = st.session_state.documents[file_name]['image_paths']
                                 image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                                 if image_path:
-                                    st.image(image_path, use_column_width=True)
-                        st.divider()
+                                    if st.button("Show Image", key=f"image_{key}"):
+                                        st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                        
+                        st.markdown("---")
 
-                with st.expander("📊 Document Statistics", expanded=False):
-                    st.write(f"Total pages searched: {len(all_pages)}")
-                    st.write(f"Total citation length: {total_citation_length} characters")
-                    for page in all_pages:
-                        st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
+            with st.expander("📊 Document Statistics", expanded=False):
+                st.write(f"Total pages searched: {len(all_pages)}")
+                st.write(f"Total citation length: {total_citation_length} characters")
+                for page in all_pages:
+                    st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Confidence: {page['confidence']:.2f}%")
 
-                # Save question and answer to history
-                st.session_state.qa_history.append({
-                    'question': query,
-                    'answer': response.choices[0].message.content,
-                    'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages],
-                    'documents_queried': selected_documents
-                })
+            # Save question and answer to history
+            st.session_state.qa_history.append({
+                'question': query,
+                'answer': response.choices[0].message.content,
+                'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
+                'documents_queried': selected_documents
+            })
     elif search_button:
         st.warning("Please select at least one document to query.")
 

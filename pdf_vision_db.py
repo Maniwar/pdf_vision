@@ -337,7 +337,9 @@ def process_doc_docx(file_path):
             offset += d.textsize(line, font=font)[1] + 5
 
         temp_dir = tempfile.mkdtemp()
-        image_path = os.path.join(temp_dir, "document.png")
+        # Generate image path using the document name and page number
+        doc_name = Path(file_path).stem
+        image_path = os.path.join(temp_dir, f"{doc_name}_page1.png")
         img.save(image_path)
 
         # Display the generated image to verify the text is there

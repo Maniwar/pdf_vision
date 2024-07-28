@@ -341,8 +341,39 @@ def docx_to_html(docx_path):
         # Add page break markers for wkhtmltoimage
         html = html.replace('</p><p>', '</p><div style="page-break-after:always;"><span style="display:none">&nbsp;</span></div><p>')
         
+        # Add minimal CSS to reduce white space
+        html = f"""
+        <html>
+        <head>
+            <style>
+                body {{
+                    margin: 0;
+                    padding: 0;
+                    font-family: Arial, sans-serif;
+                }}
+                p {{
+                    margin: 0;
+                    padding: 0;
+                }}
+                div.page-break {{
+                    page-break-after: always;
+                }}
+            </style>
+        </head>
+        <body>
+            {html}
+        </body>
+        </html>
+        """
+        
         return html
 
+def crop_image(image_path):
+    with Image.open(image_path) as img:
+        bbox = img.getbbox()
+        if bbox:
+            img = img.crop(bbox)
+        img.save(image_path)
 
 def html_to_images(html_content, page_progress_bar, page_status_text):
     with Display():
@@ -369,6 +400,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
             try:
                 imgkit.from_file(temp_html_path, image_path, options=options)
+                crop_image(image_path)
                 image_paths.append((i + 1, image_path))
             except Exception as e:
                 st.error(f"Error processing page {i + 1}: {str(e)}")

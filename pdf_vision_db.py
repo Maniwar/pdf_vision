@@ -22,6 +22,7 @@ import textwrap
 import mammoth
 from pyvirtualdisplay import Display
 import imgkit
+import plotly.graph_objs as go
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -220,7 +221,7 @@ def get_document_content(file_name):
             }
             for i, content in enumerate(st.session_state.documents[file_name]['page_contents'])
         ]
-    
+
     try:
         collection = get_or_create_collection("document_pages")
         if collection is None:
@@ -236,6 +237,18 @@ def get_document_content(file_name):
         st.error(f"Error in fetching document content: {str(e)}")
         return []
 
+def calculate_confidence(score):
+    # Convert the similarity score to a confidence level
+    confidence = (1 - score) * 100
+    return confidence
+
+def get_confidence_color(confidence):
+    if confidence >= 90:
+        return "green"
+    elif confidence >= 60:
+        return "orange"
+    else:
+        return "red"
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -640,11 +653,14 @@ def search_documents(query, selected_documents):
 
     all_pages = []
     for hit in results[0]:
+        confidence = calculate_confidence(hit.score)
         page = {
             'file_name': hit.entity.get('file_name'),
             'content': hit.entity.get('content'),
             'page_number': hit.entity.get('page_number'),
             'score': hit.score,
+            'confidence': confidence,
+            'confidence_color': get_confidence_color(confidence),
             'summary': hit.entity.get('summary')
         }
         all_pages.append(page)
@@ -793,7 +809,7 @@ try:
                 st.write(response.choices[0].message.content)
                 st.divider()
                 st.subheader("📚 Sources:")
-                
+
                 # Group sources by file
                 sources_by_file = {}
                 for page in all_pages:
@@ -805,11 +821,70 @@ try:
                 for file_name, pages in sources_by_file.items():
                     with st.expander(f"📄 {file_name}"):
                         for page in pages:
-                            st.markdown(f"**Page {page['page_number']} (Relevance: {1 - page['score']:.2f})**")
-                            citation_id = f"{file_name}-p{page['page_number']}"
-                            content_to_display = page['content'][:citation_length]
-                            st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
-                            total_citation_length += len(content_to_display)
+                            confidence = page['confidence']
+                            color = page['confidence_color']
+
+                            # Create a plotly figure for the confidence indicator
+                            fig = go.Figure(go.Indicator(
+                                mode = "gauge+number",
+                                value = confidence,
+                                domain = {'x': [0, 1], 'y': [0, 1]},
+                                gauge = {
+                                    'axis': {'range': [None, 100]},
+                                    'bar': {'color': color},
+                                    'steps': [
+                                        {'range': [0, 60], 'color': "lightgray"},
+                                        {'range': [60, 90], 'color': "gray"},
+                                        {'range': [90, 100], 'color': "darkgray"}
+                                    ],
+                                }
+                            ))
+                            fig.update_layout(height=100, width=150)
+
+                            col1, col2 = st.columns([1, 4])
+                            with col1:
+                                st.plotly_chart(fig, use_container_width=True)
+                            with col2:
+                                st.markdown(f"**Page {page['page_number']}**")
+                                citation_id = f"{file_name}-p{page['page_number']}"
+                                content_to_display = page['content'][:citation_length]
+
+                                # Create a hover effect for the content
+                                hover_html = f"""
+                                <style>
+                                .tooltip {{
+                                position: relative;
+                                display: inline-block;
+                                border-bottom: 1px dotted black;
+                                }}
+                                .tooltip .tooltiptext {{
+                                visibility: hidden;
+                                width: 250px;
+                                background-color: #555;
+                                color: #fff;
+                                text-align: center;
+                                border-radius: 6px;
+                                padding: 5px;
+                                position: absolute;
+                                z-index: 1;
+                                bottom: 125%;
+                                left: 50%;
+                                margin-left: -125px;
+                                opacity: 0;
+                                transition: opacity 0.3s;
+                                }}
+                                .tooltip:hover .tooltiptext {{
+                                visibility: visible;
+                                opacity: 1;
+                                }}
+                                </style>
+                                <div class="tooltip">[{citation_id}] {content_to_display}
+                                <span class="tooltiptext">{page['content']}</span>
+                                </div>
+                                """
+                                st.markdown(hover_html, unsafe_allow_html=True)
+                                
+                                total_citation_length += len(content_to_display)
                             
                             if file_name in st.session_state.documents:
                                 image_paths = st.session_state.documents[file_name]['image_paths']

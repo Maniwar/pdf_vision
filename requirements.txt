@@ -25,3 +25,4 @@ tabulate
 mammoth
 imgkit
 pyvirtualdisplay
+plotly

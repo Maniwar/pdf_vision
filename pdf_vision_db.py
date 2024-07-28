@@ -17,6 +17,11 @@ import pandas as pd
 import io
 import fitz
 from docx import Document
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.units import inch
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
 import traceback
@@ -290,16 +295,28 @@ def save_uploadedfile(uploadedfile):
         f.write(uploadedfile.getbuffer())
     return file_path
 
+def docx_to_pdf(docx_path, pdf_path):
+    doc = Document(docx_path)
+    pdf = SimpleDocTemplate(pdf_path, pagesize=letter)
+    styles = getSampleStyleSheet()
+    flowables = []
+
+    for para in doc.paragraphs:
+        if para.style.name.startswith('Heading'):
+            flowables.append(Paragraph(para.text, styles['Heading1']))
+        else:
+            flowables.append(Paragraph(para.text, styles['Normal']))
+
+    pdf.build(flowables)
+
 def process_doc_docx(file_path):
     try:
         # Create a temporary directory for the PDF
         temp_dir = tempfile.mkdtemp()
         pdf_path = os.path.join(temp_dir, "converted_document.pdf")
         
-        # Convert DOCX to PDF using fitz
-        doc = fitz.open(file_path)
-        doc.save(pdf_path)
-        doc.close()
+        # Convert DOCX to PDF
+        docx_to_pdf(file_path, pdf_path)
         
         # Now process the PDF
         return process_pdf(pdf_path)
@@ -309,7 +326,7 @@ def process_doc_docx(file_path):
         import traceback
         st.error(f"Traceback: {traceback.format_exc()}")
         return [], []
-
+    
 def process_pdf(file_path):
     doc = fitz.open(file_path)
     temp_dir = tempfile.mkdtemp()

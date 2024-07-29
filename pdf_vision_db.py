@@ -24,6 +24,7 @@ from pyvirtualdisplay import Display
 import imgkit
 import plotly.graph_objs as go
 from bs4 import BeautifulSoup
+import traceback
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -361,6 +362,26 @@ def docx_to_html_with_breaks(docx_path):
 
     # Parse HTML and insert page breaks based on content volume
     soup = BeautifulSoup(html, 'html.parser')
+    
+    # Ensure we have an html tag
+    if not soup.html:
+        new_html = soup.new_tag('html')
+        new_html.extend(soup.contents)
+        soup = BeautifulSoup(str(new_html), 'html.parser')
+
+    # Ensure we have a head tag
+    if not soup.head:
+        head = soup.new_tag('head')
+        soup.html.insert(0, head)
+
+    # Ensure we have a body tag
+    if not soup.body:
+        body = soup.new_tag('body')
+        for tag in list(soup.html.children):
+            if tag.name != 'head':
+                body.append(tag.extract())
+        soup.html.append(body)
+
     current_height = 0
     for tag in soup.find_all(['p', 'div', 'table']):
         if tag.name == 'div' and 'explicit-page-break' in tag.get('class', []):
@@ -390,21 +411,7 @@ def docx_to_html_with_breaks(docx_path):
         p { margin: 0; padding: 0; }
         .explicit-page-break, .content-based-break { page-break-after: always; height: 0; }
     """
-    
-    # Check if head exists, if not create it
-    if not soup.head:
-        head = soup.new_tag('head')
-        soup.html.insert(0, head)
-    
     soup.head.append(style)
-
-    # Ensure there's a body tag
-    if not soup.body:
-        body = soup.new_tag('body')
-        for tag in list(soup.html.children):
-            if tag.name != 'head':
-                body.append(tag.extract())
-        soup.html.append(body)
 
     return str(soup)
 
@@ -487,14 +494,12 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
         page_status_text.text("Converting DOC/DOCX to HTML")
         html_content = docx_to_html_with_breaks(file_path)
         
-        # Check if HTML content is empty
         if not html_content:
             raise ValueError("HTML content is empty after conversion")
 
         # Convert HTML to images
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
         
-        # Check if any images were generated
         if not image_paths:
             raise ValueError("No images were generated from the HTML content")
 
@@ -520,7 +525,6 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
             page_progress_bar.progress(progress)
             page_status_text.text(f"Processing DOC/DOCX page {i + 1} of {total_pages}")
 
-        # Check if any content was extracted
         if not page_contents:
             raise ValueError("No content was extracted from the document")
 

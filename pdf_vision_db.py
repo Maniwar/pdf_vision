@@ -1004,144 +1004,68 @@ try:
         selected_documents = []
 
     # Query interface and answer display
-st.divider()
-st.subheader("🔍 Query the Document(s)")
-query = st.text_input("Enter your query about the document(s):")
-search_button = st.button("🔎 Search")
-                
-if search_button and selected_documents:
-    with st.spinner('Searching...'):
-        all_pages, custom_response = search_documents(query, selected_documents)
-        
-        if not all_pages:
-            st.warning("No relevant results found. Please try a different query.")
-        else:
-            content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
-
-            if custom_response is None:
-                system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
-                user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-
-                response = client.chat.completions.create(
-                    model=MODEL,
-                    messages=[
-                        {"role": "system", "content": system_content},
-                        {"role": "user", "content": user_content}
-                    ],
-                    max_tokens=MAX_TOKENS
-                )
-                answer_text = response.choices[0].message.content
+    st.divider()
+    st.subheader("🔍 Query the Document(s)")
+    query = st.text_input("Enter your query about the document(s):")
+    search_button = st.button("🔎 Search")
+                    
+    if search_button and selected_documents:
+        with st.spinner('Searching...'):
+            all_pages, custom_response = search_documents(query, selected_documents)
+            
+            if not all_pages:
+                st.warning("No relevant results found. Please try a different query.")
             else:
-                answer_text = custom_response
+                content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
 
-            st.divider()
-            st.subheader("💬 Answer:")
-                            
-            # Process the response to add clickable links and confidence indicators
-            for page in all_pages:
-                citation_id = f"{page['file_name']}-p{page['page_number']}"
-                _, confidence_icon = get_confidence_info(page['confidence'])
-                replacement = f"[{citation_id}]({citation_id}){confidence_icon}"
-                answer_text = answer_text.replace(f"[{citation_id}]", replacement)
+                if custom_response is None:
+                    system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
+                    user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
 
-            st.markdown(answer_text)
-            
-            # Add JavaScript to scroll to the source when a citation is clicked
-            st.markdown("""
-            <script>
-            const citations = document.querySelectorAll('a[href^="#"]');
-            citations.forEach(citation => {
-                citation.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const targetId = this.getAttribute('href').slice(1);
-                    const targetElement = document.getElementById(targetId);
-                    if (targetElement) {
-                        targetElement.scrollIntoView({behavior: 'smooth'});
-                    }
-                });
-            });
-            </script>
-            """, unsafe_allow_html=True)
-            
-            st.divider()
-            st.subheader("📚 Sources:")
-                            
-            # Group sources by file
-            sources_by_file = {}
-            for page in all_pages:
-                sources_by_file.setdefault(page['file_name'], []).append(page)
+                    response = client.chat.completions.create(
+                        model=MODEL,
+                        messages=[
+                            {"role": "system", "content": system_content},
+                            {"role": "user", "content": user_content}
+                        ],
+                        max_tokens=MAX_TOKENS
+                    )
+                    answer_text = response.choices[0].message.content
+                else:
+                    answer_text = custom_response
 
-            total_citation_length = 0
-            for file_name, pages in sources_by_file.items():
-                st.markdown(f"### 📄 {file_name}")
-                for page in pages:
-                    confidence = page['confidence']
-                    color, icon = get_confidence_info(confidence)
-                    
-                    col1, col2 = st.columns([1, 9])
-                    
-                    with col1:
-                        st.markdown(f"<span style='color:{color};'>●</span> {icon} **{confidence:.1f}%**", unsafe_allow_html=True)
-                    
-                    with col2:
-                        citation_id = f"{file_name}-p{page['page_number']}"
-                        st.markdown(f"<div id='{citation_id}'></div>", unsafe_allow_html=True)
-                        st.markdown(f"**Page {page['page_number']}**")
-                        
-                        content_to_display = page['content'][:citation_length]
-                        full_content = page['content']
-                        
-                        st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
-                        
-                        if len(page['content']) > citation_length:
-                            with st.expander("📑Show Full Content"):
-                                st.markdown(full_content)
-                        
-                        total_citation_length += len(content_to_display)
-                    
-                    if file_name in st.session_state.documents:
-                        image_paths = st.session_state.documents[file_name]['image_paths']
-                        image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                        if image_path:
-                            with st.expander("🖼️Show Image"):
-                                st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                    
-                    st.markdown("---")
-
-            with st.expander("📊 Document Statistics", expanded=False):
-                st.write(f"Total pages searched: {len(all_pages)}")
-                st.write(f"Total citation length: {total_citation_length} characters")
+                st.divider()
+                st.subheader("💬 Answer:")
+                                
+                # Process the response to add clickable links and confidence indicators
                 for page in all_pages:
-                    st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Confidence: {page['confidence']:.2f}%")
+                    citation_id = f"{page['file_name']}-p{page['page_number']}"
+                    _, confidence_icon = get_confidence_info(page['confidence'])
+                    replacement = f"[{citation_id}]({citation_id}){confidence_icon}"
+                    answer_text = answer_text.replace(f"[{citation_id}]", replacement)
 
-            # Save question and answer to history
-            st.session_state.qa_history.append({
-                'question': query,
-                'answer': answer_text,
-                'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
-                'documents_queried': selected_documents
-            })
-
-elif search_button:
-    st.warning("Please select at least one document to query.")
-
-# Custom Query Macros section
-st.divider()
-st.subheader("📌 Custom Query Macros")
-custom_queries = get_all_custom_queries()
-
-# Display existing custom queries as buttons
-for custom_query in custom_queries:
-    if st.button(f"📌 {custom_query['name']}", key=f"custom_query_{custom_query['name']}"):
-        with st.spinner('Searching with custom query...'):
-            all_pages, custom_response = search_documents(custom_query['name'], selected_documents, custom_query['prompt_template'])
-            if custom_response:
-                st.subheader(f"💬 Answer ({custom_query['name']}):")
-                st.markdown(custom_response)
+                st.markdown(answer_text)
+                
+                # Add JavaScript to scroll to the source when a citation is clicked
+                st.markdown("""
+                <script>
+                const citations = document.querySelectorAll('a[href^="#"]');
+                citations.forEach(citation => {
+                    citation.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const targetId = this.getAttribute('href').slice(1);
+                        const targetElement = document.getElementById(targetId);
+                        if (targetElement) {
+                            targetElement.scrollIntoView({behavior: 'smooth'});
+                        }
+                    });
+                });
+                </script>
+                """, unsafe_allow_html=True)
                 
                 st.divider()
                 st.subheader("📚 Sources:")
-                
+                                
                 # Group sources by file
                 sources_by_file = {}
                 for page in all_pages:
@@ -1192,127 +1116,203 @@ for custom_query in custom_queries:
 
                 # Save question and answer to history
                 st.session_state.qa_history.append({
-                    'question': custom_query['name'],
-                    'answer': custom_response,
+                    'question': query,
+                    'answer': answer_text,
                     'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
                     'documents_queried': selected_documents
                 })
 
-# Add new custom query
-with st.expander("➕ Add New Custom Query"):
-    new_query_name = st.text_input("Query Name")
-    new_query_template = st.text_area("Query Template", 
-                                      "Respond to the query '{query}' using the information from the following content: {content}")
-    if st.button("Save Custom Query"):
-        if save_custom_query(new_query_name, new_query_template):
-            st.success(f"Custom query '{new_query_name}' saved successfully!")
-            st.rerun()
+    elif search_button:
+        st.warning("Please select at least one document to query.")
 
-# Edit or delete existing custom queries
-with st.expander("✏️ Edit or Delete Custom Queries"):
-    for query in custom_queries:
-        st.markdown(f"### {query['name']}")
-        edited_template = st.text_area(f"Template for {query['name']}", query['prompt_template'], key=f"edit_{query['name']}")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button(f"Update {query['name']}", key=f"update_{query['name']}"):
-                if save_custom_query(query['name'], edited_template):
-                    st.success(f"Updated {query['name']}")
-                    st.rerun()
-        with col2:
-            if st.button(f"Delete {query['name']}", key=f"delete_{query['name']}"):
-                if delete_custom_query(query['name']):
-                    st.success(f"Deleted {query['name']}")
-                    st.rerun()
+    # Custom Query Macros section
+    st.divider()
+    st.subheader("📌 Custom Query Macros")
+    custom_queries = get_all_custom_queries()
 
-    # Document content display
-    if selected_documents:
-        st.divider()
-        st.subheader("**📜 Document Content:**")
-        for file_name in selected_documents:
-            st.subheader(f"📄 {file_name}")
-            page_contents = get_document_content(file_name)
-            if page_contents:
-                with st.expander("🗂️ Document Summary", expanded=True):
-                    st.markdown(page_contents[0]['summary'])
-                
-                for page in page_contents:
-                    with st.expander(f"📑Page {page['page_number']}"):
-                        st.markdown(page['content'])
-                        
-                        if file_name in st.session_state.documents:
-                            image_paths = st.session_state.documents[file_name]['image_paths']
-                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                            if image_path:
-                                try:
-                                    st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                                except Exception as e:
-                                    st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
-                            else:
-                                st.info(f"No image available for page {page['page_number']}")
-            else:
-                st.info(f"No content available for {file_name}.")
-            
-            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                st.session_state.files_to_remove.add(file_name)
+    # Display existing custom queries as buttons
+    for custom_query in custom_queries:
+        if st.button(f"📌 {custom_query['name']}", key=f"custom_query_{custom_query['name']}"):
+            with st.spinner('Searching with custom query...'):
+                all_pages, custom_response = search_documents(custom_query['name'], selected_documents, custom_query['prompt_template'])
+                if custom_response:
+                    st.subheader(f"💬 Answer ({custom_query['name']}):")
+                    st.markdown(custom_response)
+                    
+                    st.divider()
+                    st.subheader("📚 Sources:")
+                    
+                    # Group sources by file
+                    sources_by_file = {}
+                    for page in all_pages:
+                        sources_by_file.setdefault(page['file_name'], []).append(page)
+
+                    total_citation_length = 0
+                    for file_name, pages in sources_by_file.items():
+                        st.markdown(f"### 📄 {file_name}")
+                        for page in pages:
+                            confidence = page['confidence']
+                            color, icon = get_confidence_info(confidence)
+                            
+                            col1, col2 = st.columns([1, 9])
+                            
+                            with col1:
+                                st.markdown(f"<span style='color:{color};'>●</span> {icon} **{confidence:.1f}%**", unsafe_allow_html=True)
+                            
+                            with col2:
+                                citation_id = f"{file_name}-p{page['page_number']}"
+                                st.markdown(f"<div id='{citation_id}'></div>", unsafe_allow_html=True)
+                                st.markdown(f"**Page {page['page_number']}**")
+                                
+                                content_to_display = page['content'][:citation_length]
+                                full_content = page['content']
+                                
+                                st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
+                                
+                                if len(page['content']) > citation_length:
+                                    with st.expander("📑Show Full Content"):
+                                        st.markdown(full_content)
+                                
+                                total_citation_length += len(content_to_display)
+                            
+                            if file_name in st.session_state.documents:
+                                image_paths = st.session_state.documents[file_name]['image_paths']
+                                image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                                if image_path:
+                                    with st.expander("🖼️Show Image"):
+                                        st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                            
+                            st.markdown("---")
+
+                    with st.expander("📊 Document Statistics", expanded=False):
+                        st.write(f"Total pages searched: {len(all_pages)}")
+                        st.write(f"Total citation length: {total_citation_length} characters")
+                        for page in all_pages:
+                            st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Confidence: {page['confidence']:.2f}%")
+
+                    # Save question and answer to history
+                    st.session_state.qa_history.append({
+                        'question': custom_query['name'],
+                        'answer': custom_response,
+                        'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
+                        'documents_queried': selected_documents
+                    })
+
+    # Add new custom query
+    with st.expander("➕ Add New Custom Query"):
+        new_query_name = st.text_input("Query Name")
+        new_query_template = st.text_area("Query Template", 
+                                        "Respond to the query '{query}' using the information from the following content: {content}")
+        if st.button("Save Custom Query"):
+            if save_custom_query(new_query_name, new_query_template):
+                st.success(f"Custom query '{new_query_name}' saved successfully!")
                 st.rerun()
 
-    # Remove files marked for deletion
-    if st.session_state.files_to_remove:
-        for file_name in list(st.session_state.files_to_remove):
-            collection = get_or_create_collection("document_pages")
-            collection.delete(f"file_name == '{file_name}'")
-            if file_name in st.session_state.documents:
-                del st.session_state.documents[file_name]
-            st.success(f"{file_name} has been removed.")
-        st.session_state.files_to_remove.clear()
-        st.rerun()
+    # Edit or delete existing custom queries
+    with st.expander("✏️ Edit or Delete Custom Queries"):
+        for query in custom_queries:
+            st.markdown(f"### {query['name']}")
+            edited_template = st.text_area(f"Template for {query['name']}", query['prompt_template'], key=f"edit_{query['name']}")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"Update {query['name']}", key=f"update_{query['name']}"):
+                    if save_custom_query(query['name'], edited_template):
+                        st.success(f"Updated {query['name']}")
+                        st.rerun()
+            with col2:
+                if st.button(f"Delete {query['name']}", key=f"delete_{query['name']}"):
+                    if delete_custom_query(query['name']):
+                        st.success(f"Deleted {query['name']}")
+                        st.rerun()
 
-    # Display question history
-    if st.session_state.qa_history:
-        st.divider()
-        st.subheader("📜 Question History")
-        for i, qa in enumerate(reversed(st.session_state.qa_history)):
-            with st.expander(f"Q{len(st.session_state.qa_history)-i}: {qa['question']}"):
-                st.write(f"A: {qa['answer']}")
-                st.write("Documents Queried:", ", ".join(qa['documents_queried']))
-                st.write("Sources:")
-                for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Page: {source['page']}")
+        # Document content display
+        if selected_documents:
+            st.divider()
+            st.subheader("**📜 Document Content:**")
+            for file_name in selected_documents:
+                st.subheader(f"📄 {file_name}")
+                page_contents = get_document_content(file_name)
+                if page_contents:
+                    with st.expander("🗂️ Document Summary", expanded=True):
+                        st.markdown(page_contents[0]['summary'])
+                    
+                    for page in page_contents:
+                        with st.expander(f"📑Page {page['page_number']}"):
+                            st.markdown(page['content'])
+                            
+                            if file_name in st.session_state.documents:
+                                image_paths = st.session_state.documents[file_name]['image_paths']
+                                image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                                if image_path:
+                                    try:
+                                        st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                                    except Exception as e:
+                                        st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
+                                else:
+                                    st.info(f"No image available for page {page['page_number']}")
+                else:
+                    st.info(f"No content available for {file_name}.")
+                
+                if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                    st.session_state.files_to_remove.add(file_name)
+                    st.rerun()
 
-        if st.button("🗑️ Clear Question History"):
-            st.session_state.qa_history = []
-            st.success("Question history cleared!")
+        # Remove files marked for deletion
+        if st.session_state.files_to_remove:
+            for file_name in list(st.session_state.files_to_remove):
+                collection = get_or_create_collection("document_pages")
+                collection.delete(f"file_name == '{file_name}'")
+                if file_name in st.session_state.documents:
+                    del st.session_state.documents[file_name]
+                st.success(f"{file_name} has been removed.")
+            st.session_state.files_to_remove.clear()
             st.rerun()
 
-        # Export results
-        if st.button("📤 Export Q&A Session"):
-            qa_session = ""
-            for qa in st.session_state.qa_history:
-                qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
-                for source in qa['sources']:
-                    qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
-                qa_session += "\n---\n\n"
-            
-            # Convert markdown to HTML
-            html = markdown2.markdown(qa_session)
-            
-            try:
-                # Convert HTML to PDF
-                pdf = pdfkit.from_string(html, False)
-                
-                # Provide the PDF for download
-                st.download_button(
-                    label="Download Q&A Session as PDF",
-                    data=pdf,
-                    file_name="qa_session.pdf",
-                    mime="application/pdf"
-                )
-            except Exception as e:
-                st.error(f"An error occurred while generating the PDF: {str(e)}")
+        # Display question history
+        if st.session_state.qa_history:
+            st.divider()
+            st.subheader("📜 Question History")
+            for i, qa in enumerate(reversed(st.session_state.qa_history)):
+                with st.expander(f"Q{len(st.session_state.qa_history)-i}: {qa['question']}"):
+                    st.write(f"A: {qa['answer']}")
+                    st.write("Documents Queried:", ", ".join(qa['documents_queried']))
+                    st.write("Sources:")
+                    for source in qa['sources']:
+                        st.write(f"- File: {source['file']}, Page: {source['page']}")
 
-except Exception as e:
-    st.error(f"An unexpected error occurred: {str(e)}")
+            if st.button("🗑️ Clear Question History"):
+                st.session_state.qa_history = []
+                st.success("Question history cleared!")
+                st.rerun()
+
+            # Export results
+            if st.button("📤 Export Q&A Session"):
+                qa_session = ""
+                for qa in st.session_state.qa_history:
+                    qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"
+                    for source in qa['sources']:
+                        qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
+                    qa_session += "\n---\n\n"
+                
+                # Convert markdown to HTML
+                html = markdown2.markdown(qa_session)
+                
+                try:
+                    # Convert HTML to PDF
+                    pdf = pdfkit.from_string(html, False)
+                    
+                    # Provide the PDF for download
+                    st.download_button(
+                        label="Download Q&A Session as PDF",
+                        data=pdf,
+                        file_name="qa_session.pdf",
+                        mime="application/pdf"
+                    )
+                except Exception as e:
+                    st.error(f"An error occurred while generating the PDF: {str(e)}")
+
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {str(e)}")
 
 # Warning banner and terms (place this at the end of your script, outside the main try-except block)
 st.markdown("""

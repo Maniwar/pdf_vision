@@ -22,6 +22,9 @@ import textwrap
 import mammoth
 from pyvirtualdisplay import Display
 import imgkit
+import plotly.graph_objs as go
+from bs4 import BeautifulSoup
+import traceback
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -182,6 +185,12 @@ def get_or_create_collection(collection_name, dim=1536):
         st.error(f"Error in creating or accessing the collection: {str(e)}")
         return None
 
+def toggle_content_visibility(key):
+    if key not in st.session_state:
+        st.session_state[key] = False
+    st.session_state[key] = not st.session_state[key]
+
+
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
 
@@ -220,7 +229,7 @@ def get_document_content(file_name):
             }
             for i, content in enumerate(st.session_state.documents[file_name]['page_contents'])
         ]
-    
+
     try:
         collection = get_or_create_collection("document_pages")
         if collection is None:
@@ -236,6 +245,18 @@ def get_document_content(file_name):
         st.error(f"Error in fetching document content: {str(e)}")
         return []
 
+def calculate_confidence(score):
+    # Convert the similarity score to a confidence level
+    confidence = (1 - score) * 100
+    return confidence
+
+def get_confidence_info(confidence):
+    if confidence >= 90:
+        return "green", "🟢"  # Green circle for high confidence
+    elif confidence >= 60:
+        return "orange", "🟠"  # Orange circle for medium confidence
+    else:
+        return "red", "🔴"  # Red circle for low confidence
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -262,7 +283,7 @@ Transcribe and categorize all visible information from the image precisely as it
 
 def get_generated_data(image_path):
     base64_image = encode_image(image_path)
-    
+
     response = client.chat.completions.create(
         model=MODEL,
         messages=[
@@ -277,12 +298,6 @@ def get_generated_data(image_path):
     )
     return response.choices[0].message.content
 
-
-    temp_dir = tempfile.mkdtemp()
-    file_path = os.path.join(temp_dir, uploadedfile.name)
-    with open(file_path, "wb") as f:
-        f.write(uploadedfile.getbuffer())
-    return file_path
 
 def save_uploadedfile(uploadedfile):
     temp_dir = tempfile.mkdtemp()
@@ -304,7 +319,7 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
         image_path = os.path.join(temp_dir, f"page{page_num + 1}.png")
         pix.save(image_path)
         image_paths.append((page_num + 1, image_path))
-        
+
         try:
             page_content = get_generated_data(image_path)
             page_contents.append(page_content)
@@ -320,40 +335,160 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
     doc.close()
     return image_paths, page_contents
 
-def docx_to_html(docx_path):
+def docx_to_html_with_breaks(docx_path):
+    # Custom style map to preserve explicit page breaks
+    style_map = """
+    p[style-name='Page Break'] => div.explicit-page-break
+    """
+    
+    # Convert DOCX to HTML using mammoth
     with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file)
+        result = mammoth.convert_to_html(docx_file, style_map=style_map)
         html = result.value
-        
-        # Add page break markers
-        html = html.replace('</p><p>', '</p><div style="page-break-after:always"><span style="display:none">&nbsp;</span></div><p>')
-        
-        return html
+
+    # Get page setup information using python-docx
+    doc = Document(docx_path)
+    section = doc.sections[0]
+    page_height = section.page_height.cm
+    page_width = section.page_width.cm
+    top_margin = section.top_margin.cm
+    bottom_margin = section.bottom_margin.cm
+    left_margin = section.left_margin.cm
+    right_margin = section.right_margin.cm
+
+    # Calculate available content area
+    content_height = page_height - top_margin - bottom_margin
+    content_width = page_width - left_margin - right_margin
+
+    # Parse HTML and insert page breaks based on content volume
+    soup = BeautifulSoup(html, 'html.parser')
+    
+    # Ensure we have an html tag
+    if not soup.html:
+        new_html = soup.new_tag('html')
+        new_html.extend(soup.contents)
+        soup = BeautifulSoup(str(new_html), 'html.parser')
+
+    # Ensure we have a head tag
+    if not soup.head:
+        head = soup.new_tag('head')
+        soup.html.insert(0, head)
+
+    # Ensure we have a body tag
+    if not soup.body:
+        body = soup.new_tag('body')
+        for tag in list(soup.html.children):
+            if tag.name != 'head':
+                body.append(tag.extract())
+        soup.html.append(body)
+
+    current_height = 0
+    for tag in soup.find_all(['p', 'div', 'table']):
+        if tag.name == 'div' and 'explicit-page-break' in tag.get('class', []):
+            current_height = 0
+            continue
+
+        # Estimate element height (this is a simplified calculation)
+        if tag.name == 'p':
+            element_height = 1  # Assume 1 cm for each paragraph
+        elif tag.name == 'table':
+            rows = len(tag.find_all('tr'))
+            element_height = rows * 0.5  # Assume 0.5 cm for each table row
+        else:
+            element_height = 0.5  # Default height for other elements
+
+        if current_height + element_height > content_height:
+            new_break = soup.new_tag('div', **{'class': 'content-based-break'})
+            tag.insert_before(new_break)
+            current_height = element_height
+        else:
+            current_height += element_height
+
+    # Add CSS for proper rendering
+    style = soup.new_tag('style')
+    style.string = """
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        p { margin: 0; padding: 0; }
+        .explicit-page-break, .content-based-break { page-break-after: always; height: 0; }
+    """
+    soup.head.append(style)
+
+    return str(soup)
+
+def crop_image(image_path):
+    with Image.open(image_path) as img:
+        bbox = img.getbbox()
+        if bbox:
+            img = img.crop(bbox)
+        img.save(image_path)
 
 def html_to_images(html_content, page_progress_bar, page_status_text):
     with Display():
         temp_dir = tempfile.mkdtemp()
         image_paths = []
+        
+        # Use minimal options to avoid width/height issues
         options = {
             'format': 'png',
-            'quality': 100
+            'quality': '100',
+            'disable-smart-width': '',
+            'log-level': 'none'  # Suppress non-error messages
         }
         
-        # Split the HTML content into pages
-        pages = html_content.split('<div style="page-break-after:always"><span style="display:none">&nbsp;</span></div>')
+        # Parse the HTML content
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Find all page break divs
+        page_breaks = soup.find_all('div', class_=['explicit-page-break', 'content-based-break'])
+        
+        # Split the content into pages
+        pages = []
+        current_page = []
+        for element in soup.body.children:
+            if element in page_breaks:
+                if current_page:
+                    pages.append(''.join(str(tag) for tag in current_page))
+                current_page = []
+            else:
+                current_page.append(element)
+        if current_page:
+            pages.append(''.join(str(tag) for tag in current_page))
+        
         total_pages = len(pages)
         
-        for i, page in enumerate(pages):
+        for i, page_content in enumerate(pages):
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
-                f.write(f"<html><body>{page}</body></html>")
+                f.write(f"""
+                <html>
+                    <head>
+                        <style>
+                            body {{
+                                width: 210mm;
+                                height: 297mm;
+                                margin: 0;
+                                padding: 0;
+                            }}
+                            * {{
+                                box-sizing: border-box;
+                            }}
+                        </style>
+                    </head>
+                    <body>{page_content}</body>
+                </html>
+                """)
             
             # Convert the HTML file to an image
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
-            imgkit.from_file(temp_html_path, image_path, options=options)
-            image_paths.append((i + 1, image_path))
-            
+            try:
+                imgkit.from_file(temp_html_path, image_path, options=options)
+                crop_image(image_path)
+                image_paths.append((i + 1, image_path))
+            except Exception as e:
+                st.error(f"Error processing page {i + 1}: {str(e)}")
+                image_paths.append((i + 1, None))  # Record the error but continue processing
+
             # Update progress
             progress = (i + 1) / total_pages
             page_progress_bar.progress(progress)
@@ -387,18 +522,33 @@ def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
 
 def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
-        # Convert DOCX to HTML
+        # Step 1: Convert DOCX to HTML
         page_status_text.text("Converting DOC/DOCX to HTML")
-        html_content = docx_to_html(file_path)
+        html_content = docx_to_html_with_breaks(file_path)
         
-        # Convert HTML to images
-        image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
-        
-        page_contents = []
+        if not html_content:
+            raise ValueError("HTML content is empty after conversion")
 
-        # Process each image for AI text extraction
+        # Step 2: Convert HTML to images
+        try:
+            image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
+        except Exception as e:
+            st.error(f"Error during HTML to image conversion: {str(e)}")
+            st.error(f"Full error: {traceback.format_exc()}")
+            return [], []
+        
+        if not image_paths:
+            raise ValueError("No images were generated from the HTML content")
+
+        # Step 3: Process images and extract content
+        page_contents = []
         total_pages = len(image_paths)
         for i, (page_num, image_path) in enumerate(image_paths):
+            if image_path is None:
+                st.warning(f"Skipping page {page_num} due to previous error")
+                page_contents.append("")
+                continue
+            
             try:
                 page_content = get_generated_data(image_path)
                 page_contents.append(page_content)
@@ -411,9 +561,13 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
             page_progress_bar.progress(progress)
             page_status_text.text(f"Processing DOC/DOCX page {i + 1} of {total_pages}")
 
+        if not page_contents:
+            raise ValueError("No content was extracted from the document")
+
         return image_paths, page_contents
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
+        st.error(f"Full error: {traceback.format_exc()}")
         return [], []
 
 def process_txt(file_path, page_progress_bar, page_status_text):
@@ -560,32 +714,42 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
 
         file_status_text.text("Generating summary...")
         file_progress_bar.progress(40)
-        summary = generate_summary(page_contents, file_progress_bar, file_status_text)  # Fixed: added missing arguments
+        summary = generate_summary(page_contents, file_progress_bar, file_status_text)
         
         file_status_text.text("Storing pages in vector database...")
         file_progress_bar.progress(60)
         
         total_pages = len(page_contents)
         for i, content in enumerate(page_contents):
-            page_vector = embeddings.embed_documents([content])[0]
-            entity = {
-                "content": content,
-                "file_name": uploaded_file.name,
-                "page_number": i + 1,
-                "vector": page_vector,
-                "summary": summary
-            }
-            collection.insert([entity])
-            progress_percentage = 60 + (i + 1) / total_pages * 35  # Progress from 60% to 95%
-            file_progress_bar.progress(int(progress_percentage))
-            file_status_text.text(f"Storing page {i+1} of {total_pages}...")
-            page_progress_bar.progress(int((i + 1) / total_pages * 100))
-            page_status_text.text(f"Storing page {i+1} of {total_pages}")
+            page_number = i + 1
+            # Check if the page already exists in the collection
+            query_result = collection.query(
+                expr=f"file_name == '{uploaded_file.name}' and page_number == {page_number}",
+                output_fields=["id"],
+                limit=1
+            )
+            if query_result:
+                st.info(f"Page {page_number} of '{uploaded_file.name}' already exists in Milvus.")
+            else:
+                page_vector = embeddings.embed_documents([content])[0]
+                entity = {
+                    "content": content,
+                    "file_name": uploaded_file.name,
+                    "page_number": page_number,
+                    "vector": page_vector,
+                    "summary": summary
+                }
+                collection.insert([entity])
+                progress_percentage = 60 + (i + 1) / total_pages * 35  # Progress from 60% to 95%
+                file_progress_bar.progress(int(progress_percentage))
+                file_status_text.text(f"Storing page {i+1} of {total_pages}...")
+                page_progress_bar.progress(int((i + 1) / total_pages * 100))
+                page_status_text.text(f"Storing page {i+1} of {total_pages}")
 
-            # Update overall progress
-            overall_progress = (file_index * 100 + progress_percentage) / total_files
-            overall_progress_bar.progress(int(overall_progress))
-            overall_status_text.text(f"Processing file {file_index + 1} of {total_files}: {uploaded_file.name}")
+                # Update overall progress
+                overall_progress = (file_index * 100 + progress_percentage) / total_files
+                overall_progress_bar.progress(int(overall_progress))
+                overall_status_text.text(f"Processing file {file_index + 1} of {total_files}: {uploaded_file.name}")
 
         file_progress_bar.progress(100)
         file_status_text.text("Processing complete!")
@@ -606,14 +770,15 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
         st.error(f"Traceback: {traceback.format_exc()}")
         
         # Additional debugging information
-        st.write(f"Debug: File extension: {file_extension}")
-        st.write(f"Debug: Temp file path: {temp_file_path}")
-        if os.path.exists(temp_file_path):
-            st.write(f"Debug: Temp file size: {os.path.getsize(temp_file_path)} bytes")
-        else:
-            st.write("Debug: Temp file does not exist")
+        # st.write(f"Debug: File extension: {file_extension}")
+        # st.write(f"Debug: Temp file path: {temp_file_path}")
+        # if os.path.exists(temp_file_path):
+        #     st.write(f"Debug: Temp file size: {os.path.getsize(temp_file_path)} bytes")
+        # else:
+        #     st.write("Debug: Temp file does not exist")
         
         return None, None, None, None
+
 
 def search_documents(query, selected_documents):
     collection = get_or_create_collection("document_pages")
@@ -640,11 +805,13 @@ def search_documents(query, selected_documents):
 
     all_pages = []
     for hit in results[0]:
+        confidence = calculate_confidence(hit.score)
         page = {
             'file_name': hit.entity.get('file_name'),
             'content': hit.entity.get('content'),
             'page_number': hit.entity.get('page_number'),
             'score': hit.score,
+            'confidence': confidence,
             'summary': hit.entity.get('summary')
         }
         all_pages.append(page)
@@ -767,7 +934,7 @@ try:
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     search_button = st.button("🔎 Search")
-
+                
     if search_button and selected_documents:
         with st.spinner('Searching...'):
             all_pages = search_documents(query, selected_documents)
@@ -790,47 +957,95 @@ try:
                 )
                 st.divider()
                 st.subheader("💬 Answer:")
-                st.write(response.choices[0].message.content)
+                                
+                # Process the response to add clickable links and confidence indicators
+                answer_text = response.choices[0].message.content
+                for page in all_pages:
+                    citation_id = f"{page['file_name']}-p{page['page_number']}"
+                    _, confidence_icon = get_confidence_info(page['confidence'])
+                    replacement = f"[{citation_id}]({citation_id}){confidence_icon}"
+                    answer_text = answer_text.replace(f"[{citation_id}]", replacement)
+
+                st.markdown(answer_text)
+                
+                # Add JavaScript to scroll to the source when a citation is clicked
+                st.markdown("""
+                <script>
+                const citations = document.querySelectorAll('a[href^="#"]');
+                citations.forEach(citation => {
+                    citation.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const targetId = this.getAttribute('href').slice(1);
+                        const targetElement = document.getElementById(targetId);
+                        if (targetElement) {
+                            targetElement.scrollIntoView({behavior: 'smooth'});
+                        }
+                    });
+                });
+                </script>
+                """, unsafe_allow_html=True)
+                
                 st.divider()
                 st.subheader("📚 Sources:")
-                
+                                
                 # Group sources by file
                 sources_by_file = {}
                 for page in all_pages:
-                    if page['file_name'] not in sources_by_file:
-                        sources_by_file[page['file_name']] = []
-                    sources_by_file[page['file_name']].append(page)
+                    sources_by_file.setdefault(page['file_name'], []).append(page)
 
                 total_citation_length = 0
                 for file_name, pages in sources_by_file.items():
-                    with st.expander(f"📄 {file_name}"):
-                        for page in pages:
-                            st.markdown(f"**Page {page['page_number']} (Relevance: {1 - page['score']:.2f})**")
+                    st.markdown(f"### 📄 {file_name}")
+                    for page in pages:
+                        confidence = page['confidence']
+                        color, icon = get_confidence_info(confidence)
+                        
+                        col1, col2 = st.columns([1, 9])
+                        
+                        with col1:
+                            st.markdown(f"<span style='color:{color};'>●</span> {icon} **{confidence:.1f}%**", unsafe_allow_html=True)
+                        
+                        with col2:
                             citation_id = f"{file_name}-p{page['page_number']}"
-                            content_to_display = page['content'][:citation_length]
-                            st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
-                            total_citation_length += len(content_to_display)
+                            st.markdown(f"<div id='{citation_id}'></div>", unsafe_allow_html=True)
+                            st.markdown(f"**Page {page['page_number']}**")
                             
-                            if file_name in st.session_state.documents:
-                                image_paths = st.session_state.documents[file_name]['image_paths']
-                                image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                                if image_path:
-                                    st.image(image_path, use_column_width=True)
-                        st.divider()
+                            content_to_display = page['content'][:citation_length]
+                            full_content = page['content']
+                            
+                            st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
+                            
+                            if len(page['content']) > citation_length:
+                                with st.expander("📑Show Full Content"):
+                                    st.markdown(full_content)
+                            
+                            total_citation_length += len(content_to_display)
+                        
+                        if file_name in st.session_state.documents:
+                            image_paths = st.session_state.documents[file_name]['image_paths']
+                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                            if image_path:
+                                with st.expander("🖼️Show Image"):
+                                    st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                        
+                        st.markdown("---")
 
                 with st.expander("📊 Document Statistics", expanded=False):
                     st.write(f"Total pages searched: {len(all_pages)}")
                     st.write(f"Total citation length: {total_citation_length} characters")
                     for page in all_pages:
-                        st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Score: {1 - page['score']:.2f}")
+                        st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Confidence: {page['confidence']:.2f}%")
 
                 # Save question and answer to history
                 st.session_state.qa_history.append({
                     'question': query,
                     'answer': response.choices[0].message.content,
-                    'sources': [{'file': page['file_name'], 'page': page['page_number']} for page in all_pages],
+                    'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
                     'documents_queried': selected_documents
                 })
+
+
+                
     elif search_button:
         st.warning("Please select at least one document to query.")
 

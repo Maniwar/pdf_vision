@@ -427,13 +427,12 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         temp_dir = tempfile.mkdtemp()
         image_paths = []
         
-        # Use A4 page size (adjust as needed)
+        # Use minimal options to avoid width/height issues
         options = {
             'format': 'png',
             'quality': '100',
-            'width': None,  # Remove the width constraint
-            'height': None,  # Remove the height constraint
-            'disable-smart-width': None  # Disable smart width adjustment
+            'disable-smart-width': '',
+            'log-level': 'none'  # Suppress non-error messages
         }
         
         # Split the HTML content into pages
@@ -446,7 +445,24 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
-                f.write(f"<html><body style='width:210mm; height:297mm;'>{page}</body></html>")
+                f.write(f"""
+                <html>
+                    <head>
+                        <style>
+                            body {{
+                                width: 210mm;
+                                height: 297mm;
+                                margin: 0;
+                                padding: 0;
+                            }}
+                            * {{
+                                box-sizing: border-box;
+                            }}
+                        </style>
+                    </head>
+                    <body>{page}</body>
+                </html>
+                """)
             
             # Convert the HTML file to an image
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")

@@ -304,10 +304,12 @@ def get_all_custom_queries():
 
 def use_custom_query(query_name, query, selected_documents):
     custom_queries = get_all_custom_queries()
+    st.write(f"Debug: Custom queries fetched: {custom_queries}")
     for custom_query in custom_queries:
         if custom_query['name'] == query_name:
             query_part = custom_query['query_part']
             full_query = f"{query_part} {query}"
+            st.write(f"Debug: Full query formed: {full_query}")
             return search_documents(full_query, selected_documents)
     return [], None
 
@@ -336,6 +338,112 @@ def get_confidence_info(confidence):
         return "orange", "🟠"  # Orange circle for medium confidence
     else:
         return "red", "🔴"  # Red circle for low confidence
+def display_results(all_pages, custom_response, query, selected_documents):
+    content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
+
+    if custom_response is None:
+        system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
+        user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
+
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ],
+            max_tokens=MAX_TOKENS
+        )
+        answer_text = response.choices[0].message.content
+    else:
+        answer_text = custom_response
+
+    st.divider()
+    st.subheader("💬 Answer:")
+                    
+    # Process the response to add clickable links and confidence indicators
+    for page in all_pages:
+        citation_id = f"{page['file_name']}-p{page['page_number']}"
+        _, confidence_icon = get_confidence_info(page['confidence'])
+        replacement = f"[{citation_id}]({citation_id}){confidence_icon}"
+        answer_text = answer_text.replace(f"[{citation_id}]", replacement)
+
+    st.markdown(answer_text)
+    
+    # Add JavaScript to scroll to the source when a citation is clicked
+    st.markdown("""
+    <script>
+    const citations = document.querySelectorAll('a[href^="#"]');
+    citations.forEach(citation => {
+        citation.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('href').slice(1);
+            const targetElement = document.getElementById(targetId);
+            if (targetElement) {
+                targetElement.scrollIntoView({behavior: 'smooth'});
+            }
+        });
+    });
+    </script>
+    """, unsafe_allow_html=True)
+    
+    st.divider()
+    st.subheader("📚 Sources:")
+                    
+    # Group sources by file
+    sources_by_file = {}
+    for page in all_pages:
+        sources_by_file.setdefault(page['file_name'], []).append(page)
+
+    total_citation_length = 0
+    for file_name, pages in sources_by_file.items():
+        st.markdown(f"### 📄 {file_name}")
+        for page in pages:
+            confidence = page['confidence']
+            color, icon = get_confidence_info(confidence)
+            
+            col1, col2 = st.columns([1, 9])
+            
+            with col1:
+                st.markdown(f"<span style='color:{color};'>●</span> {icon} **{confidence:.1f}%**", unsafe_allow_html=True)
+            
+            with col2:
+                citation_id = f"{file_name}-p{page['page_number']}"
+                st.markdown(f"<div id='{citation_id}'></div>", unsafe_allow_html=True)
+                st.markdown(f"**Page {page['page_number']}**")
+                
+                content_to_display = page['content'][:citation_length]
+                full_content = page['content']
+                
+                st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
+                
+                if len(page['content']) > citation_length:
+                    with st.expander("📑Show Full Content"):
+                        st.markdown(full_content)
+                
+                total_citation_length += len(content_to_display)
+            
+            if file_name in st.session_state.documents:
+                image_paths = st.session_state.documents[file_name]['image_paths']
+                image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                if image_path:
+                    with st.expander("🖼️Show Image"):
+                        st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+            
+            st.markdown("---")
+
+    with st.expander("📊 Document Statistics", expanded=False):
+        st.write(f"Total pages searched: {len(all_pages)}")
+        st.write(f"Total citation length: {total_citation_length} characters")
+        for page in all_pages:
+            st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Confidence: {page['confidence']:.2f}%")
+
+    # Save question and answer to history
+    st.session_state.qa_history.append({
+        'question': query,
+        'answer': answer_text,
+        'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
+        'documents_queried': selected_documents
+    })
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -1000,8 +1108,6 @@ try:
                         }
                         st.session_state.file_hashes[file_hash] = uploaded_file.name
                         st.success(f"File processed and stored in vector database!")
-                        # with st.expander("📑 View Summary"):
-                        #     st.markdown(f"🗂️ **Document Summary**\n\n{summary}")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
         
@@ -1037,111 +1143,7 @@ try:
             if not all_pages:
                 st.warning("No relevant results found. Please try a different query.")
             else:
-                content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
-
-                if custom_response is None:
-                    system_content = "You are an assisting agent. Please provide a detailed response based on the input. After your response, list the sources of information used, including file names, page numbers, and relevant snippets. Make full use of the available context to provide comprehensive answers. Include citation IDs in your response for easy verification."
-                    user_content = f"Respond to the query '{query}' using the information from the following content: {content}"
-
-                    response = client.chat.completions.create(
-                        model=MODEL,
-                        messages=[
-                            {"role": "system", "content": system_content},
-                            {"role": "user", "content": user_content}
-                        ],
-                        max_tokens=MAX_TOKENS
-                    )
-                    answer_text = response.choices[0].message.content
-                else:
-                    answer_text = custom_response
-
-                st.divider()
-                st.subheader("💬 Answer:")
-                                
-                # Process the response to add clickable links and confidence indicators
-                for page in all_pages:
-                    citation_id = f"{page['file_name']}-p{page['page_number']}"
-                    _, confidence_icon = get_confidence_info(page['confidence'])
-                    replacement = f"[{citation_id}]({citation_id}){confidence_icon}"
-                    answer_text = answer_text.replace(f"[{citation_id}]", replacement)
-
-                st.markdown(answer_text)
-                
-                # Add JavaScript to scroll to the source when a citation is clicked
-                st.markdown("""
-                <script>
-                const citations = document.querySelectorAll('a[href^="#"]');
-                citations.forEach(citation => {
-                    citation.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const targetId = this.getAttribute('href').slice(1);
-                        const targetElement = document.getElementById(targetId);
-                        if (targetElement) {
-                            targetElement.scrollIntoView({behavior: 'smooth'});
-                        }
-                    });
-                });
-                </script>
-                """, unsafe_allow_html=True)
-                
-                st.divider()
-                st.subheader("📚 Sources:")
-                                
-                # Group sources by file
-                sources_by_file = {}
-                for page in all_pages:
-                    sources_by_file.setdefault(page['file_name'], []).append(page)
-
-                total_citation_length = 0
-                for file_name, pages in sources_by_file.items():
-                    st.markdown(f"### 📄 {file_name}")
-                    for page in pages:
-                        confidence = page['confidence']
-                        color, icon = get_confidence_info(confidence)
-                        
-                        col1, col2 = st.columns([1, 9])
-                        
-                        with col1:
-                            st.markdown(f"<span style='color:{color};'>●</span> {icon} **{confidence:.1f}%**", unsafe_allow_html=True)
-                        
-                        with col2:
-                            citation_id = f"{file_name}-p{page['page_number']}"
-                            st.markdown(f"<div id='{citation_id}'></div>", unsafe_allow_html=True)
-                            st.markdown(f"**Page {page['page_number']}**")
-                            
-                            content_to_display = page['content'][:citation_length]
-                            full_content = page['content']
-                            
-                            st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
-                            
-                            if len(page['content']) > citation_length:
-                                with st.expander("📑Show Full Content"):
-                                    st.markdown(full_content)
-                            
-                            total_citation_length += len(content_to_display)
-                        
-                        if file_name in st.session_state.documents:
-                            image_paths = st.session_state.documents[file_name]['image_paths']
-                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                            if image_path:
-                                with st.expander("🖼️Show Image"):
-                                    st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                        
-                        st.markdown("---")
-
-                with st.expander("📊 Document Statistics", expanded=False):
-                    st.write(f"Total pages searched: {len(all_pages)}")
-                    st.write(f"Total citation length: {total_citation_length} characters")
-                    for page in all_pages:
-                        st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Confidence: {page['confidence']:.2f}%")
-
-                # Save question and answer to history
-                st.session_state.qa_history.append({
-                    'question': query,
-                    'answer': answer_text,
-                    'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
-                    'documents_queried': selected_documents
-                })
+                display_results(all_pages, custom_response, query, selected_documents)
 
     elif search_button:
         st.warning("Please select at least one document to query.")
@@ -1157,68 +1159,10 @@ try:
         if st.button(f"📌 {custom_query['name']}", key=query_key):
             with st.spinner('Searching with custom query...'):
                 all_pages, custom_response = use_custom_query(custom_query['name'], query, selected_documents)
-                if custom_response:
-                    st.subheader(f"💬 Answer ({custom_query['name']}):")
-                    st.markdown(custom_response)
-                    
-                    st.divider()
-                    st.subheader("📚 Sources:")
-                    
-                    # Group sources by file
-                    sources_by_file = {}
-                    for page in all_pages:
-                        sources_by_file.setdefault(page['file_name'], []).append(page)
-
-                    total_citation_length = 0
-                    for file_name, pages in sources_by_file.items():
-                        st.markdown(f"### 📄 {file_name}")
-                        for page in pages:
-                            confidence = page['confidence']
-                            color, icon = get_confidence_info(confidence)
-                            
-                            col1, col2 = st.columns([1, 9])
-                            
-                            with col1:
-                                st.markdown(f"<span style='color:{color};'>●</span> {icon} **{confidence:.1f}%**", unsafe_allow_html=True)
-                            
-                            with col2:
-                                citation_id = f"{file_name}-p{page['page_number']}"
-                                st.markdown(f"<div id='{citation_id}'></div>", unsafe_allow_html=True)
-                                st.markdown(f"**Page {page['page_number']}**")
-                                
-                                content_to_display = page['content'][:citation_length]
-                                full_content = page['content']
-                                
-                                st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
-                                
-                                if len(page['content']) > citation_length:
-                                    with st.expander("📑Show Full Content"):
-                                        st.markdown(full_content)
-                                
-                                total_citation_length += len(content_to_display)
-                            
-                            if file_name in st.session_state.documents:
-                                image_paths = st.session_state.documents[file_name]['image_paths']
-                                image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
-                                if image_path:
-                                    with st.expander("🖼️Show Image"):
-                                        st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-                            
-                            st.markdown("---")
-
-                    with st.expander("📊 Document Statistics", expanded=False):
-                        st.write(f"Total pages searched: {len(all_pages)}")
-                        st.write(f"Total citation length: {total_citation_length} characters")
-                        for page in all_pages:
-                            st.write(f"File: {page['file_name']}, Page: {page['page_number']}, Confidence: {page['confidence']:.2f}%")
-
-                    # Save question and answer to history
-                    st.session_state.qa_history.append({
-                        'question': custom_query['name'],
-                        'answer': custom_response,
-                        'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
-                        'documents_queried': selected_documents
-                    })
+                if not all_pages:
+                    st.warning("No relevant results found. Please try a different query.")
+                else:
+                    display_results(all_pages, custom_response, query, selected_documents)
 
     # Add new custom query
     with st.expander("➕ Add New Custom Query"):

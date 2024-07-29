@@ -390,7 +390,21 @@ def docx_to_html_with_breaks(docx_path):
         p { margin: 0; padding: 0; }
         .explicit-page-break, .content-based-break { page-break-after: always; height: 0; }
     """
+    
+    # Check if head exists, if not create it
+    if not soup.head:
+        head = soup.new_tag('head')
+        soup.html.insert(0, head)
+    
     soup.head.append(style)
+
+    # Ensure there's a body tag
+    if not soup.body:
+        body = soup.new_tag('body')
+        for tag in list(soup.html.children):
+            if tag.name != 'head':
+                body.append(tag.extract())
+        soup.html.append(body)
 
     return str(soup)
 
@@ -473,16 +487,25 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
         page_status_text.text("Converting DOC/DOCX to HTML")
         html_content = docx_to_html_with_breaks(file_path)
         
+        # Check if HTML content is empty
+        if not html_content:
+            raise ValueError("HTML content is empty after conversion")
+
         # Convert HTML to images
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
         
+        # Check if any images were generated
+        if not image_paths:
+            raise ValueError("No images were generated from the HTML content")
+
         page_contents = []
 
         # Process each image for AI text extraction
         total_pages = len(image_paths)
         for i, (page_num, image_path) in enumerate(image_paths):
             if image_path is None:
-                page_contents.append("")  # Skip this page due to previous error
+                st.warning(f"Skipping page {page_num} due to previous error")
+                page_contents.append("")
                 continue
             
             try:
@@ -497,11 +520,15 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
             page_progress_bar.progress(progress)
             page_status_text.text(f"Processing DOC/DOCX page {i + 1} of {total_pages}")
 
+        # Check if any content was extracted
+        if not page_contents:
+            raise ValueError("No content was extracted from the document")
+
         return image_paths, page_contents
     except Exception as e:
         st.error(f"Error processing DOC/DOCX file: {str(e)}")
+        st.error(f"Full error: {traceback.format_exc()}")
         return [], []
-
 
 def process_txt(file_path, page_progress_bar, page_status_text):
     page_status_text.text("Processing TXT file")

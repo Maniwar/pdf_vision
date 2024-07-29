@@ -270,19 +270,20 @@ def get_or_create_custom_query_collection():
         st.error(f"Error in creating or accessing the custom query collection: {str(e)}")
         return None
 
-def save_custom_query(name, prompt_template):
+def save_custom_query(name, query_part):
     collection = get_or_create_custom_query_collection()
     if collection is None:
         return False
     
     try:
-        # Generate embeddings for the prompt template
-        embedding = embeddings.embed_documents([prompt_template])[0]
-        collection.insert([{"name": name, "prompt_template": prompt_template, "vector": embedding}])
+        # Generate embeddings for the query part
+        embedding = embeddings.embed_documents([query_part])[0]
+        collection.insert([{"name": name, "query_part": query_part, "vector": embedding}])
         return True
     except Exception as e:
         st.error(f"Error saving custom query: {str(e)}")
         return False
+
 
 def get_all_custom_queries():
     collection = get_or_create_custom_query_collection()
@@ -293,13 +294,22 @@ def get_all_custom_queries():
         collection.load()
         results = collection.query(
             expr="name != ''",
-            output_fields=["name", "prompt_template"],
+            output_fields=["name", "query_part"],
             limit=1000
         )
         return results
     except Exception as e:
         st.error(f"Error fetching custom queries: {str(e)}")
         return []
+
+def use_custom_query(query_name, query, selected_documents):
+    custom_queries = get_all_custom_queries()
+    for custom_query in custom_queries:
+        if custom_query['name'] == query_name:
+            query_part = custom_query['query_part']
+            full_query = f"{query_part} {query}"
+            return search_documents(full_query, selected_documents)
+    return [], None
 
 def delete_custom_query(name):
     collection = get_or_create_custom_query_collection()
@@ -1146,7 +1156,7 @@ try:
         query_key = f"custom_query_{custom_query['name']}_{index}"
         if st.button(f"📌 {custom_query['name']}", key=query_key):
             with st.spinner('Searching with custom query...'):
-                all_pages, custom_response = search_documents(custom_query['name'], selected_documents, custom_query['prompt_template'])
+                all_pages, custom_response = use_custom_query(custom_query['name'], query, selected_documents)
                 if custom_response:
                     st.subheader(f"💬 Answer ({custom_query['name']}):")
                     st.markdown(custom_response)
@@ -1213,11 +1223,9 @@ try:
     # Add new custom query
     with st.expander("➕ Add New Custom Query"):
         new_query_name = st.text_input("Query Name", key="new_query_name")
-        new_query_template = st.text_area("Query Template", 
-                                        "Respond to the query '{query}' using the information from the following content: {content}", 
-                                        key="new_query_template")
+        new_query_part = st.text_area("Query Part", key="new_query_part")
         if st.button("Save Custom Query", key="save_new_query"):
-            if save_custom_query(new_query_name, new_query_template):
+            if save_custom_query(new_query_name, new_query_part):
                 st.success(f"Custom query '{new_query_name}' saved successfully!")
                 st.rerun()
 

@@ -255,9 +255,16 @@ def get_or_create_custom_query_collection():
                 FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
                 FieldSchema(name="name", dtype=DataType.VARCHAR, max_length=255),
                 FieldSchema(name="prompt_template", dtype=DataType.VARCHAR, max_length=65535),
+                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1536)  # Include vector field with appropriate dimension
             ]
             schema = CollectionSchema(fields, "Custom query collection")
             collection = Collection(collection_name, schema)
+            index_params = {
+                "metric_type": "L2",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 1024}
+            }
+            collection.create_index("vector", index_params)
             return collection
     except Exception as e:
         st.error(f"Error in creating or accessing the custom query collection: {str(e)}")
@@ -269,7 +276,9 @@ def save_custom_query(name, prompt_template):
         return False
     
     try:
-        collection.insert([{"name": name, "prompt_template": prompt_template}])
+        # Generate embeddings for the prompt template
+        embedding = embeddings.embed_documents([prompt_template])[0]
+        collection.insert([{"name": name, "prompt_template": prompt_template, "vector": embedding}])
         return True
     except Exception as e:
         st.error(f"Error saving custom query: {str(e)}")
@@ -303,7 +312,8 @@ def delete_custom_query(name):
     except Exception as e:
         st.error(f"Error deleting custom query: {str(e)}")
         return False
-    
+
+#sources
 def calculate_confidence(score):
     # Convert the similarity score to a confidence level
     confidence = (1 - score) * 100

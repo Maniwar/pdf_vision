@@ -1156,18 +1156,20 @@ try:
     custom_queries = get_all_custom_queries()
 
     if custom_queries:
-        cols = st.columns(len(custom_queries))  # Create a column for each custom query button
-        for index, custom_query in enumerate(custom_queries):
-            query_key = f"custom_query_{custom_query['name']}_{index}"
-            with cols[index]:  # Place each button in its own column
-                if st.button(f"📌 {custom_query['name']}", key=query_key):
-                    with st.spinner('Searching with custom query...'):
-                        full_query = f"{custom_query['query_part']} {query}"
-                        all_pages, custom_response = search_documents(full_query, selected_documents)
-                        if not all_pages:
-                            st.warning("Please select at least one document to query.")
-                        else:
-                            display_results(all_pages, custom_response, full_query, selected_documents)
+        max_cols_per_row = 4  # Maximum number of columns per row
+        for i in range(0, len(custom_queries), max_cols_per_row):
+            cols = st.columns(min(max_cols_per_row, len(custom_queries) - i))
+            for index, custom_query in enumerate(custom_queries[i:i + max_cols_per_row]):
+                query_key = f"custom_query_{custom_query['name']}_{i + index}"
+                with cols[index]:
+                    if st.button(f"📌 {custom_query['name']}", key=query_key):
+                        with st.spinner('Searching with custom query...'):
+                            full_query = f"{custom_query['query_part']} {query}"
+                            all_pages, custom_response = search_documents(full_query, selected_documents)
+                            if not all_pages:
+                                st.warning("Please select at least one document to query.")
+                            else:
+                                display_results(all_pages, custom_response, full_query, selected_documents)
 
     # Add new custom query
     with st.expander("➕ Add New Custom Query"):

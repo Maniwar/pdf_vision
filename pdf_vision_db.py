@@ -271,18 +271,44 @@ def get_or_create_custom_query_collection():
         st.error(f"Error in creating or accessing the custom query collection: {str(e)}")
         return None
 
-def save_custom_query(name, query_part):
+def save_custom_query(name, query_part, update=False):
     collection = get_or_create_custom_query_collection()
     if collection is None:
         return False
-    
+
     try:
         # Generate embeddings for the query part
         embedding = embeddings.embed_documents([query_part])[0]
-        collection.insert([{"name": name, "query_part": query_part, "vector": embedding}])
+        
+        if update:
+            # Update existing query
+            collection.update(
+                expr=f"name == '{name}'",
+                data={"query_part": query_part, "vector": embedding}
+            )
+        else:
+            # Insert new query
+            collection.insert([{"name": name, "query_part": query_part, "vector": embedding}])
         return True
     except Exception as e:
         st.error(f"Error saving custom query: {str(e)}")
+        return False
+    
+def update_custom_query(name, new_query_part):
+    collection = get_or_create_custom_query_collection()
+    if collection is None:
+        return False
+
+    try:
+        # Generate embeddings for the new query part
+        embedding = embeddings.embed_documents([new_query_part])[0]
+        collection.update(
+            expr=f"name == '{name}'",
+            data={"query_part": new_query_part, "vector": embedding}
+        )
+        return True
+    except Exception as e:
+        st.error(f"Error updating custom query: {str(e)}")
         return False
 
 def get_all_custom_queries():
@@ -1195,7 +1221,7 @@ try:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button(f"Update {query['name']}", key=f"update_{query['name']}_{index}"):
-                    if save_custom_query(query['name'], edited_query_part):
+                    if update_custom_query(query['name'], edited_query_part):
                         st.success(f"Updated {query['name']}")
                         st.rerun()
             with col2:

@@ -254,7 +254,7 @@ def get_or_create_custom_query_collection():
             fields = [
                 FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
                 FieldSchema(name="name", dtype=DataType.VARCHAR, max_length=255),
-                FieldSchema(name="prompt_template", dtype=DataType.VARCHAR, max_length=65535),
+                FieldSchema(name="query_part", dtype=DataType.VARCHAR, max_length=65535),
                 FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1536)  # Include vector field with appropriate dimension
             ]
             schema = CollectionSchema(fields, "Custom query collection")
@@ -270,6 +270,8 @@ def get_or_create_custom_query_collection():
         st.error(f"Error in creating or accessing the custom query collection: {str(e)}")
         return None
 
+
+
 def save_custom_query(name, query_part):
     collection = get_or_create_custom_query_collection()
     if collection is None:
@@ -283,6 +285,7 @@ def save_custom_query(name, query_part):
     except Exception as e:
         st.error(f"Error saving custom query: {str(e)}")
         return False
+
 
 
 def get_all_custom_queries():
@@ -302,6 +305,7 @@ def get_all_custom_queries():
         st.error(f"Error fetching custom queries: {str(e)}")
         return []
 
+
 def use_custom_query(query_name, query, selected_documents):
     custom_queries = get_all_custom_queries()
     for custom_query in custom_queries:
@@ -310,6 +314,7 @@ def use_custom_query(query_name, query, selected_documents):
             full_query = f"{query_part} {query}"
             return search_documents(full_query, selected_documents)
     return [], None
+
 
 def delete_custom_query(name):
     collection = get_or_create_custom_query_collection()
@@ -1228,6 +1233,7 @@ try:
             if save_custom_query(new_query_name, new_query_part):
                 st.success(f"Custom query '{new_query_name}' saved successfully!")
                 st.rerun()
+
 
     # Edit or delete existing custom queries
     with st.expander("✏️ Edit or Delete Custom Queries"):

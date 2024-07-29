@@ -435,13 +435,28 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             'log-level': 'none'  # Suppress non-error messages
         }
         
-        # Split the HTML content into pages
-        pages = html_content.split('class="explicit-page-break"')
-        pages = [page.split('class="content-based-break"') for page in pages]
-        pages = [item for sublist in pages for item in sublist if item.strip()]  # Flatten and remove empty pages
+        # Parse the HTML content
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Find all page break divs
+        page_breaks = soup.find_all('div', class_=['explicit-page-break', 'content-based-break'])
+        
+        # Split the content into pages
+        pages = []
+        current_page = []
+        for element in soup.body.children:
+            if element in page_breaks:
+                if current_page:
+                    pages.append(''.join(str(tag) for tag in current_page))
+                current_page = []
+            else:
+                current_page.append(element)
+        if current_page:
+            pages.append(''.join(str(tag) for tag in current_page))
+        
         total_pages = len(pages)
         
-        for i, page in enumerate(pages):
+        for i, page_content in enumerate(pages):
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
@@ -460,7 +475,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
                             }}
                         </style>
                     </head>
-                    <body>{page}</body>
+                    <body>{page_content}</body>
                 </html>
                 """)
             

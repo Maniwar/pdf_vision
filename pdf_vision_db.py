@@ -310,7 +310,7 @@ def use_custom_query(query_name, query, selected_documents):
             query_part = custom_query['query_part']
             full_query = f"{query_part} {query}"
             st.write(f"Debug: Full query formed: {full_query}")
-            return search_documents(full_query, selected_documents)
+            return search_documents(full_query, selected_documents, custom_prompt=query_part)
     return [], None
 
 def delete_custom_query(name):
@@ -338,6 +338,7 @@ def get_confidence_info(confidence):
         return "orange", "🟠"  # Orange circle for medium confidence
     else:
         return "red", "🔴"  # Red circle for low confidence
+
 def display_results(all_pages, custom_response, query, selected_documents):
     content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
 
@@ -444,6 +445,7 @@ def display_results(all_pages, custom_response, query, selected_documents):
         'sources': [{'file': page['file_name'], 'page': page['page_number'], 'confidence': page['confidence']} for page in all_pages],
         'documents_queried': selected_documents
     })
+
 
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
@@ -1158,11 +1160,12 @@ try:
         query_key = f"custom_query_{custom_query['name']}_{index}"
         if st.button(f"📌 {custom_query['name']}", key=query_key):
             with st.spinner('Searching with custom query...'):
-                all_pages, custom_response = use_custom_query(custom_query['name'], query, selected_documents)
+                full_query = f"{custom_query['query_part']} {query}"
+                all_pages, custom_response = search_documents(full_query, selected_documents)
                 if not all_pages:
                     st.warning("No relevant results found. Please try a different query.")
                 else:
-                    display_results(all_pages, custom_response, query, selected_documents)
+                    display_results(all_pages, custom_response, full_query, selected_documents)
 
     # Add new custom query
     with st.expander("➕ Add New Custom Query"):

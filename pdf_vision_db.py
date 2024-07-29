@@ -430,9 +430,10 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         # Use A4 page size (adjust as needed)
         options = {
             'format': 'png',
-            'quality': 100,
-            'width': '210mm',  # A4 width
-            'height': '297mm'  # A4 height
+            'quality': '100',
+            'width': None,  # Remove the width constraint
+            'height': None,  # Remove the height constraint
+            'disable-smart-width': None  # Disable smart width adjustment
         }
         
         # Split the HTML content into pages
@@ -445,7 +446,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
-                f.write(f"<html><body>{page}</body></html>")
+                f.write(f"<html><body style='width:210mm; height:297mm;'>{page}</body></html>")
             
             # Convert the HTML file to an image
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
@@ -490,22 +491,26 @@ def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
 
 def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
-        # Convert DOCX to HTML with accurate page breaks
+        # Step 1: Convert DOCX to HTML
         page_status_text.text("Converting DOC/DOCX to HTML")
         html_content = docx_to_html_with_breaks(file_path)
         
         if not html_content:
             raise ValueError("HTML content is empty after conversion")
 
-        # Convert HTML to images
-        image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
+        # Step 2: Convert HTML to images
+        try:
+            image_paths = html_to_images(html_content, page_progress_bar, page_status_text)
+        except Exception as e:
+            st.error(f"Error during HTML to image conversion: {str(e)}")
+            st.error(f"Full error: {traceback.format_exc()}")
+            return [], []
         
         if not image_paths:
             raise ValueError("No images were generated from the HTML content")
 
+        # Step 3: Process images and extract content
         page_contents = []
-
-        # Process each image for AI text extraction
         total_pages = len(image_paths)
         for i, (page_num, image_path) in enumerate(image_paths):
             if image_path is None:

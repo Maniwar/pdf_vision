@@ -1238,6 +1238,39 @@ with st.expander("✏️ Edit or Delete Custom Queries"):
                 if delete_custom_query(query['name']):
                     st.success(f"Deleted {query['name']}")
                     st.rerun()
+
+    # Document content display
+    if selected_documents:
+        st.divider()
+        st.subheader("**📜 Document Content:**")
+        for file_name in selected_documents:
+            st.subheader(f"📄 {file_name}")
+            page_contents = get_document_content(file_name)
+            if page_contents:
+                with st.expander("🗂️ Document Summary", expanded=True):
+                    st.markdown(page_contents[0]['summary'])
+                
+                for page in page_contents:
+                    with st.expander(f"📑Page {page['page_number']}"):
+                        st.markdown(page['content'])
+                        
+                        if file_name in st.session_state.documents:
+                            image_paths = st.session_state.documents[file_name]['image_paths']
+                            image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
+                            if image_path:
+                                try:
+                                    st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
+                                except Exception as e:
+                                    st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
+                            else:
+                                st.info(f"No image available for page {page['page_number']}")
+            else:
+                st.info(f"No content available for {file_name}.")
+            
+            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                st.session_state.files_to_remove.add(file_name)
+                st.rerun()
+
     # Remove files marked for deletion
     if st.session_state.files_to_remove:
         for file_name in list(st.session_state.files_to_remove):

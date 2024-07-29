@@ -1202,7 +1202,7 @@ try:
             st.subheader(f"📄 {file_name}")
             page_contents = get_document_content(file_name)
             if page_contents:
-                with st.expander("🗂️ Document Summary", expanded=True):
+                with st.expander("🗂️ Document Summary", expanded=False):
                     st.markdown(page_contents[0]['summary'])
                 
                 for page in page_contents:

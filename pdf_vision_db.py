@@ -23,6 +23,7 @@ import mammoth
 from pyvirtualdisplay import Display
 import imgkit
 import plotly.graph_objs as go
+from bs4 import BeautifulSoup
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -333,40 +334,65 @@ def process_pdf(file_path, page_progress_bar, page_status_text):
     doc.close()
     return image_paths, page_contents
 
-def docx_to_html(docx_path):
+def docx_to_html_with_breaks(docx_path):
+    # Custom style map to preserve explicit page breaks
+    style_map = """
+    p[style-name='Page Break'] => div.explicit-page-break
+    """
+    
+    # Convert DOCX to HTML using mammoth
     with open(docx_path, "rb") as docx_file:
-        result = mammoth.convert_to_html(docx_file)
+        result = mammoth.convert_to_html(docx_file, style_map=style_map)
         html = result.value
-        
-        # Add page break markers for wkhtmltoimage
-        html = html.replace('</p><p>', '</p><div style="page-break-after:always;"><span style="display:none">&nbsp;</span></div><p>')
-        
-        # Add minimal CSS to reduce white space
-        html = f"""
-        <html>
-        <head>
-            <style>
-                body {{
-                    margin: 0;
-                    padding: 0;
-                    font-family: Arial, sans-serif;
-                }}
-                p {{
-                    margin: 0;
-                    padding: 0;
-                }}
-                div.page-break {{
-                    page-break-after: always;
-                }}
-            </style>
-        </head>
-        <body>
-            {html}
-        </body>
-        </html>
-        """
-        
-        return html
+
+    # Get page setup information using python-docx
+    doc = Document(docx_path)
+    section = doc.sections[0]
+    page_height = section.page_height.cm
+    page_width = section.page_width.cm
+    top_margin = section.top_margin.cm
+    bottom_margin = section.bottom_margin.cm
+    left_margin = section.left_margin.cm
+    right_margin = section.right_margin.cm
+
+    # Calculate available content area
+    content_height = page_height - top_margin - bottom_margin
+    content_width = page_width - left_margin - right_margin
+
+    # Parse HTML and insert page breaks based on content volume
+    soup = BeautifulSoup(html, 'html.parser')
+    current_height = 0
+    for tag in soup.find_all(['p', 'div', 'table']):
+        if tag.name == 'div' and 'explicit-page-break' in tag.get('class', []):
+            current_height = 0
+            continue
+
+        # Estimate element height (this is a simplified calculation)
+        if tag.name == 'p':
+            element_height = 1  # Assume 1 cm for each paragraph
+        elif tag.name == 'table':
+            rows = len(tag.find_all('tr'))
+            element_height = rows * 0.5  # Assume 0.5 cm for each table row
+        else:
+            element_height = 0.5  # Default height for other elements
+
+        if current_height + element_height > content_height:
+            new_break = soup.new_tag('div', **{'class': 'content-based-break'})
+            tag.insert_before(new_break)
+            current_height = element_height
+        else:
+            current_height += element_height
+
+    # Add CSS for proper rendering
+    style = soup.new_tag('style')
+    style.string = """
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        p { margin: 0; padding: 0; }
+        .explicit-page-break, .content-based-break { page-break-after: always; height: 0; }
+    """
+    soup.head.append(style)
+
+    return str(soup)
 
 def crop_image(image_path):
     with Image.open(image_path) as img:
@@ -380,23 +406,25 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
         temp_dir = tempfile.mkdtemp()
         image_paths = []
         
-        # Use dynamic width and height calculation
+        # Use A4 page size (adjust as needed)
         options = {
             'format': 'png',
             'quality': 100,
-            'width': '0',  # example width, adjust as needed
-            'height': '0'  # let height be determined by content
+            'width': '210mm',  # A4 width
+            'height': '297mm'  # A4 height
         }
         
         # Split the HTML content into pages
-        pages = html_content.split('<div class="page-break"></div>')
+        pages = html_content.split('class="explicit-page-break"')
+        pages = [page.split('class="content-based-break"') for page in pages]
+        pages = [item for sublist in pages for item in sublist if item.strip()]  # Flatten and remove empty pages
         total_pages = len(pages)
         
         for i, page in enumerate(pages):
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
             with open(temp_html_path, 'w', encoding='utf-8') as f:
-                f.write(f"<html><body style='margin: 0; padding: 0;'>{page}</body></html>")
+                f.write(f"<html><body>{page}</body></html>")
             
             # Convert the HTML file to an image
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
@@ -414,7 +442,6 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             page_status_text.text(f"Converting page {i + 1} of {total_pages} to image")
 
     return image_paths
-
 
 def html_to_pdf(html_content, output_pdf_path):
     pdfkit.from_string(html_content, output_pdf_path)
@@ -442,9 +469,9 @@ def pdf_to_images(pdf_path, page_progress_bar, page_status_text):
 
 def process_doc_docx(file_path, page_progress_bar, page_status_text):
     try:
-        # Convert DOCX to HTML
+        # Convert DOCX to HTML with accurate page breaks
         page_status_text.text("Converting DOC/DOCX to HTML")
-        html_content = docx_to_html(file_path)
+        html_content = docx_to_html_with_breaks(file_path)
         
         # Convert HTML to images
         image_paths = html_to_images(html_content, page_progress_bar, page_status_text)

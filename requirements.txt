@@ -26,3 +26,4 @@ mammoth
 imgkit
 pyvirtualdisplay
 plotly
+beautifulsoup4

@@ -1137,7 +1137,7 @@ try:
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     search_button = st.button("🔎 Search")
-                    
+
     if search_button and selected_documents:
         with st.spinner('Searching...'):
             all_pages, custom_response = search_documents(query, selected_documents)
@@ -1155,17 +1155,19 @@ try:
     st.subheader("📌 Custom Query Macros")
     custom_queries = get_all_custom_queries()
 
-    # Display existing custom queries as buttons
-    for index, custom_query in enumerate(custom_queries):
-        query_key = f"custom_query_{custom_query['name']}_{index}"
-        if st.button(f"📌 {custom_query['name']}", key=query_key):
-            with st.spinner('Searching with custom query...'):
-                full_query = f"{custom_query['query_part']} {query}"
-                all_pages, custom_response = search_documents(full_query, selected_documents)
-                if not all_pages:
-                    st.warning("Please select at least one document to query.")
-                else:
-                    display_results(all_pages, custom_response, full_query, selected_documents)
+    if custom_queries:
+        cols = st.columns(len(custom_queries))  # Create a column for each custom query button
+        for index, custom_query in enumerate(custom_queries):
+            query_key = f"custom_query_{custom_query['name']}_{index}"
+            with cols[index]:  # Place each button in its own column
+                if st.button(f"📌 {custom_query['name']}", key=query_key):
+                    with st.spinner('Searching with custom query...'):
+                        full_query = f"{custom_query['query_part']} {query}"
+                        all_pages, custom_response = search_documents(full_query, selected_documents)
+                        if not all_pages:
+                            st.warning("Please select at least one document to query.")
+                        else:
+                            display_results(all_pages, custom_response, full_query, selected_documents)
 
     # Add new custom query
     with st.expander("➕ Add New Custom Query"):

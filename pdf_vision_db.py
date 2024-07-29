@@ -1166,7 +1166,7 @@ try:
             all_pages, custom_response = search_documents(query, selected_documents)
             
             if not all_pages:
-                st.warning("No relevant results found. Please try a different query.")
+                st.warning("Please select at least one document to query..")
             else:
                 display_results(all_pages, custom_response, query, selected_documents)
 
@@ -1196,7 +1196,7 @@ try:
                 full_query = f"{query_name_clicked} {query}"
                 all_pages, custom_response = search_documents(full_query, selected_documents)
                 if not all_pages:
-                    st.warning("No relevant results found. Please try a different query.")
+                    st.warning("Please select at least one document to query..")
                 else:
                     display_results(all_pages, custom_response, full_query, selected_documents)
 

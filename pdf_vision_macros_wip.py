@@ -271,18 +271,41 @@ def get_or_create_custom_query_collection():
         st.error(f"Error in creating or accessing the custom query collection: {str(e)}")
         return None
 
-def save_custom_query(name, query_part):
+def save_custom_query(name, query_part, update=False):
     collection = get_or_create_custom_query_collection()
     if collection is None:
         return False
-    
+
     try:
         # Generate embeddings for the query part
         embedding = embeddings.embed_documents([query_part])[0]
+
+        if update:
+            # Delete existing query
+            collection.delete(expr=f"name == '{name}'")
+
+        # Insert new or updated query
         collection.insert([{"name": name, "query_part": query_part, "vector": embedding}])
         return True
     except Exception as e:
         st.error(f"Error saving custom query: {str(e)}")
+        return False
+    
+def update_custom_query(name, new_query_part):
+    collection = get_or_create_custom_query_collection()
+    if collection is None:
+        return False
+
+    try:
+        # Generate embeddings for the new query part
+        embedding = embeddings.embed_documents([new_query_part])[0]
+        collection.update(
+            expr=f"name == '{name}'",
+            data={"query_part": new_query_part, "vector": embedding}
+        )
+        return True
+    except Exception as e:
+        st.error(f"Error updating custom query: {str(e)}")
         return False
 
 def get_all_custom_queries():
@@ -1137,13 +1160,13 @@ try:
     st.subheader("🔍 Query the Document(s)")
     query = st.text_input("Enter your query about the document(s):")
     search_button = st.button("🔎 Search")
-                    
+
     if search_button and selected_documents:
         with st.spinner('Searching...'):
             all_pages, custom_response = search_documents(query, selected_documents)
             
             if not all_pages:
-                st.warning("No relevant results found. Please try a different query.")
+                st.warning("Please select at least one document to query..")
             else:
                 display_results(all_pages, custom_response, query, selected_documents)
 
@@ -1155,15 +1178,25 @@ try:
     st.subheader("📌 Custom Query Macros")
     custom_queries = get_all_custom_queries()
 
-    # Display existing custom queries as buttons
-    for index, custom_query in enumerate(custom_queries):
-        query_key = f"custom_query_{custom_query['name']}_{index}"
-        if st.button(f"📌 {custom_query['name']}", key=query_key):
+    if custom_queries:
+        max_cols_per_row = 4  # Maximum number of columns per row
+        button_clicked = False
+        query_name_clicked = None
+        for i in range(0, len(custom_queries), max_cols_per_row):
+            cols = st.columns(min(max_cols_per_row, len(custom_queries) - i))
+            for index, custom_query in enumerate(custom_queries[i:i + max_cols_per_row]):
+                query_key = f"custom_query_{custom_query['name']}_{i + index}"
+                with cols[index]:
+                    if st.button(f"📌 {custom_query['name']}", key=query_key):
+                        button_clicked = True
+                        query_name_clicked = custom_query['name']
+
+        if button_clicked:
             with st.spinner('Searching with custom query...'):
-                full_query = f"{custom_query['query_part']} {query}"
+                full_query = f"{query_name_clicked} {query}"
                 all_pages, custom_response = search_documents(full_query, selected_documents)
                 if not all_pages:
-                    st.warning("No relevant results found. Please try a different query.")
+                    st.warning("Please select at least one document to query..")
                 else:
                     display_results(all_pages, custom_response, full_query, selected_documents)
 
@@ -1185,7 +1218,7 @@ try:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button(f"Update {query['name']}", key=f"update_{query['name']}_{index}"):
-                    if save_custom_query(query['name'], edited_query_part):
+                    if save_custom_query(query['name'], edited_query_part, update=True):
                         st.success(f"Updated {query['name']}")
                         st.rerun()
             with col2:
@@ -1193,7 +1226,7 @@ try:
                     if delete_custom_query(query['name']):
                         st.success(f"Deleted {query['name']}")
                         st.rerun()
-                    
+
     # Document content display
     if selected_documents:
         st.divider()
@@ -1204,7 +1237,7 @@ try:
             if page_contents:
                 with st.expander("🗂️ Document Summary", expanded=False):
                     st.markdown(page_contents[0]['summary'])
-                
+
                 for page in page_contents:
                     with st.expander(f"📑Page {page['page_number']}"):
                         st.markdown(page['content'])

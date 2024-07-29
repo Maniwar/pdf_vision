@@ -1163,7 +1163,7 @@ try:
                 full_query = f"{custom_query['query_part']} {query}"
                 all_pages, custom_response = search_documents(full_query, selected_documents)
                 if not all_pages:
-                    st.warning("No relevant results found. Please try a different query.")
+                    st.warning("No relevant results found. Please try a different query and ensure you have a document selected to search.")
                 else:
                     display_results(all_pages, custom_response, full_query, selected_documents)
 

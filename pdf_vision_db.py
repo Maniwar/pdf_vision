@@ -279,16 +279,13 @@ def save_custom_query(name, query_part, update=False):
     try:
         # Generate embeddings for the query part
         embedding = embeddings.embed_documents([query_part])[0]
-        
+
         if update:
-            # Update existing query
-            collection.update(
-                expr=f"name == '{name}'",
-                data={"query_part": query_part, "vector": embedding}
-            )
-        else:
-            # Insert new query
-            collection.insert([{"name": name, "query_part": query_part, "vector": embedding}])
+            # Delete existing query
+            collection.delete(expr=f"name == '{name}'")
+
+        # Insert new or updated query
+        collection.insert([{"name": name, "query_part": query_part, "vector": embedding}])
         return True
     except Exception as e:
         st.error(f"Error saving custom query: {str(e)}")
@@ -1221,7 +1218,7 @@ try:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button(f"Update {query['name']}", key=f"update_{query['name']}_{index}"):
-                    if update_custom_query(query['name'], edited_query_part):
+                    if save_custom_query(query['name'], edited_query_part, update=True):
                         st.success(f"Updated {query['name']}")
                         st.rerun()
             with col2:
@@ -1229,7 +1226,7 @@ try:
                     if delete_custom_query(query['name']):
                         st.success(f"Deleted {query['name']}")
                         st.rerun()
-                    
+
     # Document content display
     if selected_documents:
         st.divider()
@@ -1240,7 +1237,7 @@ try:
             if page_contents:
                 with st.expander("🗂️ Document Summary", expanded=False):
                     st.markdown(page_contents[0]['summary'])
-                
+
                 for page in page_contents:
                     with st.expander(f"📑Page {page['page_number']}"):
                         st.markdown(page['content'])

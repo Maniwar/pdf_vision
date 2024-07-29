@@ -1157,19 +1157,25 @@ try:
 
     if custom_queries:
         max_cols_per_row = 4  # Maximum number of columns per row
+        button_clicked = False
+        query_name_clicked = None
         for i in range(0, len(custom_queries), max_cols_per_row):
             cols = st.columns(min(max_cols_per_row, len(custom_queries) - i))
             for index, custom_query in enumerate(custom_queries[i:i + max_cols_per_row]):
                 query_key = f"custom_query_{custom_query['name']}_{i + index}"
                 with cols[index]:
                     if st.button(f"📌 {custom_query['name']}", key=query_key):
-                        with st.spinner('Searching with custom query...'):
-                            full_query = f"{custom_query['query_part']} {query}"
-                            all_pages, custom_response = search_documents(full_query, selected_documents)
-                            if not all_pages:
-                                st.warning("Please select at least one document to query.")
-                            else:
-                                display_results(all_pages, custom_response, full_query, selected_documents)
+                        button_clicked = True
+                        query_name_clicked = custom_query['name']
+
+        if button_clicked:
+            with st.spinner('Searching with custom query...'):
+                full_query = f"{query_name_clicked} {query}"
+                all_pages, custom_response = search_documents(full_query, selected_documents)
+                if not all_pages:
+                    st.warning("No relevant results found. Please try a different query.")
+                else:
+                    display_results(all_pages, custom_response, full_query, selected_documents)
 
     # Add new custom query
     with st.expander("➕ Add New Custom Query"):

@@ -340,14 +340,19 @@ def use_custom_query(query_name, query, selected_documents):
 def delete_custom_query(name):
     collection = get_or_create_custom_query_collection()
     if collection is None:
-        return False
+        st.error("Failed to access custom query collection")
+        return
 
     try:
         collection.delete(f"name == '{name}'")
-        return True
+        st.session_state.custom_queries = get_all_custom_queries()
+        message = st.empty()
+        message.success(f"Deleted {name}")
+        time.sleep(2)
+        message.empty()
+        st.rerun()
     except Exception as e:
         st.error(f"Error deleting custom AI task: {str(e)}")
-        return False
 
 #sources
 def calculate_confidence(score):
@@ -1199,19 +1204,19 @@ with st.sidebar:
     # Edit or delete existing custom queries
     with st.expander("✏️ Edit or Delete Custom AI Tasks"):
         for index, query in enumerate(st.session_state.custom_queries):
-                with st.form(key=f"edit_custom_query_form_{index}"):
-                    st.markdown(f"### {query['name']}")
-                    edited_query_part = st.text_area(f"AI task for {query['name']}", query['query_part'])
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        update_button = st.form_submit_button(f"Update {query['name']}")
-                    with col2:
-                        delete_button = st.form_submit_button(f"Delete {query['name']}")
-                    
-                    if update_button:
-                        handle_update_query(query['name'], edited_query_part)
-                    elif delete_button:
-                        handle_delete_query(query['name'])
+            with st.form(key=f"edit_custom_query_form_{index}"):
+                st.markdown(f"### {query['name']}")
+                edited_query_part = st.text_area(f"AI task for {query['name']}", query['query_part'])
+                col1, col2 = st.columns(2)
+                with col1:
+                    update_button = st.form_submit_button(f"Update {query['name']}")
+                with col2:
+                    delete_button = st.form_submit_button(f"Delete {query['name']}")
+                
+                if update_button:
+                    handle_update_query(query['name'], edited_query_part)
+                elif delete_button:
+                    delete_custom_query(query['name'])  # Changed from handle_delete_query to delete_custom_query
 
     st.markdown("## ℹ️ About")
     st.info(

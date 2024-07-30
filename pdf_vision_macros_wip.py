@@ -1062,13 +1062,52 @@ if 'qa_history' not in st.session_state:
 with st.sidebar:
     st.header("⚙️ Advanced Options")
     citation_length = st.slider("Maximum length of each citation", 100, 1000, 250)
-    
+
     if st.button("🗑️ Clear Current Session"):
         st.session_state.documents = {}
         st.session_state.file_hashes = {}
         st.session_state.files_to_remove = set()
         st.success("Current session cleared. You can still access previously uploaded documents.")
         st.rerun()
+
+    # Move Custom Query Macros section here
+    st.divider()
+    st.subheader("📌 Custom Query Macros")
+    custom_queries = get_all_custom_queries()
+
+    if custom_queries:
+        for custom_query in custom_queries:
+            if st.button(f"📌 {custom_query['name']}", key=f"custom_query_{custom_query['name']}"):
+                st.session_state.query_part_clicked = custom_query['query_part']
+                st.session_state.query_name_clicked = custom_query['name']
+                st.rerun()
+
+    # Add new custom query
+    with st.expander("➕ Add New Custom Query"):
+        new_query_name = st.text_input("Query Name", key="new_query_name")
+        new_query_part = st.text_area("Query Part", key="new_query_part")
+        if st.button("Save Custom Query", key="save_new_query"):
+            if save_custom_query(new_query_name, new_query_part):
+                st.success(f"Custom query '{new_query_name}' saved successfully!")
+                st.rerun()
+
+    # Edit or delete existing custom queries
+    with st.expander("✏️ Edit or Delete Custom Queries"):
+        for index, query in enumerate(custom_queries):
+            query_edit_key = f"edit_query_{query['name']}_{index}"
+            st.markdown(f"### {query['name']}")
+            edited_query_part = st.text_area(f"Query Part for {query['name']}", query['query_part'], key=query_edit_key)
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"Update {query['name']}", key=f"update_{query['name']}_{index}"):
+                    if save_custom_query(query['name'], edited_query_part, update=True):
+                        st.success(f"Updated {query['name']}")
+                        st.rerun()
+            with col2:
+                if st.button(f"Delete {query['name']}", key=f"delete_{query['name']}_{index}"):
+                    if delete_custom_query(query['name']):
+                        st.success(f"Deleted {query['name']}")
+                        st.rerun()
 
     st.markdown("## ℹ️ About")
     st.info(
@@ -1163,73 +1202,25 @@ try:
 
     if search_button and selected_documents:
         with st.spinner('Searching...'):
-            all_pages, custom_response = search_documents(query, selected_documents)
+            if 'query_part_clicked' in st.session_state and st.session_state.query_part_clicked:
+                full_query = f"{st.session_state.query_part_clicked} {query}"
+                display_query = f"{st.session_state.query_name_clicked}: {full_query}"
+                st.session_state.query_part_clicked = None
+                st.session_state.query_name_clicked = None
+            else:
+                full_query = query
+                display_query = query
+
+            all_pages, custom_response = search_documents(full_query, selected_documents)
 
             if not all_pages:
-                st.warning("Please select at least one document to query..")
+                st.warning("Please select at least one document to query.")
             else:
-                display_results(all_pages, custom_response, query, selected_documents)
+                display_results(all_pages, custom_response, display_query, selected_documents)
 
     elif search_button:
         st.warning("Please select at least one document to query.")
 
-    # Custom Query Macros section
-    st.divider()
-    st.subheader("📌 Custom Query Macros")
-    custom_queries = get_all_custom_queries()
-
-    if custom_queries:
-        max_cols_per_row = 4  # Maximum number of columns per row
-        button_clicked = False
-        query_part_clicked = None
-        query_name_clicked = None
-        for i in range(0, len(custom_queries), max_cols_per_row):
-            cols = st.columns(min(max_cols_per_row, len(custom_queries) - i))
-            for index, custom_query in enumerate(custom_queries[i:i + max_cols_per_row]):
-                query_key = f"custom_query_{custom_query['name']}_{i + index}"
-                with cols[index]:
-                    if st.button(f"📌 {custom_query['name']}", key=query_key):
-                        button_clicked = True
-                        query_part_clicked = custom_query['query_part']
-                        query_name_clicked = custom_query['name']
-
-        if button_clicked:
-            with st.spinner('Searching with custom query...'):
-                full_query = f"{query_part_clicked} {query}"
-                all_pages, custom_response = search_documents(full_query, selected_documents)
-                if not all_pages:
-                    st.warning("Please select at least one document to query.")
-                else:
-                    # Store both the query name and part for the history
-                    display_query = f"{query_name_clicked}: {full_query}"
-                    display_results(all_pages, custom_response, display_query, selected_documents)
-
-    # Add new custom query
-    with st.expander("➕ Add New Custom Query"):
-        new_query_name = st.text_input("Query Name", key="new_query_name")
-        new_query_part = st.text_area("Query Part", key="new_query_part")
-        if st.button("Save Custom Query", key="save_new_query"):
-            if save_custom_query(new_query_name, new_query_part):
-                st.success(f"Custom query '{new_query_name}' saved successfully!")
-                st.rerun()
-
-    # Edit or delete existing custom queries
-    with st.expander("✏️ Edit or Delete Custom Queries"):
-        for index, query in enumerate(custom_queries):
-            query_edit_key = f"edit_query_{query['name']}_{index}"
-            st.markdown(f"### {query['name']}")
-            edited_query_part = st.text_area(f"Query Part for {query['name']}", query['query_part'], key=query_edit_key)
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button(f"Update {query['name']}", key=f"update_{query['name']}_{index}"):
-                    if save_custom_query(query['name'], edited_query_part, update=True):
-                        st.success(f"Updated {query['name']}")
-                        st.rerun()
-            with col2:
-                if st.button(f"Delete {query['name']}", key=f"delete_{query['name']}_{index}"):
-                    if delete_custom_query(query['name']):
-                        st.success(f"Deleted {query['name']}")
-                        st.rerun()
 
     # Document content display
     if selected_documents:

@@ -1091,7 +1091,7 @@ with st.sidebar:
                 st.rerun()
 
     # Edit or delete existing custom queries
-    with st.expander("✏️ Edit or Delete Custom Queries"):
+    with st.expander("✏️ Edit or Delete Custom AI Tasks"):
         for index, query in enumerate(custom_queries):
             query_edit_key = f"edit_query_{query['name']}_{index}"
             st.markdown(f"### {query['name']}")
@@ -1122,9 +1122,9 @@ with st.sidebar:
         "2. Wait for the processing to complete.\n"
         "3. Select the documents you want to query (including from previous sessions).\n"
         "4. Enter your query in the text box.\n"
-        "5. Click 'Search' to get answers based on the selected document content.\n"
+        "5. Click 'Execute AI Task' to get answers based on the selected document content.\n"
         "6. View the answer and sources.\n"
-        "7. Optionally, export the Q&A session as a PDF."
+        "7. Optionally, export the session as a PDF."
     )
 
     st.markdown("## ⚠️ Note")
@@ -1290,7 +1290,7 @@ try:
             st.rerun()
 
     # Export results
-    if st.button("📤 Export Q&A Session"):
+    if st.button("📤 Export Session"):
         qa_session = ""
         for qa in st.session_state.qa_history:
             qa_session += f"Q: {qa['question']}\n\nA: {qa['answer']}\n\nDocuments Queried: {', '.join(qa['documents_queried'])}\n\nSources:\n"

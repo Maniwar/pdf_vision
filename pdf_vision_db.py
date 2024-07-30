@@ -1164,7 +1164,7 @@ try:
     if search_button and selected_documents:
         with st.spinner('Searching...'):
             all_pages, custom_response = search_documents(query, selected_documents)
-            
+
             if not all_pages:
                 st.warning("Please select at least one document to query..")
             else:
@@ -1181,6 +1181,7 @@ try:
     if custom_queries:
         max_cols_per_row = 4  # Maximum number of columns per row
         button_clicked = False
+        query_part_clicked = None
         query_name_clicked = None
         for i in range(0, len(custom_queries), max_cols_per_row):
             cols = st.columns(min(max_cols_per_row, len(custom_queries) - i))
@@ -1189,16 +1190,19 @@ try:
                 with cols[index]:
                     if st.button(f"📌 {custom_query['name']}", key=query_key):
                         button_clicked = True
+                        query_part_clicked = custom_query['query_part']
                         query_name_clicked = custom_query['name']
 
         if button_clicked:
             with st.spinner('Searching with custom query...'):
-                full_query = f"{query_name_clicked} {query}"
+                full_query = f"{query_part_clicked} {query}"
                 all_pages, custom_response = search_documents(full_query, selected_documents)
                 if not all_pages:
-                    st.warning("Please select at least one document to query..")
+                    st.warning("Please select at least one document to query.")
                 else:
-                    display_results(all_pages, custom_response, full_query, selected_documents)
+                    # Store both the query name and part for the history
+                    display_query = f"{query_name_clicked}: {full_query}"
+                    display_results(all_pages, custom_response, display_query, selected_documents)
 
     # Add new custom query
     with st.expander("➕ Add New Custom Query"):

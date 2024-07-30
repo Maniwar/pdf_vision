@@ -347,22 +347,11 @@ def delete_custom_query(name):
         collection.delete(f"name == '{name}'")
         st.session_state.custom_queries = get_all_custom_queries()
 
-        # Use a placeholder for the success message
-        placeholder = st.empty()
-        placeholder.success(f"Deleted {name}")
-
-        # Delay to allow UI to update
-        time.sleep(1)
-
-        # Clear the success message
-        placeholder.empty()
-
-        # Rerun the app
-        st.rerun()
+        # Use the reset_session function to reset the session state and rerun the app
+        reset_session()
     except Exception as e:
         st.error(f"Error deleting custom AI task: {str(e)}")
-        time.sleep(2)  # Give user time to see the error message
-        st.rerun()
+
 
 #sources
 def calculate_confidence(score):
@@ -957,15 +946,10 @@ def remove_document(file_name):
         if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
 
-        message = st.empty()
-        message.success(f"Removed {file_name}")
-        time.sleep(2)
-        message.empty()
-        st.rerun()
-        return True
+        # Use the reset_session function to reset the session state and rerun the app
+        reset_session()
     except Exception as e:
         st.error(f"Error removing {file_name}: {str(e)}")
-        return False
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):
@@ -992,6 +976,31 @@ def clear_current_session():
     time.sleep(2)
     message.empty()
     st.rerun()
+
+def reset_session():
+    # Clear session state variables
+    st.session_state.clear()
+
+    # Create a placeholder for the success message
+    message = st.empty()
+    message.success("Session reset successfully!")
+
+    # Delay to allow UI to update
+    time.sleep(2)
+
+    # Clear the success message
+    message.empty()
+
+    # Reload the app using JavaScript
+    st.rerun()
+    st.write("""
+        <script>
+            window.location.reload();
+        </script>
+    """, unsafe_allow_html=True)
+
+
+
 # Main processing function
 def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
     file_progress_bar = st.progress(0)

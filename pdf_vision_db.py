@@ -346,13 +346,23 @@ def delete_custom_query(name):
     try:
         collection.delete(f"name == '{name}'")
         st.session_state.custom_queries = get_all_custom_queries()
-        message = st.empty()
-        message.success(f"Deleted {name}")
-        time.sleep(2)
-        message.empty()
+
+        # Use a placeholder for the success message
+        placeholder = st.empty()
+        placeholder.success(f"Deleted {name}")
+
+        # Delay to allow UI to update
+        time.sleep(1)
+
+        # Clear the success message
+        placeholder.empty()
+
+        # Rerun the app
         st.rerun()
     except Exception as e:
         st.error(f"Error deleting custom AI task: {str(e)}")
+        time.sleep(2)  # Give user time to see the error message
+        st.rerun()
 
 #sources
 def calculate_confidence(score):
@@ -1212,11 +1222,11 @@ with st.sidebar:
                     update_button = st.form_submit_button(f"Update {query['name']}")
                 with col2:
                     delete_button = st.form_submit_button(f"Delete {query['name']}")
-                
+
                 if update_button:
                     handle_update_query(query['name'], edited_query_part)
                 elif delete_button:
-                    delete_custom_query(query['name'])  # Changed from handle_delete_query to delete_custom_query
+                    delete_custom_query(query['name'])
 
     st.markdown("## ℹ️ About")
     st.info(
@@ -1397,7 +1407,7 @@ try:
     if st.session_state.qa_history:
         st.divider()
         st.subheader("📜 Task History")
-        
+
         for i, qa in enumerate(reversed(st.session_state.qa_history)):
             question_index = len(st.session_state.qa_history) - i - 1
             with st.expander(f"Q{i+1}: {qa['question']}"):
@@ -1406,7 +1416,7 @@ try:
                 st.markdown("**Sources:**")
                 for source in qa['sources']:
                     st.markdown(f"- File: {source['file']}, Page: {source['page']}")
-                
+
                 if st.button(f"🗑️ Remove this Q&A", key=f"remove_qa_{question_index}"):
                     if remove_question(question_index):
                         st.success("Question and answer removed.")
@@ -1429,7 +1439,7 @@ try:
                     documents = "|".join(qa['documents_queried']).replace('"', '""')
                     sources = "|".join([f"{s['file']} (Page {s['page']})" for s in qa['sources']]).replace('"', '""')
                     csv += f'"{question}","{answer}","{documents}","{sources}"\n'
-                
+
                 st.download_button(
                     label="Download CSV",
                     data=csv,

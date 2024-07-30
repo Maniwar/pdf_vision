@@ -1204,7 +1204,9 @@ try:
         st.session_state.custom_query_selected = False
 
     if (search_button or st.session_state.custom_query_selected) and selected_documents:
-        with st.spinner('Searching...'):
+        spinner_message = "Applying custom query and searching..." if st.session_state.custom_query_selected else "Searching documents..."
+        
+        with st.spinner(spinner_message):
             if st.session_state.custom_query_selected:
                 full_query = f"{st.session_state.query_part_clicked} {query}"
                 display_query = f"{st.session_state.query_name_clicked}: {full_query}"
@@ -1225,7 +1227,6 @@ try:
 
     # Reset the custom query selection flag
     st.session_state.custom_query_selected = False
-
 
     # Document content display
     if selected_documents:

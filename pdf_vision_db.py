@@ -25,6 +25,7 @@ import imgkit
 import plotly.graph_objs as go
 from bs4 import BeautifulSoup
 import traceback
+import time
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -897,16 +898,15 @@ def handle_new_query(name, query_part):
     if save_custom_query(name, query_part):
         st.session_state.custom_queries = get_all_custom_queries()
         st.success(f"Custom query '{name}' saved successfully!")
+        st.rerun()
 
 def handle_update_query(name, new_query_part):
     if save_custom_query(name, new_query_part, update=True):
         st.session_state.custom_queries = get_all_custom_queries()
         st.success(f"Updated {name}")
+        st.rerun()
 
-def handle_delete_query(name):
-    if delete_custom_query(name):
-        st.session_state.custom_queries = get_all_custom_queries()
-        st.success(f"Deleted {name}")
+
 #document management
 def remove_document(file_name):
     try:

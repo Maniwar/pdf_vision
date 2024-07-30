@@ -1095,7 +1095,7 @@ with st.sidebar:
         for index, query in enumerate(custom_queries):
             query_edit_key = f"edit_query_{query['name']}_{index}"
             st.markdown(f"### {query['name']}")
-            edited_query_part = st.text_area(f"Query Part for {query['name']}", query['query_part'], key=query_edit_key)
+            edited_query_part = st.text_area(f"AI task for {query['name']}", query['query_part'], key=query_edit_key)
             col1, col2 = st.columns(2)
             with col1:
                 if st.button(f"Update {query['name']}", key=f"update_{query['name']}_{index}"):

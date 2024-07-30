@@ -1203,27 +1203,29 @@ try:
     if 'custom_query_selected' not in st.session_state:
         st.session_state.custom_query_selected = False
 
-    if (search_button or st.session_state.custom_query_selected) and selected_documents:
-        spinner_message = "Applying custom query and searching..." if st.session_state.custom_query_selected else "Searching documents..."
-        
-        with st.spinner(spinner_message):
-            if st.session_state.custom_query_selected:
-                full_query = f"{st.session_state.query_part_clicked} {query}"
-                display_query = f"{st.session_state.query_name_clicked}: {full_query}"
-                st.session_state.custom_query_selected = False
-            else:
-                full_query = query
-                display_query = query
+    # Check if documents are selected before processing any query
+    if not selected_documents:
+        if search_button or st.session_state.custom_query_selected:
+            st.warning("Please select at least one document to query.")
+    else:
+        if search_button or st.session_state.custom_query_selected:
+            spinner_message = "Applying custom query and searching..." if st.session_state.custom_query_selected else "Searching documents..."
+            
+            with st.spinner(spinner_message):
+                if st.session_state.custom_query_selected:
+                    full_query = f"{st.session_state.query_part_clicked} {query}"
+                    display_query = f"{st.session_state.query_name_clicked}: {full_query}"
+                    st.session_state.custom_query_selected = False
+                else:
+                    full_query = query
+                    display_query = query
 
-            all_pages, custom_response = search_documents(full_query, selected_documents)
+                all_pages, custom_response = search_documents(full_query, selected_documents)
 
-            if not all_pages:
-                st.warning("Please select at least one document to query.")
-            else:
-                display_results(all_pages, custom_response, display_query, selected_documents)
-
-    elif search_button:
-        st.warning("Please select at least one document to query.")
+                if not all_pages:
+                    st.warning("No relevant results found in the selected documents.")
+                else:
+                    display_results(all_pages, custom_response, display_query, selected_documents)
 
     # Reset the custom query selection flag
     st.session_state.custom_query_selected = False

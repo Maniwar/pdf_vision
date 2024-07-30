@@ -27,6 +27,27 @@ from bs4 import BeautifulSoup
 import traceback
 import time
 
+def reset_session():
+    # Clear session state variables
+    st.session_state.clear()
+
+    # Create a placeholder for the success message
+    message = st.empty()
+    message.success("Session reset successfully!")
+
+    # Delay to allow UI to update
+    time.sleep(2)
+
+    # Clear the success message
+    message.empty()
+
+    # Reload the app using JavaScript
+    st.write("""
+        <script>
+            window.location.reload();
+        </script>
+    """, unsafe_allow_html=True)
+
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
 
@@ -346,7 +367,8 @@ def delete_custom_query(name):
     try:
         collection.delete(f"name == '{name}'")
         st.session_state.custom_queries = get_all_custom_queries()
-
+        # Delay to allow UI to update
+        time.sleep(1)
         # Use the reset_session function to reset the session state and rerun the app
         reset_session()
     except Exception as e:
@@ -945,7 +967,8 @@ def remove_document(file_name):
         # Remove from selected documents if present
         if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
-
+        # Delay to allow UI to update
+        time.sleep(1)
         # Use the reset_session function to reset the session state and rerun the app
         reset_session()
     except Exception as e:
@@ -977,26 +1000,7 @@ def clear_current_session():
     message.empty()
     st.rerun()
 
-def reset_session():
-    # Clear session state variables
-    st.session_state.clear()
 
-    # Create a placeholder for the success message
-    message = st.empty()
-    message.success("Session reset successfully!")
-
-    # Delay to allow UI to update
-    time.sleep(2)
-
-    # Clear the success message
-    message.empty()
-
-    # Reload the app using JavaScript
-    st.write("""
-        <script>
-            window.location.reload();
-        </script>
-    """, unsafe_allow_html=True)
 
 
 # Main processing function

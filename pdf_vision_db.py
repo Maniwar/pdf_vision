@@ -1215,7 +1215,7 @@ try:
 
     # Query interface and answer display
     st.divider()
-    st.subheader("🤖 AI-Powered Document Analysis")
+    st.subheader("🤖 AI-Powered Document Task")
     query = st.text_input("Enter your task or question about the document(s):")
     search_button = st.button("🚀 Execute AI Task")
 

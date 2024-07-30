@@ -992,13 +992,11 @@ def reset_session():
     message.empty()
 
     # Reload the app using JavaScript
-    st.rerun()
     st.write("""
         <script>
             window.location.reload();
         </script>
     """, unsafe_allow_html=True)
-
 
 
 # Main processing function

@@ -1295,7 +1295,7 @@ try:
     # Display question history
     if st.session_state.qa_history:
         st.divider()
-        st.subheader("📜 Question History")
+        st.subheader("📜 Task History")
         for i, qa in enumerate(reversed(st.session_state.qa_history)):
             with st.expander(f"Q{len(st.session_state.qa_history)-i}: {qa['question']}"):
                 st.write(f"A: {qa['answer']}")

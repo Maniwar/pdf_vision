@@ -268,7 +268,7 @@ def get_or_create_custom_query_collection():
             collection.create_index("vector", index_params)
             return collection
     except Exception as e:
-        st.error(f"Error in creating or accessing the custom query collection: {str(e)}")
+        st.error(f"Error in creating or accessing the AI task collection: {str(e)}")
         return None
 
 def save_custom_query(name, query_part, update=False):
@@ -288,7 +288,7 @@ def save_custom_query(name, query_part, update=False):
         collection.insert([{"name": name, "query_part": query_part, "vector": embedding}])
         return True
     except Exception as e:
-        st.error(f"Error saving custom query: {str(e)}")
+        st.error(f"Error saving custom AI task: {str(e)}")
         return False
 
 def update_custom_query(name, new_query_part):
@@ -305,7 +305,7 @@ def update_custom_query(name, new_query_part):
         )
         return True
     except Exception as e:
-        st.error(f"Error updating custom query: {str(e)}")
+        st.error(f"Error updating custom AI task: {str(e)}")
         return False
 
 def get_all_custom_queries():
@@ -322,17 +322,17 @@ def get_all_custom_queries():
         )
         return results
     except Exception as e:
-        st.error(f"Error fetching custom queries: {str(e)}")
+        st.error(f"Error fetching custom AI task: {str(e)}")
         return []
 
 def use_custom_query(query_name, query, selected_documents):
     custom_queries = get_all_custom_queries()
-    st.write(f"Debug: Custom queries fetched: {custom_queries}")
+    st.write(f"Debug: Custom AI task fetched: {custom_queries}")
     for custom_query in custom_queries:
         if custom_query['name'] == query_name:
             query_part = custom_query['query_part']
             full_query = f"{query_part} {query}"
-            st.write(f"Debug: Full query formed: {full_query}")
+            st.write(f"Debug: Full AI task formed: {full_query}")
             return search_documents(full_query, selected_documents, custom_prompt=query_part)
     return [], None
 
@@ -345,7 +345,7 @@ def delete_custom_query(name):
         collection.delete(f"name == '{name}'")
         return True
     except Exception as e:
-        st.error(f"Error deleting custom query: {str(e)}")
+        st.error(f"Error deleting custom AI task: {str(e)}")
         return False
 
 #sources
@@ -1082,9 +1082,9 @@ with st.sidebar:
                 st.session_state.custom_query_selected = True
 
     # Add new custom query
-    with st.expander("➕ Add New Custom Task"):
-        new_query_name = st.text_input("Query Name", key="new_query_name")
-        new_query_part = st.text_area("Query Part", key="new_query_part")
+    with st.expander("➕ Add New Custom AI Task"):
+        new_query_name = st.text_input("AI Task Name", key="new_query_name")
+        new_query_part = st.text_area("AI Task Instructions", key="new_query_part")
         if st.button("Save Custom Query", key="save_new_query"):
             if save_custom_query(new_query_name, new_query_part):
                 st.success(f"Custom query '{new_query_name}' saved successfully!")

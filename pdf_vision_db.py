@@ -878,15 +878,33 @@ def generate_summary(page_contents, progress_bar, status_text):
 #session states
 def update_custom_query(name, new_query_part):
     if save_custom_query(name, new_query_part, update=True):
-        st.success(f"Updated {name}")
-        reset_custom_query_states()
+        st.session_state.custom_queries = get_all_custom_queries()
+        message = st.empty()
+        message.success(f"Updated {name}")
+        time.sleep(2)
+        message.empty()
         st.rerun()
+    else:
+        st.error(f"Failed to update {name}")
 
 def delete_custom_query(name):
-    if delete_custom_query(name):
-        st.success(f"Deleted {name}")
-        reset_custom_query_states()
+    collection = get_or_create_custom_query_collection()
+    if collection is None:
+        st.error("Failed to access custom query collection")
+        return False
+
+    try:
+        collection.delete(f"name == '{name}'")
+        st.session_state.custom_queries = get_all_custom_queries()
+        message = st.empty()
+        message.success(f"Deleted {name}")
+        time.sleep(2)
+        message.empty()
         st.rerun()
+        return True
+    except Exception as e:
+        st.error(f"Error deleting custom AI task: {str(e)}")
+        return False
 
 def reset_custom_query_states():
     st.session_state.custom_query_selected = False
@@ -897,17 +915,14 @@ def reset_custom_query_states():
 def handle_new_query(name, query_part):
     if save_custom_query(name, query_part):
         st.session_state.custom_queries = get_all_custom_queries()
-        st.success(f"Custom query '{name}' saved successfully!")
+        message = st.empty()
+        message.success(f"Custom query '{name}' saved successfully!")
+        time.sleep(2)
+        message.empty()
         st.rerun()
+    else:
+        st.error(f"Failed to save custom query '{name}'")
 
-def handle_update_query(name, new_query_part):
-    if save_custom_query(name, new_query_part, update=True):
-        st.session_state.custom_queries = get_all_custom_queries()
-        st.success(f"Updated {name}")
-        st.rerun()
-
-
-#document management
 def remove_document(file_name):
     try:
         # Remove from Milvus collection
@@ -927,34 +942,41 @@ def remove_document(file_name):
         if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
 
+        message = st.empty()
+        message.success(f"Removed {file_name}")
+        time.sleep(2)
+        message.empty()
+        st.rerun()
         return True
     except Exception as e:
         st.error(f"Error removing {file_name}: {str(e)}")
         return False
-#question management
+
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):
         del st.session_state.qa_history[index]
+        message = st.empty()
+        message.success("Question removed successfully")
+        time.sleep(2)
+        message.empty()
+        st.rerun()
         return True
+    st.error("Invalid question index")
     return False
-#session management
+
 def clear_current_session():
-    # Clear documents and file hashes
     st.session_state.documents = {}
     st.session_state.file_hashes = {}
-    
-    # Clear custom query selection
     st.session_state.custom_query_selected = False
     st.session_state.query_part_clicked = None
     st.session_state.query_name_clicked = None
-    
-    # Optionally, you might want to clear the QA history as well
-    # Uncomment the next line if you want to clear QA history
     st.session_state.qa_history = []
-    
-    # Refresh the custom queries list
     st.session_state.custom_queries = get_all_custom_queries()
-
+    message = st.empty()
+    message.success("Current session cleared")
+    time.sleep(2)
+    message.empty()
+    st.rerun()
 # Main processing function
 def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
     file_progress_bar = st.progress(0)

@@ -153,7 +153,7 @@ st.markdown("""
 
 def connect_to_milvus():
     connections.connect(
-        alias="default", 
+        alias="default",
         uri=MILVUS_ENDPOINT,
         token=MILVUS_API_KEY,
         secure=True
@@ -290,7 +290,7 @@ def save_custom_query(name, query_part, update=False):
     except Exception as e:
         st.error(f"Error saving custom query: {str(e)}")
         return False
-    
+
 def update_custom_query(name, new_query_part):
     collection = get_or_create_custom_query_collection()
     if collection is None:
@@ -312,7 +312,7 @@ def get_all_custom_queries():
     collection = get_or_create_custom_query_collection()
     if collection is None:
         return []
-    
+
     try:
         collection.load()
         results = collection.query(
@@ -340,7 +340,7 @@ def delete_custom_query(name):
     collection = get_or_create_custom_query_collection()
     if collection is None:
         return False
-    
+
     try:
         collection.delete(f"name == '{name}'")
         return True
@@ -383,7 +383,7 @@ def display_results(all_pages, custom_response, query, selected_documents):
 
     st.divider()
     st.subheader("💬 Answer:")
-                    
+
     # Process the response to add clickable links and confidence indicators
     for page in all_pages:
         citation_id = f"{page['file_name']}-p{page['page_number']}"
@@ -392,7 +392,7 @@ def display_results(all_pages, custom_response, query, selected_documents):
         answer_text = answer_text.replace(f"[{citation_id}]", replacement)
 
     st.markdown(answer_text)
-    
+
     # Add JavaScript to scroll to the source when a citation is clicked
     st.markdown("""
     <script>
@@ -409,10 +409,10 @@ def display_results(all_pages, custom_response, query, selected_documents):
     });
     </script>
     """, unsafe_allow_html=True)
-    
+
     st.divider()
     st.subheader("📚 Sources:")
-                    
+
     # Group sources by file
     sources_by_file = {}
     for page in all_pages:
@@ -424,35 +424,35 @@ def display_results(all_pages, custom_response, query, selected_documents):
         for page in pages:
             confidence = page['confidence']
             color, icon = get_confidence_info(confidence)
-            
+
             col1, col2 = st.columns([1, 9])
-            
+
             with col1:
                 st.markdown(f"<span style='color:{color};'>●</span> {icon} **{confidence:.1f}%**", unsafe_allow_html=True)
-            
+
             with col2:
                 citation_id = f"{file_name}-p{page['page_number']}"
                 st.markdown(f"<div id='{citation_id}'></div>", unsafe_allow_html=True)
                 st.markdown(f"**Page {page['page_number']}**")
-                
+
                 content_to_display = page['content'][:citation_length]
                 full_content = page['content']
-                
+
                 st.markdown(f"[{citation_id}] {content_to_display}" + ("..." if len(page['content']) > citation_length else ""))
-                
+
                 if len(page['content']) > citation_length:
                     with st.expander("📑Show Full Content"):
                         st.markdown(full_content)
-                
+
                 total_citation_length += len(content_to_display)
-            
+
             if file_name in st.session_state.documents:
                 image_paths = st.session_state.documents[file_name]['image_paths']
                 image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
                 if image_path:
                     with st.expander("🖼️Show Image"):
                         st.image(image_path, use_column_width=True, caption=f"Page {page['page_number']}")
-            
+
             st.markdown("---")
 
     with st.expander("📊 Document Statistics", expanded=False):
@@ -552,7 +552,7 @@ def docx_to_html_with_breaks(docx_path):
     style_map = """
     p[style-name='Page Break'] => div.explicit-page-break
     """
-    
+
     # Convert DOCX to HTML using mammoth
     with open(docx_path, "rb") as docx_file:
         result = mammoth.convert_to_html(docx_file, style_map=style_map)
@@ -574,7 +574,7 @@ def docx_to_html_with_breaks(docx_path):
 
     # Parse HTML and insert page breaks based on content volume
     soup = BeautifulSoup(html, 'html.parser')
-    
+
     # Ensure we have an html tag
     if not soup.html:
         new_html = soup.new_tag('html')
@@ -638,7 +638,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
     with Display():
         temp_dir = tempfile.mkdtemp()
         image_paths = []
-        
+
         # Use minimal options to avoid width/height issues
         options = {
             'format': 'png',
@@ -646,13 +646,13 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
             'disable-smart-width': '',
             'log-level': 'none'  # Suppress non-error messages
         }
-        
+
         # Parse the HTML content
         soup = BeautifulSoup(html_content, 'html.parser')
-        
+
         # Find all page break divs
         page_breaks = soup.find_all('div', class_=['explicit-page-break', 'content-based-break'])
-        
+
         # Split the content into pages
         pages = []
         current_page = []
@@ -665,9 +665,9 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
                 current_page.append(element)
         if current_page:
             pages.append(''.join(str(tag) for tag in current_page))
-        
+
         total_pages = len(pages)
-        
+
         for i, page_content in enumerate(pages):
             # Create a temporary HTML file for each page
             temp_html_path = os.path.join(temp_dir, f"page_{i+1}.html")
@@ -690,7 +690,7 @@ def html_to_images(html_content, page_progress_bar, page_status_text):
                     <body>{page_content}</body>
                 </html>
                 """)
-            
+
             # Convert the HTML file to an image
             image_path = os.path.join(temp_dir, f"page{i + 1}.png")
             try:
@@ -737,7 +737,7 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
         # Step 1: Convert DOCX to HTML
         page_status_text.text("Converting DOC/DOCX to HTML")
         html_content = docx_to_html_with_breaks(file_path)
-        
+
         if not html_content:
             raise ValueError("HTML content is empty after conversion")
 
@@ -748,7 +748,7 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
             st.error(f"Error during HTML to image conversion: {str(e)}")
             st.error(f"Full error: {traceback.format_exc()}")
             return [], []
-        
+
         if not image_paths:
             raise ValueError("No images were generated from the HTML content")
 
@@ -760,7 +760,7 @@ def process_doc_docx(file_path, page_progress_bar, page_status_text):
                 st.warning(f"Skipping page {page_num} due to previous error")
                 page_contents.append("")
                 continue
-            
+
             try:
                 page_content = get_generated_data(image_path)
                 page_contents.append(page_content)
@@ -796,30 +796,30 @@ def process_excel(file_path, page_progress_bar, page_status_text):
 
     excel_file = pd.ExcelFile(file_path)
     page_contents = []
-    
+
     total_sheets = len(excel_file.sheet_names)
     for i, sheet_name in enumerate(excel_file.sheet_names):
         df = pd.read_excel(file_path, sheet_name=sheet_name)
         markdown_content = f"## Sheet: {sheet_name}\n\n{dataframe_to_markdown(df)}"
         page_contents.append(markdown_content)
-        
+
         # Update progress
         progress = (i + 1) / total_sheets
         page_progress_bar.progress(progress)
         page_status_text.text(f"Processing Excel sheet {i + 1} of {total_sheets}")
-    
+
     return [(i+1, None) for i in range(len(page_contents))], page_contents
 
 def generate_summary(page_contents, progress_bar, status_text):
     total_tokens = sum(num_tokens_from_string(content) for content in page_contents)
-    
+
     if total_tokens > MAX_TOKENS:
         # If the document is very large, we need to summarize it in chunks
         chunk_size = MAX_TOKENS // 2  # Leave room for the summary generation prompt
         chunks = []
         current_chunk = []
         current_chunk_tokens = 0
-        
+
         for content in page_contents:
             content_tokens = num_tokens_from_string(content)
             if current_chunk_tokens + content_tokens > chunk_size:
@@ -829,10 +829,10 @@ def generate_summary(page_contents, progress_bar, status_text):
             else:
                 current_chunk.append(content)
                 current_chunk_tokens += content_tokens
-        
+
         if current_chunk:
             chunks.append("\n".join(current_chunk))
-        
+
         summaries = []
         for i, chunk in enumerate(chunks):
             status_text.text(f"Summarizing chunk {i + 1} of {len(chunks)}")
@@ -845,11 +845,11 @@ def generate_summary(page_contents, progress_bar, status_text):
                 max_tokens=MAX_TOKENS // 4  # Limit the summary size for each chunk
             ).choices[0].message.content
             summaries.append(chunk_summary)
-            
+
             # Update progress
             progress = (i + 1) / len(chunks)
             progress_bar.progress(progress)
-        
+
         status_text.text("Generating final summary")
         final_summary = client.chat.completions.create(
             model=MODEL,
@@ -870,7 +870,7 @@ def generate_summary(page_contents, progress_bar, status_text):
             ],
             max_tokens=MAX_TOKENS // 2  # Limit the summary size
         ).choices[0].message.content
-    
+
     progress_bar.progress(1.0)
     status_text.text("Summary generation complete")
     return final_summary
@@ -886,7 +886,7 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
 
     temp_file_path = save_uploadedfile(uploaded_file)
     file_extension = Path(uploaded_file.name).suffix.lower()
-    
+
     file_status_text.text("Initializing document processing...")
     file_progress_bar.progress(5)
 
@@ -927,10 +927,10 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
         file_status_text.text("Generating summary...")
         file_progress_bar.progress(40)
         summary = generate_summary(page_contents, file_progress_bar, file_status_text)
-        
+
         file_status_text.text("Storing pages in vector database...")
         file_progress_bar.progress(60)
-        
+
         total_pages = len(page_contents)
         for i, content in enumerate(page_contents):
             page_number = i + 1
@@ -978,9 +978,8 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
         return collection, image_paths, page_contents, summary
     except Exception as e:
         st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-        import traceback
         st.error(f"Traceback: {traceback.format_exc()}")
-        
+
         # Additional debugging information
         # st.write(f"Debug: File extension: {file_extension}")
         # st.write(f"Debug: Temp file path: {temp_file_path}")
@@ -988,7 +987,7 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
         #     st.write(f"Debug: Temp file size: {os.path.getsize(temp_file_path)} bytes")
         # else:
         #     st.write("Debug: Temp file does not exist")
-        
+
         return None, None, None, None
 
 
@@ -999,7 +998,7 @@ def search_documents(query, selected_documents, custom_prompt=None):
         return [], None
 
     collection.load()
-    
+
     query_vector = embeddings.embed_query(query)
     search_params = {
         "metric_type": "L2",
@@ -1116,7 +1115,7 @@ with st.sidebar:
         "It uses OpenAI's GPT-4 model for text generation and "
         "Milvus for efficient similarity search across sessions."
     )
-    
+
     st.markdown("## 📖 How to use")
     st.info(
         "1. Upload one or more PDF, Markdown, or image files.\n"
@@ -1148,11 +1147,11 @@ try:
     if uploaded_files:
         overall_progress_bar = st.progress(0)
         overall_status_text = st.empty()
-        
+
         for file_index, uploaded_file in enumerate(uploaded_files):
             file_content = uploaded_file.getvalue()
             file_hash = get_file_hash(file_content)
-            
+
             if file_hash in st.session_state.file_hashes:
                 existing_file_name = st.session_state.file_hashes[file_hash]
                 st.success(f"File '{uploaded_file.name}' has already been processed as '{existing_file_name}'. Using existing data.")
@@ -1174,7 +1173,7 @@ try:
                         st.success(f"File processed and stored in vector database!")
                 except Exception as e:
                     st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
-        
+
         overall_progress_bar.progress(100)
         overall_status_text.text("All files processed!")
 
@@ -1210,7 +1209,7 @@ try:
     else:
         if search_button or st.session_state.custom_query_selected:
             spinner_message = "Applying custom query and searching..." if st.session_state.custom_query_selected else "Searching documents..."
-            
+
             with st.spinner(spinner_message):
                 if st.session_state.custom_query_selected:
                     full_query = f"{st.session_state.query_part_clicked} {query}"
@@ -1244,7 +1243,7 @@ try:
                 for page in page_contents:
                     with st.expander(f"📑Page {page['page_number']}"):
                         st.markdown(page['content'])
-                        
+
                         if file_name in st.session_state.documents:
                             image_paths = st.session_state.documents[file_name]['image_paths']
                             image_path = next((img_path for num, img_path in image_paths if num == page['page_number']), None)
@@ -1257,7 +1256,7 @@ try:
                                 st.info(f"No image available for page {page['page_number']}")
             else:
                 st.info(f"No content available for {file_name}.")
-            
+
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 st.session_state.files_to_remove.add(file_name)
                 st.rerun()
@@ -1298,14 +1297,14 @@ try:
             for source in qa['sources']:
                 qa_session += f"- File: {source['file']}, Page: {source['page']}\n"
             qa_session += "\n---\n\n"
-        
+
         # Convert markdown to HTML
         html = markdown2.markdown(qa_session)
-        
+
         try:
             # Convert HTML to PDF
             pdf = pdfkit.from_string(html, False)
-            
+
             # Provide the PDF for download
             st.download_button(
                 label="Download Q&A Session as PDF",

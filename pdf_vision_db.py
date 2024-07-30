@@ -1045,7 +1045,7 @@ def search_documents(query, selected_documents, custom_prompt=None):
         return all_pages, None
 
 # Streamlit interface
-st.title('💡 DocuMind')
+st.title('💡 DocuQuery AI')
 
 # Initialize session state variables
 if 'documents' not in st.session_state:

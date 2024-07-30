@@ -937,6 +937,23 @@ def remove_question(index):
         del st.session_state.qa_history[index]
         return True
     return False
+#session management
+def clear_current_session():
+    # Clear documents and file hashes
+    st.session_state.documents = {}
+    st.session_state.file_hashes = {}
+    
+    # Clear custom query selection
+    st.session_state.custom_query_selected = False
+    st.session_state.query_part_clicked = None
+    st.session_state.query_name_clicked = None
+    
+    # Optionally, you might want to clear the QA history as well
+    # Uncomment the next line if you want to clear QA history
+    st.session_state.qa_history = []
+    
+    # Refresh the custom queries list
+    st.session_state.custom_queries = get_all_custom_queries()
 
 # Main processing function
 def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
@@ -1132,9 +1149,7 @@ with st.sidebar:
     citation_length = st.slider("Maximum length of each citation", 100, 1000, 250)
 
     if st.button("🗑️ Clear Current Session"):
-        st.session_state.documents = {}
-        st.session_state.file_hashes = {}
-        st.session_state.files_to_remove = set()
+        clear_current_session()
         st.success("Current session cleared. You can still access previously uploaded documents.")
         st.rerun()
 

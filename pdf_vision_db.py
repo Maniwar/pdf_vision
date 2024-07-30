@@ -1045,7 +1045,7 @@ def search_documents(query, selected_documents, custom_prompt=None):
         return all_pages, None
 
 # Streamlit interface
-st.title('📄 Document Query App')
+st.title('💡 DocuMind')
 
 # Initialize session state variables
 if 'documents' not in st.session_state:
@@ -1071,7 +1071,7 @@ with st.sidebar:
 
     # Move Custom Query Macros section here
     st.divider()
-    st.subheader("📌 Custom Query Macros")
+    st.subheader("📌 Custom AI Tasks")
     custom_queries = get_all_custom_queries()
 
     if custom_queries:
@@ -1082,7 +1082,7 @@ with st.sidebar:
                 st.session_state.custom_query_selected = True
 
     # Add new custom query
-    with st.expander("➕ Add New Custom Query"):
+    with st.expander("➕ Add New Custom Task"):
         new_query_name = st.text_input("Query Name", key="new_query_name")
         new_query_part = st.text_area("Query Part", key="new_query_part")
         if st.button("Save Custom Query", key="save_new_query"):
@@ -1195,9 +1195,9 @@ try:
 
     # Query interface and answer display
     st.divider()
-    st.subheader("🔍 Query the Document(s)")
-    query = st.text_input("Enter your query about the document(s):")
-    search_button = st.button("🔎 Search")
+    st.subheader("🤖 AI-Powered Document Analysis")
+    query = st.text_input("Enter your task or question about the document(s):")
+    search_button = st.button("🚀 Execute AI Task")
 
     if 'custom_query_selected' not in st.session_state:
         st.session_state.custom_query_selected = False

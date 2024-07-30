@@ -1118,13 +1118,33 @@ with st.sidebar:
 
     st.markdown("## 📖 How to use")
     st.info(
-        "1. Upload one or more PDF, Markdown, or image files.\n"
-        "2. Wait for the processing to complete.\n"
-        "3. Select the documents you want to query (including from previous sessions).\n"
-        "4. Enter your query in the text box.\n"
-        "5. Click 'Execute AI Task' to get answers based on the selected document content.\n"
-        "6. View the answer and sources.\n"
-        "7. Optionally, export the session as a PDF."
+        "1. Upload one or more files (PDF, Word, TXT, Excel, or images).\n"
+        "2. Wait for the AI to process and analyze the documents.\n"
+        "3. Select the documents you want to analyze (including from previous sessions).\n"
+        "4. Describe your task or question in the text box. Be specific for best results.\n"
+        "5. Click 'Execute AI Task' to get insights based on the selected documents.\n"
+        "6. Review the AI's response and explore the cited sources.\n"
+        "7. Use custom AI tasks for quick, predefined analyses.\n"
+        "8. Optionally, export your analysis session as a PDF for future reference."
+    )
+
+    st.markdown("### 🛠️ Managing Custom AI Tasks")
+    st.info(
+        "Custom AI tasks are predefined analyses you can run quickly on your documents. Here's how to manage them:\n\n"
+        "**Adding a new custom task:**\n"
+        "1. Expand the 'Add New Custom Task' section in the sidebar.\n"
+        "2. Enter a name for your task and describe what the AI should do.\n"
+        "3. Click 'Save Custom Task' to add it to your list.\n\n"
+        "**Using a custom task:**\n"
+        "1. Find your task in the 'Custom AI Tasks' list in the sidebar.\n"
+        "2. Click on the task to apply it to your selected documents.\n\n"
+        "**Editing a custom task:**\n"
+        "1. Expand the 'Edit or Delete Custom Tasks' section in the sidebar.\n"
+        "2. Find the task you want to edit and modify its description.\n"
+        "3. Click 'Update' to save your changes.\n\n"
+        "**Removing a custom task:**\n"
+        "1. In the 'Edit or Delete Custom Tasks' section, find the task you want to remove.\n"
+        "2. Click 'Delete' next to the task to remove it from your list."
     )
 
     st.markdown("## ⚠️ Note")

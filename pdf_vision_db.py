@@ -1080,7 +1080,7 @@ with st.sidebar:
             if st.button(f"📌 {custom_query['name']}", key=f"custom_query_{custom_query['name']}"):
                 st.session_state.query_part_clicked = custom_query['query_part']
                 st.session_state.query_name_clicked = custom_query['name']
-                st.rerun()
+                st.session_state.custom_query_selected = True
 
     # Add new custom query
     with st.expander("➕ Add New Custom Query"):
@@ -1200,13 +1200,15 @@ try:
     query = st.text_input("Enter your query about the document(s):")
     search_button = st.button("🔎 Search")
 
-    if search_button and selected_documents:
+    if 'custom_query_selected' not in st.session_state:
+        st.session_state.custom_query_selected = False
+
+    if (search_button or st.session_state.custom_query_selected) and selected_documents:
         with st.spinner('Searching...'):
-            if 'query_part_clicked' in st.session_state and st.session_state.query_part_clicked:
+            if st.session_state.custom_query_selected:
                 full_query = f"{st.session_state.query_part_clicked} {query}"
                 display_query = f"{st.session_state.query_name_clicked}: {full_query}"
-                st.session_state.query_part_clicked = None
-                st.session_state.query_name_clicked = None
+                st.session_state.custom_query_selected = False
             else:
                 full_query = query
                 display_query = query
@@ -1220,6 +1222,9 @@ try:
 
     elif search_button:
         st.warning("Please select at least one document to query.")
+
+    # Reset the custom query selection flag
+    st.session_state.custom_query_selected = False
 
 
     # Document content display

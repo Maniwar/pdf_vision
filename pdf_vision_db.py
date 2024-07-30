@@ -874,6 +874,69 @@ def generate_summary(page_contents, progress_bar, status_text):
     progress_bar.progress(1.0)
     status_text.text("Summary generation complete")
     return final_summary
+#session states
+def update_custom_query(name, new_query_part):
+    if save_custom_query(name, new_query_part, update=True):
+        st.success(f"Updated {name}")
+        reset_custom_query_states()
+        st.rerun()
+
+def delete_custom_query(name):
+    if delete_custom_query(name):
+        st.success(f"Deleted {name}")
+        reset_custom_query_states()
+        st.rerun()
+
+def reset_custom_query_states():
+    st.session_state.custom_query_selected = False
+    st.session_state.query_part_clicked = None
+    st.session_state.query_name_clicked = None
+    st.session_state.custom_queries = get_all_custom_queries()
+
+def handle_new_query(name, query_part):
+    if save_custom_query(name, query_part):
+        st.session_state.custom_queries = get_all_custom_queries()
+        st.success(f"Custom query '{name}' saved successfully!")
+
+def handle_update_query(name, new_query_part):
+    if save_custom_query(name, new_query_part, update=True):
+        st.session_state.custom_queries = get_all_custom_queries()
+        st.success(f"Updated {name}")
+
+def handle_delete_query(name):
+    if delete_custom_query(name):
+        st.session_state.custom_queries = get_all_custom_queries()
+        st.success(f"Deleted {name}")
+#document management
+def remove_document(file_name):
+    try:
+        # Remove from Milvus collection
+        collection = get_or_create_collection("document_pages")
+        collection.delete(f"file_name == '{file_name}'")
+
+        # Remove from session state
+        if file_name in st.session_state.documents:
+            del st.session_state.documents[file_name]
+
+        # Remove from file hashes
+        for hash_value, name in list(st.session_state.file_hashes.items()):
+            if name == file_name:
+                del st.session_state.file_hashes[hash_value]
+
+        # Remove from selected documents if present
+        if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
+            st.session_state.selected_documents.remove(file_name)
+
+        return True
+    except Exception as e:
+        st.error(f"Error removing {file_name}: {str(e)}")
+        return False
+#question management
+def remove_question(index):
+    if 0 <= index < len(st.session_state.qa_history):
+        del st.session_state.qa_history[index]
+        return True
+    return False
 
 # Main processing function
 def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
@@ -1052,10 +1115,16 @@ if 'documents' not in st.session_state:
     st.session_state.documents = {}
 if 'file_hashes' not in st.session_state:
     st.session_state.file_hashes = {}
-if 'files_to_remove' not in st.session_state:
-    st.session_state.files_to_remove = set()
 if 'qa_history' not in st.session_state:
     st.session_state.qa_history = []
+if 'custom_queries' not in st.session_state:
+    st.session_state.custom_queries = get_all_custom_queries()
+if 'custom_query_selected' not in st.session_state:
+    st.session_state.custom_query_selected = False
+if 'query_part_clicked' not in st.session_state:
+    st.session_state.query_part_clicked = None
+if 'query_name_clicked' not in st.session_state:
+    st.session_state.query_name_clicked = None
 
 # Sidebar
 with st.sidebar:
@@ -1083,30 +1152,29 @@ with st.sidebar:
 
     # Add new custom query
     with st.expander("➕ Add New Custom AI Task"):
-        new_query_name = st.text_input("AI Task Name", key="new_query_name")
-        new_query_part = st.text_area("AI Task Instructions", key="new_query_part")
-        if st.button("Save Custom Query", key="save_new_query"):
-            if save_custom_query(new_query_name, new_query_part):
-                st.success(f"Custom query '{new_query_name}' saved successfully!")
-                st.rerun()
+        with st.form(key="new_custom_query_form"):
+            new_query_name = st.text_input("AI Task Name")
+            new_query_part = st.text_area("AI Task Instructions")
+            submit_button = st.form_submit_button("Save Custom Query")
+            if submit_button:
+                handle_new_query(new_query_name, new_query_part)
 
     # Edit or delete existing custom queries
     with st.expander("✏️ Edit or Delete Custom AI Tasks"):
-        for index, query in enumerate(custom_queries):
-            query_edit_key = f"edit_query_{query['name']}_{index}"
-            st.markdown(f"### {query['name']}")
-            edited_query_part = st.text_area(f"AI task for {query['name']}", query['query_part'], key=query_edit_key)
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button(f"Update {query['name']}", key=f"update_{query['name']}_{index}"):
-                    if save_custom_query(query['name'], edited_query_part, update=True):
-                        st.success(f"Updated {query['name']}")
-                        st.rerun()
-            with col2:
-                if st.button(f"Delete {query['name']}", key=f"delete_{query['name']}_{index}"):
-                    if delete_custom_query(query['name']):
-                        st.success(f"Deleted {query['name']}")
-                        st.rerun()
+        for index, query in enumerate(st.session_state.custom_queries):
+                with st.form(key=f"edit_custom_query_form_{index}"):
+                    st.markdown(f"### {query['name']}")
+                    edited_query_part = st.text_area(f"AI task for {query['name']}", query['query_part'])
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        update_button = st.form_submit_button(f"Update {query['name']}")
+                    with col2:
+                        delete_button = st.form_submit_button(f"Delete {query['name']}")
+                    
+                    if update_button:
+                        handle_update_query(query['name'], edited_query_part)
+                    elif delete_button:
+                        handle_delete_query(query['name'])
 
     st.markdown("## ℹ️ About")
     st.info(
@@ -1278,36 +1346,56 @@ try:
                 st.info(f"No content available for {file_name}.")
 
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                st.session_state.files_to_remove.add(file_name)
-                st.rerun()
-
-    # Remove files marked for deletion
-    if st.session_state.files_to_remove:
-        for file_name in list(st.session_state.files_to_remove):
-            collection = get_or_create_collection("document_pages")
-            collection.delete(f"file_name == '{file_name}'")
-            if file_name in st.session_state.documents:
-                del st.session_state.documents[file_name]
-            st.success(f"{file_name} has been removed.")
-        st.session_state.files_to_remove.clear()
-        st.rerun()
-
+                if remove_document(file_name):
+                    st.success(f"{file_name} has been removed.")
+                    st.rerun()
+                else:
+                    st.error(f"Failed to remove {file_name}. Please try again.")
     # Display question history
     if st.session_state.qa_history:
         st.divider()
         st.subheader("📜 Task History")
+        
         for i, qa in enumerate(reversed(st.session_state.qa_history)):
-            with st.expander(f"Q{len(st.session_state.qa_history)-i}: {qa['question']}"):
-                st.write(f"A: {qa['answer']}")
-                st.write("Documents Queried:", ", ".join(qa['documents_queried']))
-                st.write("Sources:")
+            question_index = len(st.session_state.qa_history) - i - 1
+            with st.expander(f"Q{i+1}: {qa['question']}"):
+                st.markdown(f"**Answer:**\n{qa['answer']}")
+                st.markdown(f"**Documents Queried:** {', '.join(qa['documents_queried'])}")
+                st.markdown("**Sources:**")
                 for source in qa['sources']:
-                    st.write(f"- File: {source['file']}, Page: {source['page']}")
+                    st.markdown(f"- File: {source['file']}, Page: {source['page']}")
+                
+                if st.button(f"🗑️ Remove this Q&A", key=f"remove_qa_{question_index}"):
+                    if remove_question(question_index):
+                        st.success("Question and answer removed.")
+                        st.rerun()
+                    else:
+                        st.error("Failed to remove question and answer. Please try again.")
 
-        if st.button("🗑️ Clear Question History"):
-            st.session_state.qa_history = []
-            st.success("Question history cleared!")
-            st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Clear All History"):
+                st.session_state.qa_history = []
+                st.success("All question history cleared!")
+                st.rerun()
+        with col2:
+            if st.button("📥 Download History as CSV"):
+                csv = "Question,Answer,Documents Queried,Sources\n"
+                for qa in st.session_state.qa_history:
+                    question = qa['question'].replace('"', '""')
+                    answer = qa['answer'].replace('"', '""')
+                    documents = "|".join(qa['documents_queried']).replace('"', '""')
+                    sources = "|".join([f"{s['file']} (Page {s['page']})" for s in qa['sources']]).replace('"', '""')
+                    csv += f'"{question}","{answer}","{documents}","{sources}"\n'
+                
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name="qa_history.csv",
+                    mime="text/csv"
+                )
+    else:
+        st.info("No question history available.")
 
     # Export results
     if st.button("📤 Export Session"):

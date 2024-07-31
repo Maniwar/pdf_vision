@@ -1029,7 +1029,7 @@ def clear_current_session():
 
 
 # Main processing function
-ddef process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
+def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
     file_progress_bar = st.progress(0)
     file_status_text = st.empty()
     page_progress_bar = st.progress(0)

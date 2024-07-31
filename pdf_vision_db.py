@@ -992,11 +992,6 @@ def remove_document(file_name):
         if file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
 
-        # Remove file hash and associated name
-        file_hashes = st.session_state.get('file_hashes', {})
-        for hash_value, name in list(file_hashes.items()):
-            if name == file_name:
-                del file_hashes[hash_value]
 
         # Delay to allow UI to update
         time.sleep(1)

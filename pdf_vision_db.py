@@ -1002,6 +1002,12 @@ def remove_document(file_name):
             st.write(f"Delete result: {delete_result}")  # Log the delete result for debugging
             collection.flush()  # Ensure the delete operation is executed
 
+            # Allow some time for the flush operation to complete
+            time.sleep(2)
+
+            # Reload the collection to refresh the state
+            collection.load()
+
             # Verify removal from Milvus
             verification_result = collection.query(
                 expr=f"id == {doc_id}",

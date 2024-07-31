@@ -975,11 +975,6 @@ def handle_new_query(name, query_part):
         st.rerun()
     else:
         st.error(f"Failed to save custom query '{name}'")
-
-import time
-from pymilvus import Collection
-import streamlit as st
-
 def remove_document(file_name):
     try:
         # Get the collection
@@ -988,22 +983,19 @@ def remove_document(file_name):
 
         # Check if the document exists in Milvus
         query_result = collection.query(
-            expr=f"file_name == '{file_name}'",
-            output_fields=["id"]
+            expr=f"file_name == '{file_name}'"
         )
 
         if not query_result:
             st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
             return False
 
-        # Collect all document IDs
-        doc_ids = [doc['id'] for doc in query_result]
+        st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
 
-        st.info(f"Attempting to delete {len(doc_ids)} entries for {file_name} from Milvus.")
+        # Delete all documents with the given file_name
+        delete_result = collection.delete(expr=f"file_name == '{file_name}'")
+        st.write(f"Delete result: {delete_result}")
 
-        # Attempt to delete all documents by ID
-        collection.delete(expr=f"id in {doc_ids}")
-        
         # Ensure the delete operation is executed
         collection.flush()
 
@@ -1015,8 +1007,7 @@ def remove_document(file_name):
 
         # Verify removal from Milvus
         verification_result = collection.query(
-            expr=f"file_name == '{file_name}'",
-            output_fields=["id"]
+            expr=f"file_name == '{file_name}'"
         )
 
         if verification_result:
@@ -1056,7 +1047,6 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
-
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):

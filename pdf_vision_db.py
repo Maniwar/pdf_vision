@@ -45,6 +45,7 @@ def get_all_custom_queries():
     except Exception as e:
         st.error(f"Error fetching custom AI task: {str(e)}")
         return []
+    
 # Initialize session state variables
 if 'documents' not in st.session_state:
     st.session_state.documents = {}

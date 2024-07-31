@@ -411,7 +411,7 @@ def delete_custom_query(name):
         st.error(f"Error deleting custom AI task: {str(e)}")
 
 def remove_document(file_name):
-    collection = get_or_create_document_pages_collection()
+    collection = 'document_pages'
     if collection is None:
         st.error("Failed to access document pages collection")
         return False

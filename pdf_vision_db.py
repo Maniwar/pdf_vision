@@ -419,7 +419,10 @@ def remove_document(file_name):
     try:
         # Delete document from Milvus collection
         collection.delete(f"file_name == '{file_name}'")
-
+        # Delay to allow UI to update
+        time.sleep(1)
+        # Use the reset_session function to reset the session state and rerun the app
+        reset_session()
         # Remove document from session state
         st.session_state.documents.pop(file_name, None)
         if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:

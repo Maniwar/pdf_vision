@@ -1001,9 +1001,6 @@ def remove_document(file_name):
             delete_result = collection.delete(expr=f"id in [{doc_id}]")
             st.write(f"Delete result: {delete_result}")  # Log the delete result for debugging
             collection.flush()  # Ensure the delete operation is executed
-            
-            # Allow some time for the flush operation to complete
-            time.sleep(2)
 
             # Verify removal from Milvus
             verification_result = collection.query(
@@ -1044,7 +1041,6 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
-
 
 
 def remove_question(index):

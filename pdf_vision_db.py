@@ -978,6 +978,14 @@ def handle_new_query(name, query_part):
     else:
         st.error(f"Failed to save custom query '{name}'")
 
+def verify_collection_exists(collection_name):
+    if utility.has_collection(collection_name):
+        st.success(f"Collection '{collection_name}' exists.")
+        return True
+    else:
+        st.warning(f"Collection '{collection_name}' does not exist.")
+        return False
+
 def remove_document(file_name):
     try:
         st.info("Starting document removal process.")
@@ -986,28 +994,20 @@ def remove_document(file_name):
         connect_to_milvus()
 
         # Ensure the collection exists
-        st.info("Checking if collection 'document_pages' exists.")
-        if not utility.has_collection("document_pages"):
-            st.error("Collection 'document_pages' does not exist.")
+        collection_name = "document_pages"
+        if not verify_collection_exists(collection_name):
+            st.error(f"Collection '{collection_name}' does not exist.")
             return False
-        st.success("Collection 'document_pages' found.")
 
-        # Load the collection
-        st.info("Loading the collection 'document_pages'.")
-        try:
-            collection = Collection("document_pages")
-            collection.load()
-        except MilvusException as e:
-            st.error(f"Failed to load collection 'document_pages': {str(e)}")
-            return False
-        st.success("Collection 'document_pages' loaded successfully.")
+        collection = Collection(collection_name)
+        collection.load()
 
         # Delete entities by a filter expression
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
         client = MilvusClient("default")
         try:
             delete_result = client.delete(
-                collection_name="document_pages",
+                collection_name=collection_name,
                 filter=f"file_name == '{file_name}'"
             )
         except MilvusException as e:
@@ -1079,6 +1079,7 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
+
 
 def remove_from_session_state(file_name, keys):
     """Helper function to remove file references from session state."""

@@ -414,16 +414,22 @@ def remove_document(file_name):
     collection = get_or_create_document_pages_collection()
     if collection is None:
         st.error("Failed to access document pages collection")
-        return
+        return False
 
     try:
         # Delete document from Milvus collection
         collection.delete(f"file_name == '{file_name}'")
-        # Delay to allow UI to update
-        time.sleep(1)
-        # Use the reset_session function to reset the session state and rerun the app
-        reset_session()
+        
         # Remove document from session state
+        st.session_state.documents.pop(file_name, None)
+        if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
+            st.session_state.selected_documents.remove(file_name)
+        
+        # Set a flag to indicate successful removal
+        st.session_state.document_removed = True
+        st.session_state.removed_document_name = file_name
+        
+        return True
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
         return False
@@ -1460,10 +1466,12 @@ try:
 
             else:
                 st.info(f"No content available for {file_name}.")
+            
             # Place the remove button here, after displaying the document content
-            if st.button(f"🗑️ Remove {file_name}"):
-                remove_document(file_name)
-                st.info(f"Attempting to remove '{file_name}'")
+            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                if remove_document(file_name):
+                    st.rerun()
+
 
     # Display question history
     if st.session_state.qa_history:

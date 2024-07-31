@@ -932,7 +932,7 @@ def generate_summary(page_contents, progress_bar, status_text):
     status_text.text("Summary generation complete")
     return final_summary
 
-#session states
+# Initialize session state variables if they don't exist
 if 'documents' not in st.session_state:
     st.session_state.documents = {}
 if 'file_hashes' not in st.session_state:
@@ -949,12 +949,12 @@ if 'query_name_clicked' not in st.session_state:
     st.session_state.query_name_clicked = None
 if 'files_to_remove' not in st.session_state:
     st.session_state.files_to_remove = []
+if 'selected_documents' not in st.session_state:
+    st.session_state.selected_documents = []
 if st.session_state.get('document_removed', False):
     st.success(f"{st.session_state.removed_document_name} has been removed.")
     st.session_state.document_removed = False
     st.session_state.removed_document_name = None
-
-
 
 def handle_new_query(name, query_part):
     if save_custom_query(name, query_part):
@@ -1521,7 +1521,7 @@ with st.expander("⚠️ By using this application, you agree to the following t
     </div>
     """, unsafe_allow_html=True)
 # States
-# Initialize session state variables
+
 
 # At the end of your main script
 if st.session_state.get('trigger_rerun', False):

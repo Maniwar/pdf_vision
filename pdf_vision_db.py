@@ -97,6 +97,33 @@ def get_or_create_custom_query_collection():
         st.error(f"Error in creating or accessing the AI task collection: {str(e)}")
         return None
 
+def get_or_create_document_pages_collection():
+    collection_name = "document_pages"
+    try:
+        if utility.has_collection(collection_name):
+            return Collection(collection_name)
+        else:
+            fields = [
+                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+                FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
+                FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=255),
+                FieldSchema(name="page_number", dtype=DataType.INT64),
+                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1536),
+                FieldSchema(name="summary", dtype=DataType.VARCHAR, max_length=65535)
+            ]
+            schema = CollectionSchema(fields, "Document pages collection")
+            collection = Collection(collection_name, schema)
+            index_params = {
+                "metric_type": "L2",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 1024}
+            }
+            collection.create_index("vector", index_params)
+            return collection
+    except Exception as e:
+        st.error(f"Error in creating or accessing the document pages collection: {str(e)}")
+        return None
+
 def get_all_custom_queries():
     collection = get_or_create_custom_query_collection()
     if collection is None:
@@ -976,8 +1003,7 @@ def verify_collection_exists(collection_name):
         return False
 
 def remove_document(file_name):
-    st.write(file_name)
-    collection = get_or_create_collection("document_pages")  # Correct function for document pages collection
+    collection = get_or_create_document_pages_collection()  # Correct function for document pages collection
     if collection is None:
         st.error("Failed to access document pages collection")
         return
@@ -992,7 +1018,15 @@ def remove_document(file_name):
         if file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
 
+        # Remove file hash and associated name
+        file_hashes = st.session_state.get('file_hashes', {})
+        for hash_value, name in list(file_hashes.items()):
+            if name == file_name:
+                del file_hashes[hash_value]
 
+        # Update QA history
+        qa_history = st.session_state.get('qa_history', [])
+        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
 
         # Delay to allow UI to update
         time.sleep(1)

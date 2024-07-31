@@ -978,7 +978,10 @@ def remove_document(file_name):
     try:
         # Remove from Milvus collection
         collection = get_or_create_collection("document_pages")
-        collection.delete(f"file_name == '{file_name}'")
+        if collection:
+            collection.delete(f"file_name == '{file_name}'")
+        else:
+            st.warning("Could not access the document collection. The file may not be fully removed from the database.")
 
         # Remove from session state
         if file_name in st.session_state.documents:
@@ -992,12 +995,16 @@ def remove_document(file_name):
         # Remove from selected documents if present
         if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
-        # Delay to allow UI to update
-        time.sleep(1)
-        # Use the reset_session function to reset the session state and rerun the app
-        reset_session()
+
+        # Remove from qa_history if present
+        if 'qa_history' in st.session_state:
+            st.session_state.qa_history = [qa for qa in st.session_state.qa_history if file_name not in qa['documents_queried']]
+
+        st.success(f"Successfully removed {file_name}")
+        return True
     except Exception as e:
-        st.error(f"Error removing {file_name}: {str(e)}")
+        st.error(f"An error occurred while removing {file_name}: {str(e)}")
+        return False
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):
@@ -1014,18 +1021,15 @@ def remove_question(index):
 def clear_current_session():
     st.session_state.documents = {}
     st.session_state.file_hashes = {}
-    st.session_state.custom_query_selected = False
-    st.session_state.query_part_clicked = None
-    st.session_state.query_name_clicked = None
     st.session_state.qa_history = []
+    if 'selected_documents' in st.session_state:
+        st.session_state.selected_documents = []
     st.session_state.custom_queries = get_all_custom_queries()
     message = st.empty()
     message.success("Current session cleared")
     time.sleep(2)
     message.empty()
     st.rerun()
-
-
 
 
 # Main processing function
@@ -1426,12 +1430,7 @@ try:
             else:
                 st.info(f"No content available for {file_name}.")
 
-            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                if remove_document(file_name):
-                    st.success(f"{file_name} has been removed.")
-                    st.rerun()
-                else:
-                    st.error(f"Failed to remove {file_name}. Please try again.")
+
     # Display question history
     if st.session_state.qa_history:
         st.divider()

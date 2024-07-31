@@ -978,7 +978,7 @@ def handle_new_query(name, query_part):
 
 
 
-def remove_document(file_name, client):
+def remove_document(file_name):
     try:
         # Check if the collection exists
         if not utility.has_collection("document_pages"):

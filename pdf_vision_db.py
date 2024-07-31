@@ -428,7 +428,7 @@ def remove_document(file_name):
         # Set a flag to indicate successful removal
         st.session_state.document_removed = True
         st.session_state.removed_document_name = file_name
-        
+
         #Tell User file is removed
         st.info(f"'{file_name}' has been removed")
         st.rerun()

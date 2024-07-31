@@ -999,8 +999,14 @@ def remove_document(file_name):
             st.error(f"Collection '{collection_name}' does not exist.")
             return False
 
+        st.info(f"Loading the collection '{collection_name}'.")
         collection = Collection(collection_name)
         collection.load()
+        st.success(f"Collection '{collection_name}' loaded successfully.")
+
+        # Debug: Check collection name and content
+        st.info(f"Collection name: {collection.name}")
+        st.info(f"Collection schema: {collection.schema}")
 
         # Delete entities by a filter expression
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")

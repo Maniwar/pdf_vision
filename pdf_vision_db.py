@@ -29,47 +29,7 @@ import time
 from streamlit.runtime.scriptrunner import RerunException
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
-def get_or_create_custom_query_collection():
-    collection_name = "custom_queries"
-    try:
-        if utility.has_collection(collection_name):
-            return Collection(collection_name)
-        else:
-            fields = [
-                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-                FieldSchema(name="name", dtype=DataType.VARCHAR, max_length=255),
-                FieldSchema(name="query_part", dtype=DataType.VARCHAR, max_length=65535),
-                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1536)
-            ]
-            schema = CollectionSchema(fields, "Custom query collection")
-            collection = Collection(collection_name, schema)
-            index_params = {
-                "metric_type": "L2",
-                "index_type": "IVF_FLAT",
-                "params": {"nlist": 1024}
-            }
-            collection.create_index("vector", index_params)
-            return collection
-    except Exception as e:
-        st.error(f"Error in creating or accessing the AI task collection: {str(e)}")
-        return None
 
-def get_all_custom_queries():
-    collection = get_or_create_custom_query_collection()
-    if collection is None:
-        return []
-
-    try:
-        collection.load()
-        results = collection.query(
-            expr="name != ''",
-            output_fields=["name", "query_part"],
-            limit=1000
-        )
-        return results
-    except Exception as e:
-        st.error(f"Error fetching custom AI task: {str(e)}")
-        return []
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")
@@ -112,7 +72,47 @@ def reset_session():
             window.location.reload();
         </script>
     """, unsafe_allow_html=True)
+def get_or_create_custom_query_collection():
+    collection_name = "custom_queries"
+    try:
+        if utility.has_collection(collection_name):
+            return Collection(collection_name)
+        else:
+            fields = [
+                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+                FieldSchema(name="name", dtype=DataType.VARCHAR, max_length=255),
+                FieldSchema(name="query_part", dtype=DataType.VARCHAR, max_length=65535),
+                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1536)
+            ]
+            schema = CollectionSchema(fields, "Custom query collection")
+            collection = Collection(collection_name, schema)
+            index_params = {
+                "metric_type": "L2",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 1024}
+            }
+            collection.create_index("vector", index_params)
+            return collection
+    except Exception as e:
+        st.error(f"Error in creating or accessing the AI task collection: {str(e)}")
+        return None
 
+def get_all_custom_queries():
+    collection = get_or_create_custom_query_collection()
+    if collection is None:
+        return []
+
+    try:
+        collection.load()
+        results = collection.query(
+            expr="name != ''",
+            output_fields=["name", "query_part"],
+            limit=1000
+        )
+        return results
+    except Exception as e:
+        st.error(f"Error fetching custom AI task: {str(e)}")
+        return []
 def get_or_create_collection(collection_name, dim=1536):
     try:
         if utility.has_collection(collection_name):
@@ -931,6 +931,7 @@ def generate_summary(page_contents, progress_bar, status_text):
     progress_bar.progress(1.0)
     status_text.text("Summary generation complete")
     return final_summary
+
 #session states
 if 'documents' not in st.session_state:
     st.session_state.documents = {}

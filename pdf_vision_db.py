@@ -984,18 +984,18 @@ def remove_document(file_name):
     try:
         delete_result = collection.delete(f"file_name == '{file_name}'")
         st.write(f"Delete result: {delete_result}")  # Debug print to check the result
-        remove_from_session_state()
+        remove_from_session_state(file_name)
         st.rerun()
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
 
 
-def remove_from_session_state(file_name, keys):
+def remove_from_session_state(file_name):
     """Helper function to remove file references from session state."""
     for key in keys:
-        if key in st.session_state and file_name in st.session_state[key]:
+        if key in st.session_state and file_name:
             del st.session_state[key][file_name]
-            st.info(f"Removed {file_name} from session state under {key}.")
+            st.info(f"Removed {file_name} from session state.")
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):

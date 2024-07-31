@@ -29,6 +29,22 @@ import time
 from streamlit.runtime.scriptrunner import RerunException
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
+def get_all_custom_queries():
+    collection = get_or_create_custom_query_collection()
+    if collection is None:
+        return []
+
+    try:
+        collection.load()
+        results = collection.query(
+            expr="name != ''",
+            output_fields=["name", "query_part"],
+            limit=1000
+        )
+        return results
+    except Exception as e:
+        st.error(f"Error fetching custom AI task: {str(e)}")
+        return []
 # Initialize session state variables
 if 'documents' not in st.session_state:
     st.session_state.documents = {}
@@ -355,22 +371,6 @@ def update_custom_query(name, new_query_part):
         st.error(f"Error updating custom AI task: {str(e)}")
         return False
 
-def get_all_custom_queries():
-    collection = get_or_create_custom_query_collection()
-    if collection is None:
-        return []
-
-    try:
-        collection.load()
-        results = collection.query(
-            expr="name != ''",
-            output_fields=["name", "query_part"],
-            limit=1000
-        )
-        return results
-    except Exception as e:
-        st.error(f"Error fetching custom AI task: {str(e)}")
-        return []
 
 def use_custom_query(query_name, query, selected_documents):
     custom_queries = get_all_custom_queries()

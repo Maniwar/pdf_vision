@@ -975,8 +975,12 @@ def handle_new_query(name, query_part):
         st.rerun()
     else:
         st.error(f"Failed to save custom query '{name}'")
+
 def remove_document(file_name):
     try:
+        # Ensure connection to Milvus
+        connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY, secure=True)
+
         # Get the collection
         collection = Collection("document_pages")
         collection.load()
@@ -984,61 +988,49 @@ def remove_document(file_name):
         # Check if the document exists in Milvus
         query_result = collection.query(
             expr=f"file_name == '{file_name}'",
-            output_fields=["file_name", "id"],
+            output_fields=["file_name"],
             limit=1
         )
 
         if not query_result:
             st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
         else:
-            doc_id = query_result[0]['id']
-            st.info(f"Attempting to delete {file_name} with ID {doc_id} from Milvus.")
-            
-            # Attempt to delete the document by ID
-            collection.delete(expr=f"id in [{doc_id}]")
+            # Attempt to delete the document
+            collection.delete(f"file_name == '{file_name}'")
             collection.flush()  # Ensure the delete operation is executed
 
             # Verify removal from Milvus
             verification_result = collection.query(
-                expr=f"id == {doc_id}",
+                expr=f"file_name == '{file_name}'",
                 output_fields=["file_name"],
                 limit=1
             )
             if verification_result:
                 st.error(f"Failed to remove {file_name} from Milvus. The document still exists in the database.")
-                st.write(f"Verification result: {verification_result}")  # Log the verification result for debugging
                 return False
 
         # Remove from session state
         if file_name in st.session_state.documents:
             del st.session_state.documents[file_name]
-            st.info(f"{file_name} removed from session state documents.")
 
         # Remove from file hashes
         for hash_value, name in list(st.session_state.file_hashes.items()):
             if name == file_name:
                 del st.session_state.file_hashes[hash_value]
-                st.info(f"{file_name} removed from session state file hashes.")
 
         # Remove from selected documents if present
         if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
-            st.info(f"{file_name} removed from session state selected documents.")
 
         # Remove from qa_history if present
         if 'qa_history' in st.session_state:
-            original_length = len(st.session_state.qa_history)
             st.session_state.qa_history = [qa for qa in st.session_state.qa_history if file_name not in qa['documents_queried']]
-            if len(st.session_state.qa_history) < original_length:
-                st.info(f"{file_name} references removed from session state QA history.")
 
         st.success(f"{file_name} has been successfully removed from the database and application state.")
         return True
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
-
-
 
 
 def remove_question(index):

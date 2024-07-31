@@ -1473,10 +1473,8 @@ try:
                 st.info(f"No content available for {file_name}.")
 
             # Place the remove button here, after displaying the document content
-            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                handle_remove_document(file_name)
-
-
+            if st.button(f"🗑️ Remove {file_name}"):
+               remove_document(file_name)
 
     # Display question history
     if st.session_state.qa_history:

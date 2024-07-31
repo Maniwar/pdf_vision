@@ -414,7 +414,7 @@ def remove_document(file_name):
     collection = get_or_create_document_pages_collection()
     if collection is None:
         st.error("Failed to access document pages collection")
-        return False
+        return
 
     try:
         # Delete document from Milvus collection

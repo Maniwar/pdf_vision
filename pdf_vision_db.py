@@ -1019,8 +1019,12 @@ def remove_document(file_name):
         delete_result = collection.delete(expr=expr)
         st.write(f"Delete result: {delete_result}")
 
-        if delete_result.row_count == 0:
-            st.warning(f"No entries were found or deleted for {file_name} in the Milvus database.")
+        if isinstance(delete_result, MutationResult):
+            if delete_result.delete_count == 0:
+                st.warning(f"No entries were found or deleted for {file_name} in the Milvus database.")
+                return False
+        else:
+            st.error(f"Unexpected delete result format: {delete_result}")
             return False
 
         # Ensure the delete operation is executed

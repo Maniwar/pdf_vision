@@ -980,7 +980,7 @@ def verify_collection_exists(collection_name):
 def remove_document(file_name):
     try:
         connect_to_milvus()  # Ensure Milvus connection is established
-        delete_result = client.delete(
+        delete_result = collection.delete(
             collection_name="document_pages",
             filter=f"file_name == '{file_name}'"
         )

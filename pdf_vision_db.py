@@ -984,22 +984,23 @@ def remove_document(file_name):
         # Check if the document exists in Milvus
         query_result = collection.query(
             expr=f"file_name == '{file_name}'",
-            output_fields=["file_name"],
+            output_fields=["file_name", "id"],
             limit=1
         )
 
         if not query_result:
             st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
         else:
-            st.info(f"Attempting to delete {file_name} from Milvus.")
+            doc_id = query_result[0]['id']
+            st.info(f"Attempting to delete {file_name} with ID {doc_id} from Milvus.")
             
-            # Attempt to delete the document
-            collection.delete(expr=f"file_name == '{file_name}'")
+            # Attempt to delete the document by ID
+            collection.delete(expr=f"id in [{doc_id}]")
             collection.flush()  # Ensure the delete operation is executed
 
             # Verify removal from Milvus
             verification_result = collection.query(
-                expr=f"file_name == '{file_name}'",
+                expr=f"id == {doc_id}",
                 output_fields=["file_name"],
                 limit=1
             )
@@ -1036,6 +1037,7 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
+
 
 
 

@@ -433,7 +433,7 @@ def remove_document(file_name):
 
         # Verify deletion
         verify_result = collection.query(
-            expr=f"file_name == '{file_name}'",
+            expr=f"file_name == {file_name}",
             output_fields=["id"],
             limit=1
         )

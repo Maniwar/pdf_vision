@@ -424,7 +424,7 @@ def remove_document(file_name):
         st.write(f"Delete result: {delete_result}")
 
         # Check if any documents were deleted
-        if delete_result['delete_count'] > 0:
+        if delete_result.delete_count > 0:
             # Remove document from session state
             st.session_state.documents.pop(file_name, None)
             if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:

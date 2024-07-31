@@ -72,6 +72,7 @@ def reset_session():
             window.location.reload();
         </script>
     """, unsafe_allow_html=True)
+    
 # Initialize session state variables if they don't exist
 if 'documents' not in st.session_state:
     st.session_state.documents = {}
@@ -95,6 +96,7 @@ if st.session_state.get('document_removed', False):
     st.success(f"{st.session_state.removed_document_name} has been removed.")
     st.session_state.document_removed = False
     st.session_state.removed_document_name = None
+
 def get_or_create_custom_query_collection():
     collection_name = "custom_queries"
     try:
@@ -433,28 +435,38 @@ def delete_custom_query(name):
         st.error(f"Error deleting custom AI task: {str(e)}")
 
 def remove_document(file_name):
+    collection = get_or_create_document_pages_collection()
+    if collection is None:
+        st.error("Failed to access document pages collection")
+        return
+
     try:
-        # Remove from Milvus collection
-        collection = get_or_create_collection("document_pages")
-        collection.delete(f"file_name == '{file_name}'")
+        # Delete document from Milvus collection
+        delete_result = collection.delete(f"file_name == '{file_name}'")
+        st.write(f"Delete result: {delete_result}")  # Debug print to check the result
 
-        # Remove from session state
-        if file_name in st.session_state.documents:
-            del st.session_state.documents[file_name]
-
-        # Remove from file hashes
-        for hash_value, name in list(st.session_state.file_hashes.items()):
-            if name == file_name:
-                del st.session_state.file_hashes[hash_value]
-
-        # Remove from selected documents if present
-        if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
+        # Remove document from session state
+        st.session_state.documents.pop(file_name, None)
+        if file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
 
-        return True
+        # Remove file hash and associated name
+        file_hashes = st.session_state.get('file_hashes', {})
+        for hash_value, name in list(file_hashes.items()):
+            if name == file_name:
+                del file_hashes[hash_value]
+
+        # Update QA history
+        qa_history = st.session_state.get('qa_history', [])
+        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
+
+        # Delay to allow UI to update
+        time.sleep(1)
+
+        # Use the reset_session function to reset the session state and rerun the app
+        reset_session()
     except Exception as e:
-        st.error(f"Error removing {file_name}: {str(e)}")
-        return False
+        st.error(f"Error deleting document: {str(e)}")
 
 #sources
 def calculate_confidence(score):
@@ -1299,7 +1311,7 @@ with st.sidebar:
         "2. Wait for the AI to process and analyze the documents.\n"
         "3. Select the documents you want to analyze (including from previous sessions).\n"
         "4. Describe your task or question in the text box. Be specific for best results.\n"
-        "5. Click 'Execute AI Task' to get insights based on the selected documents.\n"
+        "5. Click 'Execute AI Task' to  insights based on the selected documents.\n"
         "6. Review the AI's response and explore the cited sources.\n"
         "7. Use custom AI tasks for quick, predefined analyses.\n"
         "8. Optionally, export your analysis session as a PDF for future reference."

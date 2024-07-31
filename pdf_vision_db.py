@@ -989,19 +989,13 @@ def remove_document(file_name):
         collection = Collection("document_pages")
         collection.load()
 
+        # Prepare the boolean expression to delete documents
+        expr = f"file_name == '{file_name}'"
+
         # Delete all documents with the given file_name
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
-        delete_result = client.delete(
-            collection_name="document_pages",
-            filter=f"file_name == '{file_name}'"
-        )
-        
-        deleted_count = delete_result['delete_count']
-        st.write(f"Delete result: {deleted_count} entities deleted")
-
-        if deleted_count == 0:
-            st.warning(f"No entries were found or deleted for {file_name} in the Milvus database.")
-            return False
+        delete_result = collection.delete(expr=expr)
+        st.write(f"Delete result: {delete_result}")
 
         # Ensure the delete operation is executed
         collection.flush()
@@ -1011,13 +1005,13 @@ def remove_document(file_name):
 
         # Verify removal from Milvus
         collection.load()  # Reload to ensure we have the latest data
-        verification_result = collection.query(expr=f"file_name == '{file_name}'")
+        verification_result = collection.query(expr=f"file_name == '{file_name}'", output_fields=["id"])
 
         if verification_result:
             st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")
             return False
         else:
-            st.success(f"Successfully removed all {deleted_count} entries for {file_name} from Milvus.")
+            st.success(f"Successfully removed all entries for {file_name} from Milvus.")
 
             # Remove from session state
             if file_name in st.session_state.get('documents', {}):

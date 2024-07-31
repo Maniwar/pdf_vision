@@ -995,7 +995,7 @@ def reinitialize_client():
         st.error(f"Failed to reinitialize Milvus client: {str(e)}")
         return None
 
-def remove_documents():
+def remove_document():
     try:
         st.info("Starting document removal process.")
 

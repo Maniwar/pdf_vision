@@ -547,15 +547,28 @@ def save_uploadedfile(uploadedfile):
 
 # Add a new function to process CSV files
 def process_csv(file_path, page_progress_bar, page_status_text):
+    # Read the CSV file
     df = pd.read_csv(file_path)
-    markdown_content = f"## CSV Content\n\n{df.to_markdown(index=False)}"
-    page_contents = [markdown_content]
+
+    # Convert DataFrame to markdown
+    markdown_content = df.to_markdown(index=False)
+
+    # Split the content into smaller chunks
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=60000,  # Adjust this value as needed, keeping it under 65535
+        chunk_overlap=100,
+        length_function=len,
+    )
+    chunks = text_splitter.split_text(markdown_content)
+
+    page_contents = chunks
 
     # Update progress
     page_progress_bar.progress(1.0)
-    page_status_text.text("CSV file processing complete")
+    page_status_text.text(f"CSV file processed into {len(chunks)} chunks")
 
-    return [(1, None)], page_contents
+    # Return a list of tuples (page_number, None) for each chunk, and the page contents
+    return [(i+1, None) for i in range(len(chunks))], page_contents
 
 def process_pdf(file_path, page_progress_bar, page_status_text):
     doc = fitz.open(file_path)
@@ -1016,7 +1029,7 @@ def clear_current_session():
 
 
 # Main processing function
-def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
+ddef process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
     file_progress_bar = st.progress(0)
     file_status_text = st.empty()
     page_progress_bar = st.progress(0)
@@ -1042,10 +1055,10 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
         file_status_text.text("Extracting content from file...")
         file_progress_bar.progress(10)
 
-        if file_extension == '.pdf':
-            image_paths, page_contents = process_pdf(temp_file_path, page_progress_bar, page_status_text)
-        elif file_extension == '.csv':
+        if file_extension == '.csv':
             image_paths, page_contents = process_csv(temp_file_path, page_progress_bar, page_status_text)
+        elif file_extension == '.pdf':
+            image_paths, page_contents = process_pdf(temp_file_path, page_progress_bar, page_status_text)
         elif file_extension in ['.doc', '.docx']:
             image_paths, page_contents = process_doc_docx(temp_file_path, page_progress_bar, page_status_text)
         elif file_extension == '.txt':
@@ -1087,11 +1100,11 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
             else:
                 page_vector = embeddings.embed_documents([content])[0]
                 entity = {
-                    "content": content,
+                    "content": content[:65000],  # Truncate content to fit within Milvus VARCHAR limit
                     "file_name": uploaded_file.name,
                     "page_number": page_number,
                     "vector": page_vector,
-                    "summary": summary
+                    "summary": summary[:65000] if summary else ""  # Truncate summary as well
                 }
                 collection.insert([entity])
                 progress_percentage = 60 + (i + 1) / total_pages * 35  # Progress from 60% to 95%
@@ -1121,15 +1134,6 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
     except Exception as e:
         st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
         st.error(f"Traceback: {traceback.format_exc()}")
-
-        # Additional debugging information
-        # st.write(f"Debug: File extension: {file_extension}")
-        # st.write(f"Debug: Temp file path: {temp_file_path}")
-        # if os.path.exists(temp_file_path):
-        #     st.write(f"Debug: Temp file size: {os.path.getsize(temp_file_path)} bytes")
-        # else:
-        #     st.write("Debug: Temp file does not exist")
-
         return None, None, None, None
 
 

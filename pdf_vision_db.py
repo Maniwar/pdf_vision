@@ -414,15 +414,15 @@ def remove_document(file_name):
     collection = get_or_create_document_pages_collection()
     if collection is None:
         st.error("Failed to access document pages collection")
-        return
+        return False
 
     try:
         # Delete document from Milvus collection
         collection.delete(f"file_name == '{file_name}'")
-        
+
         # Remove document from session state
         st.session_state.documents.pop(file_name, None)
-        if file_name in st.session_state.selected_documents:
+        if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
 
         # Remove file hash and associated name
@@ -435,14 +435,10 @@ def remove_document(file_name):
         qa_history = st.session_state.get('qa_history', [])
         st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
 
-        # Delay to allow UI to update
-        time.sleep(1)
-
-        # Use the reset_session function to reset the session state and rerun the app
-        reset_session()
+        return True
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
-
+        return False
 #sources
 def calculate_confidence(score):
     # Convert the similarity score to a confidence level
@@ -1468,7 +1464,7 @@ try:
 
             # Place the remove button here, after displaying the document content
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                remove_document(file_name)
+                handle_remove_document(file_name)
 
 
 
@@ -1574,8 +1570,9 @@ with st.expander("⚠️ By using this application, you agree to the following t
     """, unsafe_allow_html=True)
 # States
 
-
 # At the end of your main script
-if st.session_state.get('trigger_rerun', False):
-    st.session_state.trigger_rerun = False
+if st.session_state.get('document_removed', False):
+    st.success(f"{st.session_state.removed_document_name} has been removed.")
+    st.session_state.document_removed = False
+    st.session_state.removed_document_name = None
     st.rerun()

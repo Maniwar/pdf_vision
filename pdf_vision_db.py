@@ -984,20 +984,6 @@ def remove_document(file_name):
     try:
         delete_result = collection.delete(f"file_name == '{file_name}'")
         st.write(f"Delete result: {delete_result}")  # Debug print to check the result
-
-        # Remove from session state
-        if file_name in st.session_state.get('documents', {}):
-            del st.session_state.documents[file_name]
-        if file_name in st.session_state.get('selected_documents', []):
-            st.session_state.selected_documents.remove(file_name)
-        file_hashes = st.session_state.get('file_hashes', {})
-        for hash_value, name in list(file_hashes.items()):
-            if name == file_name:
-                del file_hashes[hash_value]
-        qa_history = st.session_state.get('qa_history', [])
-        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
-
-        st.success(f"Document '{file_name}' removed successfully.")
         st.rerun()
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")

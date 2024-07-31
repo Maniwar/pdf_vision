@@ -1463,7 +1463,7 @@ try:
             # Place the remove button here, after displaying the document content
             if st.button(f"🗑️ Remove {file_name}"):
                 remove_document(file_name)
-                st.info(f"Attempting to remove {file_name}")
+                st.info(f"Attempting to remove '{file_name}'")
 
     # Display question history
     if st.session_state.qa_history:

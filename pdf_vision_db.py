@@ -411,19 +411,23 @@ def delete_custom_query(name):
         st.error(f"Error deleting custom AI task: {str(e)}")
 
 def remove_document(file_name):
-    collection = get_or_create_document_pages_collection()
-    if collection is None:
-        st.error("Failed to access document pages collection")
+    collection_name = "document_pages"  # Replace with your actual collection name
+    if client is None:
+        st.error("Failed to access Zilliz Cloud client")
         return False
 
     try:
-        # Delete document from Milvus collection
-        delete_result = collection.delete(expr=f"file_name == '{file_name}'")
+        # Delete document from Zilliz Cloud collection
+        delete_result = client.delete(
+            collection_name=collection_name,
+            filter=f"file_name == '{file_name}'"
+        )
+
         # Display the delete result
         st.write(f"Delete result: {delete_result}")
 
         # Check the delete count
-        if delete_result.delete_count > 0:
+        if delete_result["delete_count"] > 0:
             # Remove document from session state
             st.session_state.documents.pop(file_name, None)
             if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:

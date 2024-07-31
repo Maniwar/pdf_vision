@@ -998,7 +998,7 @@ def remove_document(file_name):
         st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
 
         st.success(f"Document '{file_name}' removed successfully.")
-        st.experimental_rerun()
+        st.rerun()
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
 

@@ -29,6 +29,31 @@ import time
 from streamlit.runtime.scriptrunner import RerunException
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
+def get_or_create_custom_query_collection():
+    collection_name = "custom_queries"
+    try:
+        if utility.has_collection(collection_name):
+            return Collection(collection_name)
+        else:
+            fields = [
+                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+                FieldSchema(name="name", dtype=DataType.VARCHAR, max_length=255),
+                FieldSchema(name="query_part", dtype=DataType.VARCHAR, max_length=65535),
+                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1536)
+            ]
+            schema = CollectionSchema(fields, "Custom query collection")
+            collection = Collection(collection_name, schema)
+            index_params = {
+                "metric_type": "L2",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 1024}
+            }
+            collection.create_index("vector", index_params)
+            return collection
+    except Exception as e:
+        st.error(f"Error in creating or accessing the AI task collection: {str(e)}")
+        return None
+
 def get_all_custom_queries():
     collection = get_or_create_custom_query_collection()
     if collection is None:
@@ -309,30 +334,6 @@ def get_document_content(file_name):
         return []
 
 #custom buttons
-def get_or_create_custom_query_collection():
-    collection_name = "custom_queries"
-    try:
-        if utility.has_collection(collection_name):
-            return Collection(collection_name)
-        else:
-            fields = [
-                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-                FieldSchema(name="name", dtype=DataType.VARCHAR, max_length=255),
-                FieldSchema(name="query_part", dtype=DataType.VARCHAR, max_length=65535),
-                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1536)
-            ]
-            schema = CollectionSchema(fields, "Custom query collection")
-            collection = Collection(collection_name, schema)
-            index_params = {
-                "metric_type": "L2",
-                "index_type": "IVF_FLAT",
-                "params": {"nlist": 1024}
-            }
-            collection.create_index("vector", index_params)
-            return collection
-    except Exception as e:
-        st.error(f"Error in creating or accessing the AI task collection: {str(e)}")
-        return None
 
 def save_custom_query(name, query_part, update=False):
     collection = get_or_create_custom_query_collection()

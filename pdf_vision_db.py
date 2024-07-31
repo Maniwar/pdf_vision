@@ -29,6 +29,27 @@ import time
 from streamlit.runtime.scriptrunner import RerunException
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
+# Set page configuration to wide mode
+st.set_page_config(layout="wide")
+
+# Set the API key using st.secrets for secure access
+os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
+MODEL = "gpt-4o-mini"  # Latest GPT-4 Turbo model
+MAX_TOKENS = 12000
+client = OpenAI()
+embeddings = OpenAIEmbeddings()
+
+# Milvus connection parameters
+MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
+MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
+
+def connect_to_milvus():
+    connections.connect(
+        alias="default",
+        uri=MILVUS_ENDPOINT,
+        token=MILVUS_API_KEY,
+        secure=True
+    )
 def reset_session():
     # Clear session state variables
     st.session_state.clear()
@@ -50,19 +71,6 @@ def reset_session():
         </script>
     """, unsafe_allow_html=True)
 
-# Set page configuration to wide mode
-st.set_page_config(layout="wide")
-
-# Set the API key using st.secrets for secure access
-os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
-MODEL = "gpt-4o-mini"  # Latest GPT-4 Turbo model
-MAX_TOKENS = 12000
-client = OpenAI()
-embeddings = OpenAIEmbeddings()
-
-# Milvus connection parameters
-MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
-MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
 # iOS-like CSS styling
 st.markdown("""
@@ -175,13 +183,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def connect_to_milvus():
-    connections.connect(
-        alias="default",
-        uri=MILVUS_ENDPOINT,
-        token=MILVUS_API_KEY,
-        secure=True
-    )
+
 
 def get_or_create_collection(collection_name, dim=1536):
     try:
@@ -980,34 +982,60 @@ def remove_document(file_name):
     try:
         st.info("Starting document removal process.")
 
-        # Create a MilvusClient instance
-        client = MilvusClient("milvus_demo.db")  # Adjust this to your actual connection
+        # Connect to Milvus
+        connect_to_milvus()
 
-        # Delete entities by a filter expression
+        # Ensure the collection exists
+        st.info("Checking if collection 'document_pages' exists.")
+        if not utility.has_collection("document_pages"):
+            st.error("Collection 'document_pages' does not exist.")
+            return False
+        st.success("Collection 'document_pages' found.")
+
+        # Load the collection
+        st.info("Loading the collection 'document_pages'.")
+        collection = Collection("document_pages")
+        collection.load()
+        st.success("Collection 'document_pages' loaded successfully.")
+
+        # Prepare the boolean expression to delete documents
+        expr = f"file_name == '{file_name}'"
+        st.info(f"Prepared boolean expression for deletion: {expr}")
+
+        # Check if the document exists in Milvus
+        st.info(f"Checking if the document {file_name} exists in Milvus.")
+        query_result = collection.query(expr=expr, output_fields=["id"])
+        if not query_result:
+            st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
+            return False
+        st.success(f"Document {file_name} found in Milvus. Proceeding with deletion.")
+
+        # Log IDs to be deleted
+        doc_ids = [doc['id'] for doc in query_result]
+        st.info(f"Document IDs to be deleted: {doc_ids}")
+
+        # Attempt to delete all documents by file_name
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
-        res = client.delete(
-            collection_name="document_pages",
-            filter=f"file_name == '{file_name}'"
-        )
-        st.write(f"Delete result: {res}")
+        delete_result = collection.delete(expr=expr)
+        st.write(f"Delete result: {delete_result}")
 
-        if res['delete_count'] == 0:
+        if delete_result.row_count == 0:
             st.warning(f"No entries were found or deleted for {file_name} in the Milvus database.")
             return False
 
-        # Allow some time for the delete operation to complete
-        st.info("Waiting for delete operation to complete.")
+        # Ensure the delete operation is executed
+        st.info("Flushing the collection to ensure delete operation is executed.")
+        collection.flush()
+
+        # Allow some time for the flush operation to complete
+        st.info("Waiting for flush operation to complete.")
         time.sleep(5)  # Adjust as necessary for your environment
-        st.success("Delete operation completed.")
+        st.success("Flush operation completed.")
 
         # Verify removal from Milvus
         st.info("Reloading the collection to verify deletion.")
-        client.load_collection("document_pages")  # Ensure the latest state is loaded
-        verification_result = client.query(
-            collection_name="document_pages",
-            expr=f"file_name == '{file_name}'",
-            output_fields=["id"]
-        )
+        collection.load()  # Reload to ensure we have the latest data
+        verification_result = collection.query(expr=expr, output_fields=["id"])
 
         if verification_result:
             st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")

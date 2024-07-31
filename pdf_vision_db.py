@@ -1029,27 +1029,26 @@ def remove_document(file_name):
             return False
 
         # Attempt to delete entries
-        for file_name in list(st.session_state.files_to_remove):
-            st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
-            try:
-                delete_result = collection.delete(expr=f"file_name == '{file_name}'")
-                st.success(f"Deleted entries for {file_name}.")
-            except MilvusException as e:
-                st.error(f"Failed to delete entries for {file_name}: {str(e)}")
-                continue
+        st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
+        try:
+            delete_result = collection.delete(expr=f"file_name == '{file_name}'")
+            st.success(f"Deleted entries for {file_name}.")
+        except MilvusException as e:
+            st.error(f"Failed to delete entries for {file_name}: {str(e)}")
+            return False
 
-            # Remove from session state
-            if file_name in st.session_state.get('documents', {}):
-                del st.session_state.documents[file_name]
-            if file_name in st.session_state.get('selected_documents', []):
-                st.session_state.selected_documents.remove(file_name)
-            file_hashes = st.session_state.get('file_hashes', {})
-            for hash_value, name in list(file_hashes.items()):
-                if name == file_name:
-                    del file_hashes[hash_value]
-            qa_history = st.session_state.get('qa_history', [])
-            st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
-        
+        # Remove from session state
+        if file_name in st.session_state.get('documents', {}):
+            del st.session_state.documents[file_name]
+        if file_name in st.session_state.get('selected_documents', []):
+            st.session_state.selected_documents.remove(file_name)
+        file_hashes = st.session_state.get('file_hashes', {})
+        for hash_value, name in list(file_hashes.items()):
+            if name == file_name:
+                del file_hashes[hash_value]
+        qa_history = st.session_state.get('qa_history', [])
+        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
+
         st.success("Document removal process completed successfully.")
         return True
 

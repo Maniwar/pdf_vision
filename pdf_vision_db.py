@@ -996,7 +996,7 @@ def remove_document(file_name):
         else:
             doc_id = query_result[0]['id']
             st.info(f"Attempting to delete {file_name} with ID {doc_id} from Milvus.")
-            
+
             # Attempt to delete the document by ID
             delete_result = collection.delete(expr=f"id in [{doc_id}]")
             st.write(f"Delete result: {delete_result}")  # Log the delete result for debugging

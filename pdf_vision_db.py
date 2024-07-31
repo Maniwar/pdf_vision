@@ -71,6 +71,31 @@ def reset_session():
         </script>
     """, unsafe_allow_html=True)
 
+def get_or_create_collection(collection_name, dim=1536):
+    try:
+        if utility.has_collection(collection_name):
+            return Collection(collection_name)
+        else:
+            fields = [
+                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+                FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
+                FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=255),
+                FieldSchema(name="page_number", dtype=DataType.INT64),
+                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim),
+                FieldSchema(name="summary", dtype=DataType.VARCHAR, max_length=65535)
+            ]
+            schema = CollectionSchema(fields, "Document pages collection")
+            collection = Collection(collection_name, schema)
+            index_params = {
+                "metric_type": "L2",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 1024}
+            }
+            collection.create_index("vector", index_params)
+            return collection
+    except Exception as e:
+        st.error(f"Error in creating or accessing the collection: {str(e)}")
+        return None
 
 # iOS-like CSS styling
 st.markdown("""
@@ -184,32 +209,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-
-def get_or_create_collection(collection_name, dim=1536):
-    try:
-        if utility.has_collection(collection_name):
-            return Collection(collection_name)
-        else:
-            fields = [
-                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-                FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
-                FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=255),
-                FieldSchema(name="page_number", dtype=DataType.INT64),
-                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim),
-                FieldSchema(name="summary", dtype=DataType.VARCHAR, max_length=65535)
-            ]
-            schema = CollectionSchema(fields, "Document pages collection")
-            collection = Collection(collection_name, schema)
-            index_params = {
-                "metric_type": "L2",
-                "index_type": "IVF_FLAT",
-                "params": {"nlist": 1024}
-            }
-            collection.create_index("vector", index_params)
-            return collection
-    except Exception as e:
-        st.error(f"Error in creating or accessing the collection: {str(e)}")
-        return None
 
 def toggle_content_visibility(key):
     if key not in st.session_state:
@@ -996,125 +995,45 @@ def reinitialize_client():
         st.error(f"Failed to reinitialize Milvus client: {str(e)}")
         return None
 
-def remove_document(file_name):
+def remove_documents():
     try:
         st.info("Starting document removal process.")
 
         # Connect to Milvus
         connect_to_milvus()
 
-        # Ensure the collection exists
-        collection_name = "document_pages"
-        if not verify_collection_exists(collection_name):
-            st.error(f"Collection '{collection_name}' does not exist.")
+        collection = get_or_create_collection("document_pages")
+        if not collection:
             return False
 
-        # Load the collection
-        st.info(f"Loading the collection '{collection_name}'.")
-        collection = Collection(collection_name)
-        collection.load()
-        st.success(f"Collection '{collection_name}' loaded successfully.")
-
-        # Debug: Check collection name and content
-        st.info(f"Collection name: {collection.name}")
-        st.info(f"Collection schema: {collection.schema}")
-
-        # Reinitialize Milvus client
-        client = reinitialize_client()
-        if not client:
-            st.error("Failed to reinitialize Milvus client.")
-            return False
-
-        # Verify collection again with the client
-        if not client.has_collection(collection_name):
-            st.error(f"Collection '{collection_name}' does not exist according to reinitialized client.")
-            return False
-
-        # Attempt to delete entries with retry mechanism
-        max_retries = 3
-        for attempt in range(max_retries):
+        # Attempt to delete entries
+        for file_name in list(st.session_state.files_to_remove):
+            st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
             try:
-                st.info(f"Attempting to delete all entries for {file_name} from Milvus (Attempt {attempt + 1}/{max_retries}).")
-                delete_result = client.delete(
-                    collection_name=collection_name,
-                    filter=f"file_name == '{file_name}'"
-                )
-                st.success(f"Delete result: {delete_result}")
-                break
+                delete_result = collection.delete(expr=f"file_name == '{file_name}'")
+                st.success(f"Deleted entries for {file_name}.")
             except MilvusException as e:
-                if attempt < max_retries - 1:
-                    st.warning(f"Delete attempt {attempt + 1} failed: {str(e)}. Retrying...")
-                    time.sleep(2)  # Wait before retrying
-                else:
-                    st.error(f"Failed to delete entries for {file_name} after {max_retries} attempts: {str(e)}")
-                    return False
-
-        if delete_result['delete_count'] == 0:
-            st.warning(f"No entries were found or deleted for {file_name} in the Milvus database.")
-            return False
-
-        # Ensure the delete operation is executed
-        st.info("Flushing the collection to ensure delete operation is executed.")
-        collection.flush()
-
-        # Allow some time for the flush operation to complete
-        st.info("Waiting for flush operation to complete.")
-        time.sleep(5)  # Adjust as necessary for your environment
-        st.success("Flush operation completed.")
-
-        # Verify removal from Milvus
-        st.info("Reloading the collection to verify deletion.")
-        collection.load()  # Reload to ensure we have the latest data
-        verification_result = collection.query(expr=f"file_name == '{file_name}'", output_fields=["id"])
-
-        if verification_result:
-            st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")
-            st.write(f"Remaining entries: {verification_result}")
-            return False
-        else:
-            st.success(f"Successfully removed all entries for {file_name} from Milvus.")
+                st.error(f"Failed to delete entries for {file_name}: {str(e)}")
+                continue
 
             # Remove from session state
-            st.info("Removing document from session state.")
             if file_name in st.session_state.get('documents', {}):
                 del st.session_state.documents[file_name]
-                st.info(f"{file_name} removed from session state documents.")
-
-            # Remove from file hashes
-            st.info("Removing document from session state file hashes.")
+            if file_name in st.session_state.get('selected_documents', []):
+                st.session_state.selected_documents.remove(file_name)
             file_hashes = st.session_state.get('file_hashes', {})
             for hash_value, name in list(file_hashes.items()):
                 if name == file_name:
                     del file_hashes[hash_value]
-                    st.info(f"{file_name} removed from session state file hashes.")
-
-            # Remove from selected documents if present
-            st.info("Removing document from session state selected documents.")
-            selected_documents = st.session_state.get('selected_documents', [])
-            if file_name in selected_documents:
-                selected_documents.remove(file_name)
-                st.info(f"{file_name} removed from session state selected documents.")
-
-            # Remove from qa_history if present
-            st.info("Removing document references from session state QA history.")
             qa_history = st.session_state.get('qa_history', [])
-            original_length = len(qa_history)
-            qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
-            if len(qa_history) < original_length:
-                st.session_state.qa_history = qa_history
-                st.info(f"{file_name} references removed from session state QA history.")
+            st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
+        
+        st.success("Document removal process completed successfully.")
+        return True
 
-            st.success("Document removal process completed successfully.")
-            return True
-
-    except MilvusException as e:
-        st.error(f"An unexpected Milvus error occurred while removing {file_name}: {str(e)}")
-        return False
     except Exception as e:
-        st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
+        st.error(f"An unexpected error occurred: {str(e)}")
         return False
-
-
 
 def remove_from_session_state(file_name, keys):
     """Helper function to remove file references from session state."""

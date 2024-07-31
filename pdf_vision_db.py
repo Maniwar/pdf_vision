@@ -954,35 +954,7 @@ if st.session_state.get('document_removed', False):
     st.session_state.document_removed = False
     st.session_state.removed_document_name = None
 
-def update_custom_query(name, new_query_part):
-    if save_custom_query(name, new_query_part, update=True):
-        st.session_state.custom_queries = get_all_custom_queries()
-        message = st.empty()
-        message.success(f"Updated {name}")
-        time.sleep(2)
-        message.empty()
-        st.rerun()
-    else:
-        st.error(f"Failed to update {name}")
 
-def delete_custom_query(name):
-    collection = get_or_create_custom_query_collection()
-    if collection is None:
-        st.error("Failed to access custom query collection")
-        return False
-
-    try:
-        collection.delete(f"name == '{name}'")
-        st.session_state.custom_queries = get_all_custom_queries()
-        message = st.empty()
-        message.success(f"Deleted {name}")
-        time.sleep(2)
-        message.empty()
-        st.rerun()
-        return True
-    except Exception as e:
-        st.error(f"Error deleting custom AI task: {str(e)}")
-        return False
 
 def handle_new_query(name, query_part):
     if save_custom_query(name, query_part):

@@ -1015,11 +1015,16 @@ def reinitialize_client():
 def remove_document(file_name):
     try:
         connect_to_milvus()  # Ensure Milvus connection is established
-        client.delete(
-        collection_name="document_pages",
-        filter="f"file_name == '{file_name}'"
+        client = MilvusClient("default")
+        delete_result = client.delete(
+            collection_name="document_pages",
+            filter=f"file_name == '{file_name}'"
         )
-        st.write(delete_result)  # Debug print to check the result
+        st.write(f"Delete result: {delete_result}")  # Debug print to check the result
+        return delete_result['delete_count'] > 0
+    except Exception as e:
+        st.error(f"Error deleting document: {str(e)}")
+        return False
 
         # Remove from session state
         if file_name in st.session_state.get('documents', {}):

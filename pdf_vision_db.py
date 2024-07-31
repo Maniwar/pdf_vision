@@ -975,7 +975,9 @@ def handle_new_query(name, query_part):
         st.rerun()
     else:
         st.error(f"Failed to save custom query '{name}'")
-
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def remove_document(file_name):
     try:

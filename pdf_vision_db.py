@@ -982,7 +982,7 @@ def remove_document(file_name):
         st.error("Failed to access document pages collection")
         return
     try:
-        delete_result = collection.delete(f"file_name == '{file_name}'")
+        collection.delete(f"file_name == '{file_name}'")
         st.write(f"Delete result: {delete_result}")  # Debug print to check the result
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")

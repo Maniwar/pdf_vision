@@ -975,101 +975,96 @@ def handle_new_query(name, query_part):
         st.rerun()
     else:
         st.error(f"Failed to save custom query '{name}'")
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 def remove_document(file_name):
     try:
-        logger.info("Starting the removal process for %s", file_name)
+        st.info("Starting document removal process.")
 
         # Check if the collection exists
+        st.info("Checking if collection 'document_pages' exists.")
         if not utility.has_collection("document_pages"):
             st.error("Collection 'document_pages' does not exist.")
-            logger.error("Collection 'document_pages' does not exist.")
             return False
+        st.success("Collection 'document_pages' found.")
 
         # Get the collection and load it
+        st.info("Loading the collection 'document_pages'.")
         collection = Collection("document_pages")
         collection.load()
-        logger.info("Loaded collection 'document_pages'.")
+        st.success("Collection 'document_pages' loaded successfully.")
 
         # Prepare the boolean expression to delete documents
         expr = f"file_name == '{file_name}'"
+        st.info(f"Prepared boolean expression for deletion: {expr}")
 
         # Check if the document exists in Milvus
+        st.info(f"Checking if the document {file_name} exists in Milvus.")
         query_result = collection.query(expr=expr, output_fields=["id"])
-        logger.info("Queried Milvus for %s: %s", file_name, query_result)
-
         if not query_result:
             st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
-            logger.warning("%s was not found in the Milvus database. It may have been removed already.", file_name)
             return False
+        st.success(f"Document {file_name} found in Milvus. Proceeding with deletion.")
 
-        # Delete all documents with the given file_name
+        # Attempt to delete all documents by file_name
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
-        logger.info("Attempting to delete all entries for %s from Milvus.", file_name)
         delete_result = collection.delete(expr=expr)
-        logger.info("Delete result: %s", delete_result)
+        st.write(f"Delete result: {delete_result}")
 
         # Ensure the delete operation is executed
+        st.info("Flushing the collection to ensure delete operation is executed.")
         collection.flush()
-        logger.info("Flushed collection after delete operation.")
 
         # Allow some time for the flush operation to complete
+        st.info("Waiting for flush operation to complete.")
         time.sleep(2)
+        st.success("Flush operation completed.")
 
         # Verify removal from Milvus
+        st.info("Reloading the collection to verify deletion.")
         collection.load()  # Reload to ensure we have the latest data
-        logger.info("Reloaded collection after flush.")
         verification_result = collection.query(expr=expr, output_fields=["id"])
-        logger.info("Verification query result: %s", verification_result)
-
         if verification_result:
             st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")
-            logger.error("Failed to remove all entries for %s from Milvus. %d entries still exist.", file_name, len(verification_result))
             return False
         else:
             st.success(f"Successfully removed all entries for {file_name} from Milvus.")
-            logger.info("Successfully removed all entries for %s from Milvus.", file_name)
 
             # Remove from session state
+            st.info("Removing document from session state.")
             if file_name in st.session_state.get('documents', {}):
                 del st.session_state.documents[file_name]
                 st.info(f"{file_name} removed from session state documents.")
-                logger.info("%s removed from session state documents.", file_name)
 
             # Remove from file hashes
+            st.info("Removing document from session state file hashes.")
             file_hashes = st.session_state.get('file_hashes', {})
             for hash_value, name in list(file_hashes.items()):
                 if name == file_name:
                     del file_hashes[hash_value]
                     st.info(f"{file_name} removed from session state file hashes.")
-                    logger.info("%s removed from session state file hashes.", file_name)
 
             # Remove from selected documents if present
+            st.info("Removing document from session state selected documents.")
             selected_documents = st.session_state.get('selected_documents', [])
             if file_name in selected_documents:
                 selected_documents.remove(file_name)
                 st.info(f"{file_name} removed from session state selected documents.")
-                logger.info("%s removed from session state selected documents.", file_name)
 
             # Remove from qa_history if present
+            st.info("Removing document references from session state QA history.")
             qa_history = st.session_state.get('qa_history', [])
             original_length = len(qa_history)
             qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
             if len(qa_history) < original_length:
                 st.session_state.qa_history = qa_history
                 st.info(f"{file_name} references removed from session state QA history.")
-                logger.info("%s references removed from session state QA history.", file_name)
 
+            st.success("Document removal process completed successfully.")
             return True
 
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
-        logger.exception("An unexpected error occurred while removing %s: %s", file_name, str(e))
         return False
-
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):

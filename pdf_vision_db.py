@@ -1005,7 +1005,7 @@ def remove_document(file_name):
 
         # Verify removal from Milvus
         collection.load()  # Reload to ensure we have the latest data
-        verification_result = collection.query(expr=f"file_name == '{file_name}'", output_fields=["id"])
+        verification_result = collection.query(expr=expr, output_fields=["id"])
 
         if verification_result:
             st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")
@@ -1044,7 +1044,6 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
-
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):

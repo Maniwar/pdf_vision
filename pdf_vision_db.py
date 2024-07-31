@@ -975,26 +975,29 @@ def handle_new_query(name, query_part):
         st.rerun()
     else:
         st.error(f"Failed to save custom query '{name}'")
+
 def remove_document(file_name):
     try:
         # Get the collection
         collection = Collection("document_pages")
-        collection.load()
+        
+        # Ensure the collection is loaded
+        if not utility.has_collection("document_pages") or not collection.is_loaded:
+            collection.load()
 
-        # Check if the document exists in Milvus
-        query_result = collection.query(
-            expr=f"file_name == '{file_name}'"
-        )
-
-        if not query_result:
-            st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
-            return False
-
-        st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
+        # Define the filter for the file_name
+        filter_expr = f"file_name=='{file_name}'"
 
         # Delete all documents with the given file_name
-        delete_result = collection.delete(expr=f"file_name == '{file_name}'")
-        st.write(f"Delete result: {delete_result}")
+        st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
+        delete_result = collection.delete(filter=filter_expr)
+        
+        deleted_count = delete_result.delete_count
+        st.write(f"Delete result: {deleted_count} entities deleted")
+
+        if deleted_count == 0:
+            st.warning(f"No entries found for {file_name} in the Milvus database. It may have been removed already.")
+            return False
 
         # Ensure the delete operation is executed
         collection.flush()
@@ -1002,19 +1005,15 @@ def remove_document(file_name):
         # Allow some time for the flush operation to complete
         time.sleep(2)
 
-        # Reload the collection to refresh the state
-        collection.load()
-
         # Verify removal from Milvus
-        verification_result = collection.query(
-            expr=f"file_name == '{file_name}'"
-        )
+        collection.load()  # Reload to ensure we have the latest data
+        verification_result = collection.query(expr=filter_expr)
 
         if verification_result:
             st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")
             return False
         else:
-            st.success(f"Successfully removed all entries for {file_name} from Milvus.")
+            st.success(f"Successfully removed all {deleted_count} entries for {file_name} from Milvus.")
 
             # Remove from session state
             if file_name in st.session_state.get('documents', {}):
@@ -1047,6 +1046,7 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
+
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):

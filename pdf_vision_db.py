@@ -72,6 +72,7 @@ def reset_session():
             window.location.reload();
         </script>
     """, unsafe_allow_html=True)
+
 def get_or_create_custom_query_collection():
     collection_name = "custom_queries"
     try:
@@ -165,7 +166,6 @@ def get_or_create_collection(collection_name, dim=1536):
     except Exception as e:
         st.error(f"Error in creating or accessing the collection: {str(e)}")
         return None
-
 
 
 # Initialize session state variables if they don't exist
@@ -1017,6 +1017,8 @@ def generate_summary(page_contents, progress_bar, status_text):
     status_text.text("Summary generation complete")
     return final_summary
 
+#session states
+
 
 
 def handle_new_query(name, query_part):
@@ -1037,8 +1039,21 @@ def verify_collection_exists(collection_name):
     else:
         st.warning(f"Collection '{collection_name}' does not exist.")
         return False
+def reset_custom_query_states():
+    st.session_state.custom_query_selected = False
+    st.session_state.query_part_clicked = None
+    st.session_state.query_name_clicked = None
+    st.session_state.custom_queries = get_all_custom_queries()
 
+def handle_update_query(name, new_query_part):
+    if save_custom_query(name, new_query_part, update=True):
+        st.session_state.custom_queries = get_all_custom_queries()
+        st.success(f"Updated {name}")
 
+def handle_delete_query(name):
+    if delete_custom_query(name):
+        st.session_state.custom_queries = get_all_custom_queries()
+        st.success(f"Deleted {name}")
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):

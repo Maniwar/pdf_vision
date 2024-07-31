@@ -1009,6 +1009,7 @@ def remove_document(file_name):
             st.error(f"Collection '{collection_name}' does not exist.")
             return False
 
+        # Load the collection
         st.info(f"Loading the collection '{collection_name}'.")
         collection = Collection(collection_name)
         collection.load()
@@ -1029,19 +1030,26 @@ def remove_document(file_name):
             st.error(f"Collection '{collection_name}' does not exist according to reinitialized client.")
             return False
 
-        # Attempt to delete entries by a filter expression
-        st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
-        try:
-            delete_result = client.delete(
-                collection_name=collection_name,
-                filter=f"file_name == '{file_name}'"
-            )
-        except MilvusException as e:
-            st.error(f"Failed to delete entries for {file_name}: {str(e)}")
-            return False
-        st.write(f"Delete result: {delete_result}")
+        # Attempt to delete entries with retry mechanism
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                st.info(f"Attempting to delete all entries for {file_name} from Milvus (Attempt {attempt + 1}/{max_retries}).")
+                delete_result = client.delete(
+                    collection_name=collection_name,
+                    filter=f"file_name == '{file_name}'"
+                )
+                st.success(f"Delete result: {delete_result}")
+                break
+            except MilvusException as e:
+                if attempt < max_retries - 1:
+                    st.warning(f"Delete attempt {attempt + 1} failed: {str(e)}. Retrying...")
+                    time.sleep(2)  # Wait before retrying
+                else:
+                    st.error(f"Failed to delete entries for {file_name} after {max_retries} attempts: {str(e)}")
+                    return False
 
-        if delete_result.delete_count == 0:
+        if delete_result['delete_count'] == 0:
             st.warning(f"No entries were found or deleted for {file_name} in the Milvus database.")
             return False
 
@@ -1105,6 +1113,11 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
+    finally:
+        # Release the collection
+        if 'collection' in locals():
+            collection.release()
+            st.info("Collection released.")
 
 
 def remove_from_session_state(file_name, keys):

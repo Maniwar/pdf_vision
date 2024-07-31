@@ -174,7 +174,7 @@ def remove_document(file_name):
 
     try:
         # Delete document from Milvus collection
-        delete_result = collection.delete(expr=f"file_name == '{file_name}'")
+        delete_result = collection.delete(f"file_name == '{file_name}'")
         st.write(f"Delete result: {delete_result}")  # Debug print to check the result
 
         # Remove document from session state
@@ -1452,7 +1452,6 @@ try:
             # Place the remove button here, after displaying the document content
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 remove_document(file_name)
-                st.info(f"Removing {file_name}")
 
 
 

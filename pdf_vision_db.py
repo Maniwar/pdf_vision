@@ -1020,7 +1020,7 @@ def remove_document(file_name):
 
         # Allow some time for the flush operation to complete
         st.info("Waiting for flush operation to complete.")
-        time.sleep(2)
+        time.sleep(5)  # Increase wait time to ensure flush completion
         st.success("Flush operation completed.")
 
         # Verify removal from Milvus

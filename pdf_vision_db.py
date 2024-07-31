@@ -1005,6 +1005,10 @@ def remove_document(file_name):
             return False
         st.success(f"Document {file_name} found in Milvus. Proceeding with deletion.")
 
+        # Log IDs to be deleted
+        doc_ids = [doc['id'] for doc in query_result]
+        st.info(f"Document IDs to be deleted: {doc_ids}")
+
         # Attempt to delete all documents by file_name
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
         delete_result = collection.delete(expr=expr)
@@ -1023,8 +1027,10 @@ def remove_document(file_name):
         st.info("Reloading the collection to verify deletion.")
         collection.load()  # Reload to ensure we have the latest data
         verification_result = collection.query(expr=expr, output_fields=["id"])
+        
         if verification_result:
             st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")
+            st.write(f"Remaining entries: {verification_result}")
             return False
         else:
             st.success(f"Successfully removed all entries for {file_name} from Milvus.")

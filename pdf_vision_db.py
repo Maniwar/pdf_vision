@@ -45,30 +45,6 @@ embeddings = OpenAIEmbeddings()
 MILVUS_ENDPOINT = st.secrets["general"]["MILVUS_PUBLIC_ENDPOINT"]
 MILVUS_API_KEY = st.secrets["general"]["MILVUS_API_KEY"]
 
-# Initialize session state variables if they don't exist
-if 'documents' not in st.session_state:
-    st.session_state.documents = {}
-if 'file_hashes' not in st.session_state:
-    st.session_state.file_hashes = {}
-if 'qa_history' not in st.session_state:
-    st.session_state.qa_history = []
-if 'custom_queries' not in st.session_state:
-    st.session_state.custom_queries = get_all_custom_queries()
-if 'custom_query_selected' not in st.session_state:
-    st.session_state.custom_query_selected = False
-if 'query_part_clicked' not in st.session_state:
-    st.session_state.query_part_clicked = None
-if 'query_name_clicked' not in st.session_state:
-    st.session_state.query_name_clicked = None
-if 'files_to_remove' not in st.session_state:
-    st.session_state.files_to_remove = []
-if 'selected_documents' not in st.session_state:
-    st.session_state.selected_documents = []
-if st.session_state.get('document_removed', False):
-    st.success(f"{st.session_state.removed_document_name} has been removed.")
-    st.session_state.document_removed = False
-    st.session_state.removed_document_name = None
-
 def connect_to_milvus():
     connections.connect(
         alias="default",
@@ -956,6 +932,29 @@ def generate_summary(page_contents, progress_bar, status_text):
     status_text.text("Summary generation complete")
     return final_summary
 
+# Initialize session state variables if they don't exist
+if 'documents' not in st.session_state:
+    st.session_state.documents = {}
+if 'file_hashes' not in st.session_state:
+    st.session_state.file_hashes = {}
+if 'qa_history' not in st.session_state:
+    st.session_state.qa_history = []
+if 'custom_queries' not in st.session_state:
+    st.session_state.custom_queries = get_all_custom_queries()
+if 'custom_query_selected' not in st.session_state:
+    st.session_state.custom_query_selected = False
+if 'query_part_clicked' not in st.session_state:
+    st.session_state.query_part_clicked = None
+if 'query_name_clicked' not in st.session_state:
+    st.session_state.query_name_clicked = None
+if 'files_to_remove' not in st.session_state:
+    st.session_state.files_to_remove = []
+if 'selected_documents' not in st.session_state:
+    st.session_state.selected_documents = []
+if st.session_state.get('document_removed', False):
+    st.success(f"{st.session_state.removed_document_name} has been removed.")
+    st.session_state.document_removed = False
+    st.session_state.removed_document_name = None
 
 def handle_new_query(name, query_part):
     if save_custom_query(name, query_part):
@@ -992,6 +991,7 @@ def remove_document(file_name):
         st.session_state.documents.pop(file_name, None)
         if file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
+
 
 
         # Delay to allow UI to update

@@ -1017,7 +1017,25 @@ def remove_document(file_name):
             if verification_result:
                 st.error(f"Failed to remove {file_name} from Milvus. The document still exists in the database.")
                 st.write(f"Verification result: {verification_result}")  # Log the verification result for debugging
-                return False
+
+                # Re-attempt the deletion
+                st.info(f"Re-attempting to delete {file_name} with ID {doc_id} from Milvus.")
+                delete_result = collection.delete(expr=f"id in [{doc_id}]")
+                st.write(f"Re-attempt delete result: {delete_result}")  # Log the re-attempt delete result for debugging
+                collection.flush()  # Ensure the delete operation is executed
+                time.sleep(2)  # Allow some time for the flush operation to complete
+                collection.load()  # Reload the collection to refresh the state
+
+                # Verify removal from Milvus again
+                verification_result = collection.query(
+                    expr=f"id == {doc_id}",
+                    output_fields=["file_name", "id"],
+                    limit=1
+                )
+                if verification_result:
+                    st.error(f"Failed to remove {file_name} from Milvus after re-attempt. The document still exists in the database.")
+                    st.write(f"Final verification result: {verification_result}")  # Log the final verification result for debugging
+                    return False
 
         # Remove from session state
         if file_name in st.session_state.documents:

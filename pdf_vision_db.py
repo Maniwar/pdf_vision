@@ -980,10 +980,6 @@ def remove_document(file_name):
     try:
         # Get the collection
         collection = Collection("document_pages")
-        
-        # Ensure the collection is loaded
-        if not utility.has_collection("document_pages") or not collection.is_loaded:
-            collection.load()
 
         # Define the filter for the file_name
         filter_expr = f"file_name=='{file_name}'"

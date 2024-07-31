@@ -998,33 +998,17 @@ def remove_document(file_name):
         collection.load()
         st.success("Collection 'document_pages' loaded successfully.")
 
-        # Prepare the boolean expression to delete documents
-        expr = f"file_name == '{file_name}'"
-        st.info(f"Prepared boolean expression for deletion: {expr}")
-
-        # Check if the document exists in Milvus
-        st.info(f"Checking if the document {file_name} exists in Milvus.")
-        query_result = collection.query(expr=expr, output_fields=["id"])
-        if not query_result:
-            st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
-            return False
-        st.success(f"Document {file_name} found in Milvus. Proceeding with deletion.")
-
-        # Log IDs to be deleted
-        doc_ids = [doc['id'] for doc in query_result]
-        st.info(f"Document IDs to be deleted: {doc_ids}")
-
-        # Attempt to delete all documents by file_name
+        # Delete entities by a filter expression
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
-        delete_result = collection.delete(expr=expr)
+        client = MilvusClient("default")
+        delete_result = client.delete(
+            collection_name="document_pages",
+            filter=f"file_name == '{file_name}'"
+        )
         st.write(f"Delete result: {delete_result}")
 
-        if isinstance(delete_result, MutationResult):
-            if delete_result.delete_count == 0:
-                st.warning(f"No entries were found or deleted for {file_name} in the Milvus database.")
-                return False
-        else:
-            st.error(f"Unexpected delete result format: {delete_result}")
+        if delete_result.delete_count == 0:
+            st.warning(f"No entries were found or deleted for {file_name} in the Milvus database.")
             return False
 
         # Ensure the delete operation is executed
@@ -1039,7 +1023,7 @@ def remove_document(file_name):
         # Verify removal from Milvus
         st.info("Reloading the collection to verify deletion.")
         collection.load()  # Reload to ensure we have the latest data
-        verification_result = collection.query(expr=expr, output_fields=["id"])
+        verification_result = collection.query(expr=f"file_name == '{file_name}'", output_fields=["id"])
 
         if verification_result:
             st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")

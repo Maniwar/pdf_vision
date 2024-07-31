@@ -980,22 +980,33 @@ def remove_document(file_name):
     try:
         # Remove from Milvus collection
         collection = get_or_create_collection("document_pages")
-        if collection:
-            collection.delete(f"file_name == '{file_name}'")
+        if not collection:
+            st.error("Failed to access the document collection. Cannot proceed with removal.")
+            return False
 
-            # Verify removal from Milvus
+        # Check if the document exists in Milvus before attempting to delete
+        query_result = collection.query(
+            expr=f"file_name == '{file_name}'",
+            output_fields=["file_name"],
+            limit=1
+        )
+        
+        if not query_result:
+            st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
+        else:
+            # Attempt to delete the document
+            collection.delete(f"file_name == '{file_name}'")
             collection.flush()  # Ensure the delete operation is executed
-            query_result = collection.query(
+            
+            # Verify removal from Milvus
+            verification_result = collection.query(
                 expr=f"file_name == '{file_name}'",
                 output_fields=["file_name"],
                 limit=1
             )
-            if query_result:
-                st.error(f"Failed to remove {file_name} from Milvus. Please try again.")
+            if verification_result:
+                st.error(f"Failed to remove {file_name} from Milvus. The document still exists in the database.")
                 return False
-        else:
-            st.warning("Could not access the document collection. The file may not be fully removed from the database.")
-            return False
 
         # Remove from session state
         if file_name in st.session_state.documents:
@@ -1019,9 +1030,10 @@ def remove_document(file_name):
         st.session_state.removed_document_name = file_name
         st.session_state.trigger_rerun = True
 
+        st.success(f"{file_name} has been successfully removed from the database and application state.")
         return True
     except Exception as e:
-        st.error(f"An error occurred while removing {file_name}: {str(e)}")
+        st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
 
 def remove_question(index):
@@ -1458,7 +1470,7 @@ try:
                 if remove_document(file_name):
                     st.session_state.trigger_rerun = True
                 else:
-                    st.error(f"Failed to remove {file_name}. Please try again.")
+                    st.error(f"Failed to completely remove {file_name}. Please check the error messages above and try again if needed.")
 
 
     # Display question history
@@ -1562,6 +1574,7 @@ with st.expander("⚠️ By using this application, you agree to the following t
     </div>
     """, unsafe_allow_html=True)
 # States
+# At the end of your main script
 if st.session_state.get('trigger_rerun', False):
     st.session_state.trigger_rerun = False
-    raise RerunException(get_script_run_ctx().id)
+    st.rerun()

@@ -986,6 +986,16 @@ def verify_collection_exists(collection_name):
         st.warning(f"Collection '{collection_name}' does not exist.")
         return False
 
+def reinitialize_client():
+    st.info("Reinitializing Milvus client.")
+    try:
+        client = MilvusClient("default")
+        st.success("Milvus client reinitialized.")
+        return client
+    except Exception as e:
+        st.error(f"Failed to reinitialize Milvus client: {str(e)}")
+        return None
+
 def remove_document(file_name):
     try:
         st.info("Starting document removal process.")
@@ -1008,9 +1018,19 @@ def remove_document(file_name):
         st.info(f"Collection name: {collection.name}")
         st.info(f"Collection schema: {collection.schema}")
 
-        # Delete entities by a filter expression
+        # Reinitialize Milvus client
+        client = reinitialize_client()
+        if not client:
+            st.error("Failed to reinitialize Milvus client.")
+            return False
+
+        # Verify collection again with the client
+        if not client.has_collection(collection_name):
+            st.error(f"Collection '{collection_name}' does not exist according to reinitialized client.")
+            return False
+
+        # Attempt to delete entries by a filter expression
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
-        client = MilvusClient("default")
         try:
             delete_result = client.delete(
                 collection_name=collection_name,

@@ -456,7 +456,6 @@ def remove_document(file_name):
         st.error(f"Error deleting document: {str(e)}")
         return False
 
-
 #sources
 def calculate_confidence(score):
     # Convert the similarity score to a confidence level

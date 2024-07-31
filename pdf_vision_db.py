@@ -418,9 +418,8 @@ def remove_document(file_name):
 
     try:
         # Delete document from Milvus collection
-        delete_result = collection.delete(f"file_name == '{file_name}'")
-        st.write(f"Delete result: {delete_result}")  # Debug print to check the result
-
+        collection.delete(f"file_name == '{file_name}'")
+        
         # Remove document from session state
         st.session_state.documents.pop(file_name, None)
         if file_name in st.session_state.selected_documents:

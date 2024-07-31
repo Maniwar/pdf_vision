@@ -30,6 +30,17 @@ from streamlit.runtime.scriptrunner import RerunException
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 
+# Initialize session state variables
+if 'documents' not in st.session_state:
+    st.session_state.documents = {}
+if 'file_hashes' not in st.session_state:
+    st.session_state.file_hashes = {}
+if 'qa_history' not in st.session_state:
+    st.session_state.qa_history = []
+if 'custom_queries' not in st.session_state:
+    st.session_state.custom_queries = get_all_custom_queries()
+if 'selected_documents' not in st.session_state:
+    st.session_state.selected_documents = []
 
 # Set page configuration to wide mode
 st.set_page_config(layout="wide")

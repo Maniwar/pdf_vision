@@ -976,6 +976,7 @@ def handle_new_query(name, query_part):
     else:
         st.error(f"Failed to save custom query '{name}'")
 
+
 def remove_document(file_name):
     try:
         # Get the collection
@@ -1044,42 +1045,6 @@ def remove_document(file_name):
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
 
-# Main section
-st.sidebar.subheader("📌 Custom AI Tasks")
-custom_queries = get_all_custom_queries()
-
-if custom_queries:
-    for index, custom_query in enumerate(custom_queries):
-        if st.button(f"📌 {custom_query['name']}", key=f"custom_query_{index}"):
-            st.session_state.query_part_clicked = custom_query['query_part']
-            st.session_state.query_name_clicked = custom_query['name']
-            st.session_state.custom_query_selected = True
-
-# Add new custom query
-with st.sidebar.expander("➕ Add New Custom AI Task"):
-    with st.form(key="new_custom_query_form"):
-        new_query_name = st.text_input("AI Task Name")
-        new_query_part = st.text_area("AI Task Instructions")
-        submit_button = st.form_submit_button("Save Custom Query")
-        if submit_button:
-            handle_new_query(new_query_name, new_query_part)
-
-# Edit or delete existing custom queries
-with st.sidebar.expander("✏️ Edit or Delete Custom AI Tasks"):
-    for index, query in enumerate(st.session_state.custom_queries):
-        with st.form(key=f"edit_custom_query_form_{index}"):
-            st.markdown(f"### {query['name']}")
-            edited_query_part = st.text_area(f"AI task for {query['name']}", query['query_part'])
-            col1, col2 = st.columns(2)
-            with col1:
-                update_button = st.form_submit_button(f"Update {query['name']}")
-            with col2:
-                delete_button = st.form_submit_button(f"Delete {query['name']}")
-
-            if update_button:
-                handle_update_query(query['name'], edited_query_part)
-            elif delete_button:
-                delete_custom_query(query['name'])
 
 
 

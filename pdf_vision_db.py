@@ -976,6 +976,7 @@ def verify_collection_exists(collection_name):
         return False
 
 def remove_document(file_name):
+    st.write(file_name)
     collection = get_or_create_collection("document_pages")  # Correct function for document pages collection
     if collection is None:
         st.error("Failed to access document pages collection")
@@ -983,9 +984,13 @@ def remove_document(file_name):
 
     try:
         # Delete document from Milvus collection
-        collection.delete(expr=f"file_name == '{file_name}'")
+        delete_result = collection.delete(expr=f"file_name == '{file_name}'")
+        st.write(f"Delete result: {delete_result}")  # Debug print to check the result
+
+        # Remove document from session state
         st.session_state.documents.pop(file_name, None)
-        st.session_state.selected_documents.remove(file_name) if file_name in st.session_state.selected_documents else None
+        if file_name in st.session_state.selected_documents:
+            st.session_state.selected_documents.remove(file_name)
 
         # Remove file hash and associated name
         file_hashes = st.session_state.get('file_hashes', {})
@@ -1004,6 +1009,7 @@ def remove_document(file_name):
         reset_session()
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
+
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):

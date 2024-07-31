@@ -27,6 +27,21 @@ from bs4 import BeautifulSoup
 import traceback
 import time
 
+# Initialize session state variables
+if 'documents' not in st.session_state:
+    st.session_state.documents = {}
+if 'file_hashes' not in st.session_state:
+    st.session_state.file_hashes = {}
+if 'qa_history' not in st.session_state:
+    st.session_state.qa_history = []
+if 'custom_queries' not in st.session_state:
+    st.session_state.custom_queries = get_all_custom_queries()
+if 'custom_query_selected' not in st.session_state:
+    st.session_state.custom_query_selected = False
+if 'query_part_clicked' not in st.session_state:
+    st.session_state.query_part_clicked = None
+if 'query_name_clicked' not in st.session_state:
+    st.session_state.query_name_clicked = None
 def reset_session():
     # Clear session state variables
     st.session_state.clear()
@@ -1193,21 +1208,7 @@ def search_documents(query, selected_documents, custom_prompt=None):
 # Streamlit interface
 st.title('💡 DocuQuery AI')
 
-# Initialize session state variables
-if 'documents' not in st.session_state:
-    st.session_state.documents = {}
-if 'file_hashes' not in st.session_state:
-    st.session_state.file_hashes = {}
-if 'qa_history' not in st.session_state:
-    st.session_state.qa_history = []
-if 'custom_queries' not in st.session_state:
-    st.session_state.custom_queries = get_all_custom_queries()
-if 'custom_query_selected' not in st.session_state:
-    st.session_state.custom_query_selected = False
-if 'query_part_clicked' not in st.session_state:
-    st.session_state.query_part_clicked = None
-if 'query_name_clicked' not in st.session_state:
-    st.session_state.query_name_clicked = None
+
 
 # Sidebar
 with st.sidebar:

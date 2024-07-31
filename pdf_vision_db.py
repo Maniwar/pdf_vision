@@ -1306,9 +1306,9 @@ try:
     connect_to_milvus()
 
     # File upload section
-    uploaded_files = st.file_uploader("📤 Upload PDF, Word, TXT, Excel, or Image file(s)", 
-                                      type=["pdf", "doc", "docx", "txt", "xls", "xlsx", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], 
-                                      accept_multiple_files=True)
+    uploaded_files = st.file_uploader("📤 Upload PDF, Word, TXT, Excel, CSV, or Image file(s)", 
+                                    type=["pdf", "doc", "docx", "txt", "xls", "xlsx", "csv", "png", "jpg", "jpeg", "tiff", "bmp", "gif"], 
+                                    accept_multiple_files=True)
     if uploaded_files:
         overall_progress_bar = st.progress(0)
         overall_status_text = st.empty()

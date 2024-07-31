@@ -12,7 +12,7 @@ import pdfkit
 import hashlib
 import tiktoken
 import math
-from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType, MilvusClient
+from pymilvus import connections, utility, Collection, FieldSchema, CollectionSchema, DataType, MilvusClient, MilvusException
 import pandas as pd
 import io
 import fitz
@@ -994,17 +994,25 @@ def remove_document(file_name):
 
         # Load the collection
         st.info("Loading the collection 'document_pages'.")
-        collection = Collection("document_pages")
-        collection.load()
+        try:
+            collection = Collection("document_pages")
+            collection.load()
+        except MilvusException as e:
+            st.error(f"Failed to load collection 'document_pages': {str(e)}")
+            return False
         st.success("Collection 'document_pages' loaded successfully.")
 
         # Delete entities by a filter expression
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
         client = MilvusClient("default")
-        delete_result = client.delete(
-            collection_name="document_pages",
-            filter=f"file_name == '{file_name}'"
-        )
+        try:
+            delete_result = client.delete(
+                collection_name="document_pages",
+                filter=f"file_name == '{file_name}'"
+            )
+        except MilvusException as e:
+            st.error(f"Failed to delete entries for {file_name}: {str(e)}")
+            return False
         st.write(f"Delete result: {delete_result}")
 
         if delete_result.delete_count == 0:
@@ -1065,6 +1073,9 @@ def remove_document(file_name):
             st.success("Document removal process completed successfully.")
             return True
 
+    except MilvusException as e:
+        st.error(f"An unexpected Milvus error occurred while removing {file_name}: {str(e)}")
+        return False
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False

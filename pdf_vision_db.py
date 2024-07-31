@@ -440,7 +440,7 @@ def get_confidence_info(confidence):
         return "orange", "🟠"  # Orange circle for medium confidence
     else:
         return "red", "🔴"  # Red circle for low confidence
-    
+
 # Initialize session state variables if they don't exist
 if 'documents' not in st.session_state:
     st.session_state.documents = {}
@@ -1482,7 +1482,6 @@ try:
                 if st.button(f"🗑️ Remove this Q&A", key=f"remove_qa_{question_index}"):
                     if remove_question(question_index):
                         st.success("Question and answer removed.")
-                        st.rerun()
                     else:
                         st.error("Failed to remove question and answer. Please try again.")
 

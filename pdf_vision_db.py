@@ -417,8 +417,29 @@ def remove_document(file_name):
         return False
 
     try:
+        # Check if the document exists in the collection
+        check_result = collection.query(
+            expr=f"file_name == '{file_name}'",
+            output_fields=["id"],
+            limit=1
+        )
+        if not check_result:
+            st.warning(f"Document '{file_name}' not found in the collection.")
+            return False
+
         # Delete document from Milvus collection
-        collection.delete(f"file_name == '{file_name}'")
+        delete_result = collection.delete(expr=f"file_name == '{file_name}'")
+        st.write(f"Delete result: {delete_result}")  # Debug information
+
+        # Verify deletion
+        verify_result = collection.query(
+            expr=f"file_name == '{file_name}'",
+            output_fields=["id"],
+            limit=1
+        )
+        if verify_result:
+            st.error(f"Failed to delete '{file_name}' from the collection.")
+            return False
 
         # Remove document from session state
         st.session_state.documents.pop(file_name, None)
@@ -429,14 +450,12 @@ def remove_document(file_name):
         st.session_state.document_removed = True
         st.session_state.removed_document_name = file_name
 
-        #Tell User file is removed
-        st.info(f"'{file_name}' has been removed")
-        st.rerun()
-
+        st.success(f"Document '{file_name}' successfully removed from the collection.")
         return True
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
         return False
+
 
 #sources
 def calculate_confidence(score):
@@ -1476,7 +1495,8 @@ try:
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 if remove_document(file_name):
                     st.rerun()
-
+                else:
+                    st.error(f"Failed to remove {file_name}. Please check the logs for more information.")
 
     # Display question history
     if st.session_state.qa_history:

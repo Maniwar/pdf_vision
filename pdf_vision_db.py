@@ -977,6 +977,10 @@ def verify_collection_exists(collection_name):
 
 
 def remove_document(file_name):
+    collection = get_or_create_custom_query_collection()
+    if collection is None:
+        st.error("Failed to access custom query collection")
+        return
     try:
         connect_to_milvus()  # Ensure Milvus connection is established
         delete_result = collection.delete(

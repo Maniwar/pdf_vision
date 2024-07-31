@@ -419,7 +419,7 @@ def remove_document(file_name):
     try:
         # Delete document from Milvus collection
         delete_result = collection.delete(expr=f"file_name == '{file_name}'")
-        
+
         # Display the delete result
         st.write(f"Delete result: {delete_result}")
 

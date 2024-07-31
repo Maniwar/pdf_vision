@@ -932,6 +932,26 @@ def generate_summary(page_contents, progress_bar, status_text):
     status_text.text("Summary generation complete")
     return final_summary
 #session states
+if 'documents' not in st.session_state:
+    st.session_state.documents = {}
+if 'file_hashes' not in st.session_state:
+    st.session_state.file_hashes = {}
+if 'qa_history' not in st.session_state:
+    st.session_state.qa_history = []
+if 'custom_queries' not in st.session_state:
+    st.session_state.custom_queries = get_all_custom_queries()
+if 'custom_query_selected' not in st.session_state:
+    st.session_state.custom_query_selected = False
+if 'query_part_clicked' not in st.session_state:
+    st.session_state.query_part_clicked = None
+if 'query_name_clicked' not in st.session_state:
+    st.session_state.query_name_clicked = None
+if 'files_to_remove' not in st.session_state:
+    st.session_state.files_to_remove = []
+if st.session_state.get('document_removed', False):
+    st.success(f"{st.session_state.removed_document_name} has been removed.")
+    st.session_state.document_removed = False
+    st.session_state.removed_document_name = None
 def update_custom_query(name, new_query_part):
     if save_custom_query(name, new_query_part, update=True):
         st.session_state.custom_queries = get_all_custom_queries()
@@ -1538,26 +1558,7 @@ with st.expander("⚠️ By using this application, you agree to the following t
     """, unsafe_allow_html=True)
 # States
 # Initialize session state variables
-if 'documents' not in st.session_state:
-    st.session_state.documents = {}
-if 'file_hashes' not in st.session_state:
-    st.session_state.file_hashes = {}
-if 'qa_history' not in st.session_state:
-    st.session_state.qa_history = []
-if 'custom_queries' not in st.session_state:
-    st.session_state.custom_queries = get_all_custom_queries()
-if 'custom_query_selected' not in st.session_state:
-    st.session_state.custom_query_selected = False
-if 'query_part_clicked' not in st.session_state:
-    st.session_state.query_part_clicked = None
-if 'query_name_clicked' not in st.session_state:
-    st.session_state.query_name_clicked = None
-if 'files_to_remove' not in st.session_state:
-    st.session_state.files_to_remove = []
-if st.session_state.get('document_removed', False):
-    st.success(f"{st.session_state.removed_document_name} has been removed.")
-    st.session_state.document_removed = False
-    st.session_state.removed_document_name = None
+
 # At the end of your main script
 if st.session_state.get('trigger_rerun', False):
     st.session_state.trigger_rerun = False

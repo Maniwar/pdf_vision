@@ -1023,7 +1023,7 @@ def remove_document(file_name):
         connect_to_milvus()  # Ensure Milvus connection is established
         collection = Collection("document_pages")
         delete_result = collection.delete(expr=f"file_name == '{file_name}'")
-        print(delete_result)  # Debug print to check the result
+        st.write(delete_result)  # Debug print to check the result
 
         # Remove from session state
         if file_name in st.session_state.get('documents', {}):

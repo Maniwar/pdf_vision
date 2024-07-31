@@ -998,10 +998,6 @@ def remove_document(file_name):
             if name == file_name:
                 del file_hashes[hash_value]
 
-        # Update QA history
-        qa_history = st.session_state.get('qa_history', [])
-        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
-
         # Delay to allow UI to update
         time.sleep(1)
 

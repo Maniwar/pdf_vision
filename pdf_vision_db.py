@@ -166,39 +166,6 @@ def get_or_create_collection(collection_name, dim=1536):
         st.error(f"Error in creating or accessing the collection: {str(e)}")
         return None
 
-def remove_document(file_name):
-    collection = get_or_create_document_pages_collection()  # Correct function for document pages collection
-    if collection is None:
-        st.error("Failed to access document pages collection")
-        return
-
-    try:
-        # Delete document from Milvus collection
-        delete_result = collection.delete(f"file_name == '{file_name}'")
-        st.write(f"Delete result: {delete_result}")  # Debug print to check the result
-
-        # Remove document from session state
-        st.session_state.documents.pop(file_name, None)
-        if file_name in st.session_state.selected_documents:
-            st.session_state.selected_documents.remove(file_name)
-
-        # Remove file hash and associated name
-        file_hashes = st.session_state.get('file_hashes', {})
-        for hash_value, name in list(file_hashes.items()):
-            if name == file_name:
-                del file_hashes[hash_value]
-
-        # Update QA history
-        qa_history = st.session_state.get('qa_history', [])
-        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
-
-        # Delay to allow UI to update
-        time.sleep(1)
-
-        # Use the reset_session function to reset the session state and rerun the app
-        reset_session()
-    except Exception as e:
-        st.error(f"Error deleting document: {str(e)}")
 
 
 # Initialize session state variables if they don't exist
@@ -463,7 +430,40 @@ def delete_custom_query(name):
         reset_session()
     except Exception as e:
         st.error(f"Error deleting custom AI task: {str(e)}")
+        
+def remove_document(file_name):
+    collection = get_or_create_document_pages_collection()  # Correct function for document pages collection
+    if collection is None:
+        st.error("Failed to access document pages collection")
+        return
 
+    try:
+        # Delete document from Milvus collection
+        delete_result = collection.delete(f"file_name == '{file_name}'")
+        st.write(f"Delete result: {delete_result}")  # Debug print to check the result
+
+        # Remove document from session state
+        st.session_state.documents.pop(file_name, None)
+        if file_name in st.session_state.selected_documents:
+            st.session_state.selected_documents.remove(file_name)
+
+        # Remove file hash and associated name
+        file_hashes = st.session_state.get('file_hashes', {})
+        for hash_value, name in list(file_hashes.items()):
+            if name == file_name:
+                del file_hashes[hash_value]
+
+        # Update QA history
+        qa_history = st.session_state.get('qa_history', [])
+        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
+
+        # Delay to allow UI to update
+        time.sleep(1)
+
+        # Use the reset_session function to reset the session state and rerun the app
+        reset_session()
+    except Exception as e:
+        st.error(f"Error deleting document: {str(e)}")
 
 #sources
 def calculate_confidence(score):

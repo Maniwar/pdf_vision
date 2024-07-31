@@ -984,10 +984,10 @@ def remove_document(file_name):
     try:
         delete_result = collection.delete(f"file_name == '{file_name}'")
         st.write(f"Delete result: {delete_result}")  # Debug print to check the result
+        remove_from_session_state()
         st.rerun()
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
-
 
 
 def remove_from_session_state(file_name, keys):

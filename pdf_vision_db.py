@@ -419,20 +419,25 @@ def remove_document(file_name):
     try:
         # Delete document from Milvus collection
         collection.delete(f"file_name == '{file_name}'")
-        
+
         # Remove document from session state
         st.session_state.documents.pop(file_name, None)
         if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
-        
+
         # Set a flag to indicate successful removal
         st.session_state.document_removed = True
         st.session_state.removed_document_name = file_name
         
+        #Tell User file is removed
+        st.info(f"'{file_name}' has been removed")
+        st.rerun()
+
         return True
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
         return False
+
 #sources
 def calculate_confidence(score):
     # Convert the similarity score to a confidence level

@@ -1454,16 +1454,13 @@ try:
                                     st.error(f"Error displaying image for page {page['page_number']}: {str(e)}")
                             else:
                                 st.info(f"No image available for page {page['page_number']}")
+
             else:
                 st.info(f"No content available for {file_name}.")
 
             # Place the remove button here, after displaying the document content
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
-                if remove_document(file_name):
-                    st.session_state.trigger_rerun = True
-                else:
-                    st.error(f"Failed to completely remove {file_name}. Please check the error messages above and try again if needed.")
-
+                remove_document(file_name)
 
 
     # Display question history

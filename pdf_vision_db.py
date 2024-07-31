@@ -29,23 +29,6 @@ import time
 from streamlit.runtime.scriptrunner import RerunException
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
-def get_all_custom_queries():
-    collection = get_or_create_custom_query_collection()
-    if collection is None:
-        return []
-
-    try:
-        collection.load()
-        results = collection.query(
-            expr="name != ''",
-            output_fields=["name", "query_part"],
-            limit=1000
-        )
-        return results
-    except Exception as e:
-        st.error(f"Error fetching custom AI task: {str(e)}")
-        return []
-    
 # Initialize session state variables
 if 'documents' not in st.session_state:
     st.session_state.documents = {}
@@ -54,7 +37,7 @@ if 'file_hashes' not in st.session_state:
 if 'qa_history' not in st.session_state:
     st.session_state.qa_history = []
 if 'custom_queries' not in st.session_state:
-    st.session_state.custom_queries = get_all_custom_queries()
+    st.session_state.custom_queries = []
 if 'custom_query_selected' not in st.session_state:
     st.session_state.custom_query_selected = False
 if 'query_part_clicked' not in st.session_state:
@@ -89,26 +72,6 @@ def connect_to_milvus():
         token=MILVUS_API_KEY,
         secure=True
     )
-def reset_session():
-    # Clear session state variables
-    st.session_state.clear()
-
-    # Create a placeholder for the success message
-    message = st.empty()
-    message.success("Session reset successfully!")
-
-    # Delay to allow UI to update
-    time.sleep(2)
-
-    # Clear the success message
-    message.empty()
-
-    # Reload the app using JavaScript
-    st.write("""
-        <script>
-            window.location.reload();
-        </script>
-    """, unsafe_allow_html=True)
 
 def get_or_create_collection(collection_name, dim=1536):
     try:
@@ -136,124 +99,52 @@ def get_or_create_collection(collection_name, dim=1536):
         st.error(f"Error in creating or accessing the collection: {str(e)}")
         return None
 
-# iOS-like CSS styling
-st.markdown("""
-<style>
-    /* iOS-like color palette */
-    :root {
-        --ios-blue: #007AFF;
-        --ios-gray: #8E8E93;
-        --ios-light-gray: #F2F2F7;
-        --ios-white: #FFFFFF;
-        --ios-red: #FF3B30;
-    }
+def get_all_custom_queries():
+    collection = get_or_create_custom_query_collection()
+    if collection is None:
+        return []
 
-    /* General styling */
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-        color: #000000;
-        background-color: var(--ios-light-gray);
-    }
+    try:
+        collection.load()
+        results = collection.query(
+            expr="name != ''",
+            output_fields=["name", "query_part"],
+            limit=1000
+        )
+        return results
+    except Exception as e:
+        st.error(f"Error fetching custom AI task: {str(e)}")
+        return []
 
-    /* Headings */
-    h1, h2, h3 {
-        font-weight: 600;
-    }
+# Initialize session state for custom queries
+if 'custom_queries' not in st.session_state:
+    st.session_state.custom_queries = get_all_custom_queries()
 
-    /* Buttons */
-    .stButton > button {
-        border-radius: 10px;
-        background-color: var(--ios-blue);
-        color: var(--ios-white);
-        border: none;
-        padding: 10px 20px;
-        font-size: 16px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
+def reset_session():
+    # Clear session state variables
+    st.session_state.clear()
 
-    .stButton > button:hover {
-        background-color: #0056b3;
-    }
+    # Create a placeholder for the success message
+    message = st.empty()
+    message.success("Session reset successfully!")
 
-    /* Input fields */
-    .stTextInput > div > div > input {
-        border-radius: 10px;
-        border: 1px solid var(--ios-gray);
-        padding: 10px;
-    }
+    # Delay to allow UI to update
+    time.sleep(2)
 
-    /* Sliders */
-    .stSlider > div > div > div > div {
-        background-color: var(--ios-blue);
-    }
+    # Clear the success message
+    message.empty()
 
-    /* Expanders */
-    .streamlit-expanderHeader {
-        background-color: var(--ios-white);
-        border-radius: 10px;
-        border: 1px solid var(--ios-gray);
-    }
-
-    /* Warning banner */
-    .warning-banner {
-        background-color: #FFDAB9;
-        border: 1px solid #FFA500;
-        padding: 15px;
-        color: #8B4513;
-        font-weight: 600;
-        text-align: center;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
-
-    /* Big font for important notices */
-    .big-font {
-        font-size: 24px !important;
-        font-weight: 700;
-        color: var(--ios-red);
-    }
-
-    /* Custom styling for alerts */
-    .stAlert > div {
-        padding: 15px;
-        border-radius: 10px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        font-size: 16px;
-    }
-
-    .stAlert .big-font {
-        margin-bottom: 10px;
-    }
-
-    .bottom-warning {
-        background-color: #FFDDC1;
-        border: 1px solid #FFA07A;
-        padding: 15px;
-        color: #8B0000;
-        font-weight: 600;
-        text-align: left;
-        border-radius: 10px;
-        margin-top: 20px;
-    }
-
-    .bottom-warning .big-font {
-        font-size: 24px !important;
-        font-weight: 700;
-        color: #FF4500;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-
+    # Reload the app using JavaScript
+    st.write("""
+        <script>
+            window.location.reload();
+        </script>
+    """, unsafe_allow_html=True)
 
 def toggle_content_visibility(key):
     if key not in st.session_state:
         st.session_state[key] = False
     st.session_state[key] = not st.session_state[key]
-
 
 def get_file_hash(file_content):
     return hashlib.md5(file_content).hexdigest()
@@ -309,7 +200,6 @@ def get_document_content(file_name):
         st.error(f"Error in fetching document content: {str(e)}")
         return []
 
-#custom buttons
 def get_or_create_custom_query_collection():
     collection_name = "custom_queries"
     try:
@@ -372,7 +262,6 @@ def update_custom_query(name, new_query_part):
         st.error(f"Error updating custom AI task: {str(e)}")
         return False
 
-
 def use_custom_query(query_name, query, selected_documents):
     custom_queries = get_all_custom_queries()
     st.write(f"Debug: Custom AI task fetched: {custom_queries}")
@@ -400,8 +289,6 @@ def delete_custom_query(name):
     except Exception as e:
         st.error(f"Error deleting custom AI task: {str(e)}")
 
-
-#sources
 def calculate_confidence(score):
     # Convert the similarity score to a confidence level
     confidence = (1 - score) * 100
@@ -522,7 +409,6 @@ def display_results(all_pages, custom_response, query, selected_documents):
         'documents_queried': selected_documents
     })
 
-
 SYSTEM_PROMPT = """
 Act strictly as an advanced AI-based transcription and notation tool, directly converting images of documents into detailed Markdown text. Start immediately with the transcription and relevant notations, such as the type of content and special features observed. Do not include any introductory sentences or summaries.
 
@@ -563,7 +449,6 @@ def get_generated_data(image_path):
     )
     return response.choices[0].message.content
 
-
 def save_uploadedfile(uploadedfile):
     temp_dir = tempfile.mkdtemp()
     file_path = os.path.join(temp_dir, uploadedfile.name)
@@ -571,7 +456,6 @@ def save_uploadedfile(uploadedfile):
         f.write(uploadedfile.getbuffer())
     return file_path
 
-# Add a new function to process CSV files
 def process_csv(file_path, page_progress_bar, page_status_text):
     # Read the CSV file
     df = pd.read_csv(file_path)
@@ -952,71 +836,6 @@ def generate_summary(page_contents, progress_bar, status_text):
     progress_bar.progress(1.0)
     status_text.text("Summary generation complete")
     return final_summary
-#session states
-def update_custom_query(name, new_query_part):
-    if save_custom_query(name, new_query_part, update=True):
-        st.session_state.custom_queries = get_all_custom_queries()
-        message = st.empty()
-        message.success(f"Updated {name}")
-        time.sleep(2)
-        message.empty()
-        st.rerun()
-    else:
-        st.error(f"Failed to update {name}")
-
-def delete_custom_query(name):
-    collection = get_or_create_custom_query_collection()
-    if collection is None:
-        st.error("Failed to access custom query collection")
-        return False
-
-    try:
-        collection.delete(f"name == '{name}'")
-        st.session_state.custom_queries = get_all_custom_queries()
-        message = st.empty()
-        message.success(f"Deleted {name}")
-        time.sleep(2)
-        message.empty()
-        st.rerun()
-        return True
-    except Exception as e:
-        st.error(f"Error deleting custom AI task: {str(e)}")
-        return False
-
-def reset_custom_query_states():
-    st.session_state.custom_query_selected = False
-    st.session_state.query_part_clicked = None
-    st.session_state.query_name_clicked = None
-    st.session_state.custom_queries = get_all_custom_queries()
-
-def handle_new_query(name, query_part):
-    if save_custom_query(name, query_part):
-        st.session_state.custom_queries = get_all_custom_queries()
-        message = st.empty()
-        message.success(f"Custom query '{name}' saved successfully!")
-        time.sleep(2)
-        message.empty()
-        st.rerun()
-    else:
-        st.error(f"Failed to save custom query '{name}'")
-
-def verify_collection_exists(collection_name):
-    if utility.has_collection(collection_name):
-        st.success(f"Collection '{collection_name}' exists.")
-        return True
-    else:
-        st.warning(f"Collection '{collection_name}' does not exist.")
-        return False
-
-def reinitialize_client():
-    st.info("Reinitializing Milvus client.")
-    try:
-        client = MilvusClient("default")
-        st.success("Milvus client reinitialized.")
-        return client
-    except Exception as e:
-        st.error(f"Failed to reinitialize Milvus client: {str(e)}")
-        return None
 
 def remove_document(file_name):
     try:
@@ -1088,7 +907,6 @@ def clear_current_session():
     time.sleep(2)
     message.empty()
     st.rerun()
-
 
 # Main processing function
 def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_index, total_files):
@@ -1197,7 +1015,6 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
         st.error(f"An error occurred while processing {uploaded_file.name}: {str(e)}")
         st.error(f"Traceback: {traceback.format_exc()}")
         return None, None, None, None
-
 
 def search_documents(query, selected_documents, custom_prompt=None):
     collection = get_or_create_collection("document_pages")
@@ -1478,7 +1295,6 @@ try:
                     st.session_state.trigger_rerun = True
                 else:
                     st.error(f"Failed to completely remove {file_name}. Please check the error messages above and try again if needed.")
-
 
 
     # Display question history

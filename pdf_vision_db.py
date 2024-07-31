@@ -438,34 +438,6 @@ def remove_document(file_name):
             return False
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
-        return Falsedef remove_document(file_name):
-    collection = get_or_create_document_pages_collection()
-    if collection is None:
-        st.error("Failed to access document pages collection")
-        return False
-
-    try:
-        # Delete document from Milvus collection
-        delete_result = collection.delete(expr=f"file_name == '{file_name}'")
-        
-        # Check the delete count
-        if delete_result.delete_count > 0:
-            # Remove document from session state
-            st.session_state.documents.pop(file_name, None)
-            if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
-                st.session_state.selected_documents.remove(file_name)
-
-            # Set a flag to indicate successful removal
-            st.session_state.document_removed = True
-            st.session_state.removed_document_name = file_name
-
-            st.success(f"Document '{file_name}' successfully removed from the collection.")
-            return True
-        else:
-            st.warning(f"No document '{file_name}' found in the collection to delete.")
-            return False
-    except Exception as e:
-        st.error(f"Error deleting document: {str(e)}")
         return False
 
 #sources

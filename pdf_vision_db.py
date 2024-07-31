@@ -424,17 +424,6 @@ def remove_document(file_name):
         # Use the reset_session function to reset the session state and rerun the app
         reset_session()
         # Remove document from session state
-        st.session_state.documents.pop(file_name, None)
-        if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
-            st.session_state.selected_documents.remove(file_name)
-
-        # Remove file hash and associated name
-        file_hashes = st.session_state.get('file_hashes', {})
-        for hash_value, name in list(file_hashes.items()):
-            if name == file_name:
-                del file_hashes[hash_value]
-
-        return True
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
         return False

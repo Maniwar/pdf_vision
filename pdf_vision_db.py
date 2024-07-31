@@ -1029,6 +1029,16 @@ def handle_delete_query(name):
         st.session_state.custom_queries = get_all_custom_queries()
         st.success(f"Deleted {name}")
 
+def handle_remove_document(file_name):
+    if remove_document(file_name):
+        # Update the list of available documents
+        st.session_state.documents = get_all_documents()
+        st.success(f"Removed document: {file_name}")
+        # Set a flag to trigger a rerun
+        st.session_state.document_removed = True
+        st.session_state.removed_document_name = file_name
+    else:
+        st.error(f"Failed to remove document: {file_name}")
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):
         del st.session_state.qa_history[index]

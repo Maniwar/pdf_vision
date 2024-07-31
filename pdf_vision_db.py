@@ -1490,7 +1490,6 @@ try:
             if st.button("🗑️ Clear All History"):
                 st.session_state.qa_history = []
                 st.success("All question history cleared!")
-                st.rerun()
         with col2:
             if st.button("📥 Download History as CSV"):
                 csv = "Question,Answer,Documents Queried,Sources\n"

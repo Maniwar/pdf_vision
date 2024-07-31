@@ -26,6 +26,8 @@ import plotly.graph_objs as go
 from bs4 import BeautifulSoup
 import traceback
 import time
+from streamlit.runtime.scriptrunner import RerunException
+from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 def reset_session():
     # Clear session state variables
@@ -1000,9 +1002,10 @@ def remove_document(file_name):
         if 'qa_history' in st.session_state:
             st.session_state.qa_history = [qa for qa in st.session_state.qa_history if file_name not in qa['documents_queried']]
 
-        # Set a flag in session state to indicate successful removal
+        # Set flags in session state to indicate successful removal
         st.session_state.document_removed = True
         st.session_state.removed_document_name = file_name
+        st.session_state.trigger_rerun = True
 
         return True
     except Exception as e:
@@ -1441,7 +1444,6 @@ try:
             # Place the remove button here, after displaying the document content
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 if remove_document(file_name):
-                    st.success(f"{file_name} has been removed.")
                     st.session_state.trigger_rerun = True
                 else:
                     st.error(f"Failed to remove {file_name}. Please try again.")

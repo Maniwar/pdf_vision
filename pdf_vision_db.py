@@ -1038,6 +1038,7 @@ def remove_document(file_name):
         return False
 
 
+
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):
         del st.session_state.qa_history[index]

@@ -1020,23 +1020,13 @@ def reinitialize_client():
 
 def remove_document(file_name):
     try:
-        st.info("Starting document removal process.")
-
-        # Connect to Milvus
         connect_to_milvus()
-
-        collection = get_or_create_collection("document_pages")
-        if not collection:
-            return False
-
-        # Attempt to delete entries
-        st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
-        try:
-            delete_result = collection.delete(expr=f"file_name == '{file_name}'")
-            st.success(f"Deleted entries for {file_name}.")
-        except MilvusException as e:
-            st.error(f"Failed to delete entries for {file_name}: {str(e)}")
-            return False
+        collection_name = "document_pages"
+        res = client.delete(
+            collection_name=collection_name,
+            filter=f"file_name == '{file_name}'"
+        )
+        print(res)
 
         # Remove from session state
         if file_name in st.session_state.get('documents', {}):
@@ -1050,12 +1040,9 @@ def remove_document(file_name):
         qa_history = st.session_state.get('qa_history', [])
         st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
 
-        st.success("Document removal process completed successfully.")
-        return True
-
+        st.success(f"Document '{file_name}' removed successfully.")
     except Exception as e:
-        st.error(f"An unexpected error occurred: {str(e)}")
-        return False
+        st.error(f"Failed to remove document '{file_name}': {str(e)}")
 
 def remove_from_session_state(file_name, keys):
     """Helper function to remove file references from session state."""

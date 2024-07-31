@@ -952,6 +952,7 @@ if st.session_state.get('document_removed', False):
     st.success(f"{st.session_state.removed_document_name} has been removed.")
     st.session_state.document_removed = False
     st.session_state.removed_document_name = None
+
 def update_custom_query(name, new_query_part):
     if save_custom_query(name, new_query_part, update=True):
         st.session_state.custom_queries = get_all_custom_queries()
@@ -1014,8 +1015,10 @@ def reinitialize_client():
 def remove_document(file_name):
     try:
         connect_to_milvus()  # Ensure Milvus connection is established
-        collection = Collection("document_pages")
-        delete_result = collection.delete(expr=f"file_name == '{file_name}'")
+        client.delete(
+        collection_name="document_pages",
+        filter="f"file_name == '{file_name}'"
+        )
         st.write(delete_result)  # Debug print to check the result
 
         # Remove from session state

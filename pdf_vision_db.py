@@ -994,7 +994,7 @@ def remove_from_session_state(file_name):
     """Helper function to remove file references from session state."""
     for key in keys:
         if key in st.session_state and file_name:
-            del st.session_state[key][file_name]
+            del st.session_state[file_name]
             st.info(f"Removed {file_name} from session state.")
 
 def remove_question(index):

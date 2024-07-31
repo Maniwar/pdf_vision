@@ -1002,15 +1002,7 @@ def verify_collection_exists(collection_name):
         st.warning(f"Collection '{collection_name}' does not exist.")
         return False
 
-def reinitialize_client():
-    st.info("Reinitializing Milvus client.")
-    try:
-        client = MilvusClient("default")
-        st.success("Milvus client reinitialized.")
-        return client
-    except Exception as e:
-        st.error(f"Failed to reinitialize Milvus client: {str(e)}")
-        return None
+
 
 def remove_document(file_name):
     try:
@@ -1025,22 +1017,6 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
         return False
-
-        # Remove from session state
-        if file_name in st.session_state.get('documents', {}):
-            del st.session_state.documents[file_name]
-        if file_name in st.session_state.get('selected_documents', []):
-            st.session_state.selected_documents.remove(file_name)
-        file_hashes = st.session_state.get('file_hashes', {})
-        for hash_value, name in list(file_hashes.items()):
-            if name == file_name:
-                del file_hashes[hash_value]
-        qa_history = st.session_state.get('qa_history', [])
-        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
-
-        st.success(f"Document '{file_name}' removed successfully.")
-    except Exception as e:
-        st.error(f"Failed to remove document '{file_name}': {str(e)}")
 
 
 def remove_from_session_state(file_name, keys):

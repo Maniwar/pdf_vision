@@ -1000,7 +1000,10 @@ def remove_document(file_name):
         if 'qa_history' in st.session_state:
             st.session_state.qa_history = [qa for qa in st.session_state.qa_history if file_name not in qa['documents_queried']]
 
-        st.success(f"Successfully removed {file_name}")
+        # Set a flag in session state to indicate successful removal
+        st.session_state.document_removed = True
+        st.session_state.removed_document_name = file_name
+
         return True
     except Exception as e:
         st.error(f"An error occurred while removing {file_name}: {str(e)}")
@@ -1212,6 +1215,11 @@ if 'query_part_clicked' not in st.session_state:
     st.session_state.query_part_clicked = None
 if 'query_name_clicked' not in st.session_state:
     st.session_state.query_name_clicked = None
+# states
+if st.session_state.get('document_removed', False):
+    st.success(f"{st.session_state.removed_document_name} has been removed.")
+    st.session_state.document_removed = False
+    st.session_state.removed_document_name = None
 
 # Sidebar
 with st.sidebar:
@@ -1434,7 +1442,7 @@ try:
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 if remove_document(file_name):
                     st.success(f"{file_name} has been removed.")
-                    st.rerun()
+                    st.session_state.trigger_rerun = True
                 else:
                     st.error(f"Failed to remove {file_name}. Please try again.")
 
@@ -1539,3 +1547,7 @@ with st.expander("⚠️ By using this application, you agree to the following t
         By continuing to use this application, you acknowledge that you have read, understood, and agree to these terms.
     </div>
     """, unsafe_allow_html=True)
+# States
+if st.session_state.get('trigger_rerun', False):
+    st.session_state.trigger_rerun = False
+    raise RerunException(get_script_run_ctx().id)

@@ -976,6 +976,37 @@ def handle_new_query(name, query_part):
     else:
         st.error(f"Failed to save custom query '{name}'")
 
+Thank you for sharing the error message. It appears there's an issue with the rerun functionality in your Streamlit application. The error suggests that the `ScriptRunContext` object doesn't have an `id` attribute, which is being accessed in the `RerunException` call.
+
+To resolve this issue, we need to modify the rerun logic. Instead of using `RerunException`, we can use Streamlit's built-in `st.rerun()` function. Here's how we can update the code:
+
+1. First, remove the import of `RerunException`:
+
+```python
+# Remove this line
+from streamlit.runtime.scriptrunner import RerunException
+```
+
+2. Then, update the rerun logic at the end of your script:
+
+```python
+# At the end of your main script
+if st.session_state.get('trigger_rerun', False):
+    st.session_state.trigger_rerun = False
+    st.rerun()
+```
+
+This change should resolve the `AttributeError` and allow the rerun functionality to work as intended.
+
+Regarding the Milvus database issue, it seems that the removal of the document "qa_history.csv" from the Milvus database was unsuccessful. To address this, you may want to:
+
+1. Double-check the Milvus connection parameters and ensure they are correct.
+2. Verify that the collection name and the query used to delete the document are accurate.
+3. Implement a retry mechanism for database operations.
+4. Add more detailed error logging to identify the exact cause of the failure.
+
+Here's an example of how you could modify the `remove_document` function to include more error handling and logging:
+
 def remove_document(file_name):
     try:
         # Ensure connection to Milvus
@@ -991,14 +1022,14 @@ def remove_document(file_name):
             output_fields=["file_name"],
             limit=1
         )
-        
+
         if not query_result:
             st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
         else:
             # Attempt to delete the document
             collection.delete(f"file_name == '{file_name}'")
             collection.flush()  # Ensure the delete operation is executed
-            
+
             # Verify removal from Milvus
             verification_result = collection.query(
                 expr=f"file_name == '{file_name}'",

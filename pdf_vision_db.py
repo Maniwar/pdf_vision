@@ -976,6 +976,9 @@ def handle_new_query(name, query_part):
     else:
         st.error(f"Failed to save custom query '{name}'")
 
+import time
+from pymilvus import Collection
+import streamlit as st
 
 def remove_document(file_name):
     try:
@@ -986,8 +989,7 @@ def remove_document(file_name):
         # Check if the document exists in Milvus
         query_result = collection.query(
             expr=f"file_name == '{file_name}'",
-            output_fields=["id"],
-            limit=None  # Retrieve all matching documents
+            output_fields=["id"]
         )
 
         if not query_result:
@@ -995,13 +997,12 @@ def remove_document(file_name):
             return False
 
         # Collect all document IDs
-        doc_ids = [str(doc['id']) for doc in query_result]
-        
+        doc_ids = [doc['id'] for doc in query_result]
+
         st.info(f"Attempting to delete {len(doc_ids)} entries for {file_name} from Milvus.")
-        
+
         # Attempt to delete all documents by ID
-        delete_result = collection.delete(expr=f"id in [{','.join(doc_ids)}]")
-        st.write(f"Delete result: {delete_result}")
+        collection.delete(expr=f"id in {doc_ids}")
         
         # Ensure the delete operation is executed
         collection.flush()
@@ -1015,46 +1016,48 @@ def remove_document(file_name):
         # Verify removal from Milvus
         verification_result = collection.query(
             expr=f"file_name == '{file_name}'",
-            output_fields=["id"],
-            limit=None
+            output_fields=["id"]
         )
 
         if verification_result:
             st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")
-            st.write(f"Remaining entries: {verification_result}")
             return False
         else:
             st.success(f"Successfully removed all entries for {file_name} from Milvus.")
-            
+
             # Remove from session state
-            if file_name in st.session_state.documents:
+            if file_name in st.session_state.get('documents', {}):
                 del st.session_state.documents[file_name]
                 st.info(f"{file_name} removed from session state documents.")
 
             # Remove from file hashes
-            for hash_value, name in list(st.session_state.file_hashes.items()):
+            file_hashes = st.session_state.get('file_hashes', {})
+            for hash_value, name in list(file_hashes.items()):
                 if name == file_name:
-                    del st.session_state.file_hashes[hash_value]
+                    del file_hashes[hash_value]
                     st.info(f"{file_name} removed from session state file hashes.")
 
             # Remove from selected documents if present
-            if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
-                st.session_state.selected_documents.remove(file_name)
+            selected_documents = st.session_state.get('selected_documents', [])
+            if file_name in selected_documents:
+                selected_documents.remove(file_name)
                 st.info(f"{file_name} removed from session state selected documents.")
 
             # Remove from qa_history if present
-            if 'qa_history' in st.session_state:
-                original_length = len(st.session_state.qa_history)
-                st.session_state.qa_history = [qa for qa in st.session_state.qa_history if file_name not in qa.get('documents_queried', [])]
-                if len(st.session_state.qa_history) < original_length:
-                    st.info(f"{file_name} references removed from session state QA history.")
+            qa_history = st.session_state.get('qa_history', [])
+            original_length = len(qa_history)
+            qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
+            if len(qa_history) < original_length:
+                st.session_state.qa_history = qa_history
+                st.info(f"{file_name} references removed from session state QA history.")
 
             return True
 
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
-    
+
+
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):
         del st.session_state.qa_history[index]

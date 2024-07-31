@@ -545,6 +545,18 @@ def save_uploadedfile(uploadedfile):
         f.write(uploadedfile.getbuffer())
     return file_path
 
+# Add a new function to process CSV files
+def process_csv(file_path, page_progress_bar, page_status_text):
+    df = pd.read_csv(file_path)
+    markdown_content = f"## CSV Content\n\n{df.to_markdown(index=False)}"
+    page_contents = [markdown_content]
+
+    # Update progress
+    page_progress_bar.progress(1.0)
+    page_status_text.text("CSV file processing complete")
+
+    return [(1, None)], page_contents
+
 def process_pdf(file_path, page_progress_bar, page_status_text):
     doc = fitz.open(file_path)
     temp_dir = tempfile.mkdtemp()
@@ -1032,6 +1044,8 @@ def process_file(uploaded_file, overall_progress_bar, overall_status_text, file_
 
         if file_extension == '.pdf':
             image_paths, page_contents = process_pdf(temp_file_path, page_progress_bar, page_status_text)
+        elif file_extension == '.csv':
+            image_paths, page_contents = process_csv(temp_file_path, page_progress_bar, page_status_text)
         elif file_extension in ['.doc', '.docx']:
             image_paths, page_contents = process_doc_docx(temp_file_path, page_progress_bar, page_status_text)
         elif file_extension == '.txt':

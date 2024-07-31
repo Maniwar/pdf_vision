@@ -428,7 +428,7 @@ def remove_document(file_name):
             return False
 
         # Delete document from Milvus collection
-        delete_result = collection.delete(expr=f"file_name == '{file_name}'")
+        delete_result = client.delete(collection_name = "document_pages", filter = f"file_name == '{file_name}'")
         st.write(f"Delete result: {delete_result}")  # Debug information
 
         # Verify deletion

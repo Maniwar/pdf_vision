@@ -1452,6 +1452,7 @@ try:
             # Place the remove button here, after displaying the document content
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 remove_document(file_name)
+                st.rerun()
 
 
 

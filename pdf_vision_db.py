@@ -978,9 +978,6 @@ def handle_new_query(name, query_part):
 
 def remove_document(file_name):
     try:
-        # Ensure connection to Milvus
-        connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY, secure=True)
-
         # Get the collection
         collection = Collection("document_pages")
         collection.load()
@@ -996,7 +993,7 @@ def remove_document(file_name):
             st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
         else:
             # Attempt to delete the document
-            collection.delete(f"file_name == '{file_name}'")
+            collection.delete(expr=f"file_name == '{file_name}'")
             collection.flush()  # Ensure the delete operation is executed
 
             # Verify removal from Milvus
@@ -1031,6 +1028,8 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
+
+
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):

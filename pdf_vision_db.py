@@ -982,8 +982,20 @@ def remove_document(file_name):
         collection = get_or_create_collection("document_pages")
         if collection:
             collection.delete(f"file_name == '{file_name}'")
+
+            # Verify removal from Milvus
+            collection.flush()  # Ensure the delete operation is executed
+            query_result = collection.query(
+                expr=f"file_name == '{file_name}'",
+                output_fields=["file_name"],
+                limit=1
+            )
+            if query_result:
+                st.error(f"Failed to remove {file_name} from Milvus. Please try again.")
+                return False
         else:
             st.warning("Could not access the document collection. The file may not be fully removed from the database.")
+            return False
 
         # Remove from session state
         if file_name in st.session_state.documents:

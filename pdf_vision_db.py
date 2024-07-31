@@ -978,13 +978,14 @@ def handle_new_query(name, query_part):
 
 def remove_document(file_name):
     try:
-        # Remove from Milvus collection
-        collection = get_or_create_collection("document_pages")
-        if not collection:
-            st.error("Failed to access the document collection. Cannot proceed with removal.")
-            return False
+        # Ensure connection to Milvus
+        connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY, secure=True)
 
-        # Check if the document exists in Milvus before attempting to delete
+        # Get the collection
+        collection = Collection("document_pages")
+        collection.load()
+
+        # Check if the document exists in Milvus
         query_result = collection.query(
             expr=f"file_name == '{file_name}'",
             output_fields=["file_name"],
@@ -1024,11 +1025,6 @@ def remove_document(file_name):
         # Remove from qa_history if present
         if 'qa_history' in st.session_state:
             st.session_state.qa_history = [qa for qa in st.session_state.qa_history if file_name not in qa['documents_queried']]
-
-        # Set flags in session state to indicate successful removal
-        st.session_state.document_removed = True
-        st.session_state.removed_document_name = file_name
-        st.session_state.trigger_rerun = True
 
         st.success(f"{file_name} has been successfully removed from the database and application state.")
         return True
@@ -1471,6 +1467,7 @@ try:
                     st.session_state.trigger_rerun = True
                 else:
                     st.error(f"Failed to completely remove {file_name}. Please check the error messages above and try again if needed.")
+
 
 
     # Display question history

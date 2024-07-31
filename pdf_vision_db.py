@@ -978,9 +978,6 @@ def handle_new_query(name, query_part):
 
 def remove_document(file_name):
     try:
-        # Ensure connection to Milvus
-        connections.connect("default", uri=MILVUS_ENDPOINT, token=MILVUS_API_KEY, secure=True)
-
         # Get the collection
         collection = Collection("document_pages")
         collection.load()
@@ -988,49 +985,102 @@ def remove_document(file_name):
         # Check if the document exists in Milvus
         query_result = collection.query(
             expr=f"file_name == '{file_name}'",
-            output_fields=["file_name"],
+            output_fields=["file_name", "id"],
             limit=1
         )
 
         if not query_result:
             st.warning(f"{file_name} was not found in the Milvus database. It may have been removed already.")
+            return False
         else:
-            # Attempt to delete the document
-            collection.delete(f"file_name == '{file_name}'")
+            doc_id = query_result[0]['id']
+            st.info(f"Attempting to delete {file_name} with ID {doc_id} from Milvus.")
+            
+            # Attempt to delete the document by ID
+            delete_result = collection.delete(expr=f"id in [{doc_id}]")
+            st.write(f"Delete result: {delete_result}")  # Log the delete result for debugging
             collection.flush()  # Ensure the delete operation is executed
+            
+            # Allow some time for the flush operation to complete
+            time.sleep(2)
 
             # Verify removal from Milvus
             verification_result = collection.query(
-                expr=f"file_name == '{file_name}'",
-                output_fields=["file_name"],
+                expr=f"id == {doc_id}",
+                output_fields=["file_name", "id"],
                 limit=1
             )
             if verification_result:
                 st.error(f"Failed to remove {file_name} from Milvus. The document still exists in the database.")
+                st.write(f"Verification result: {verification_result}")  # Log the verification result for debugging
                 return False
 
         # Remove from session state
         if file_name in st.session_state.documents:
             del st.session_state.documents[file_name]
+            st.info(f"{file_name} removed from session state documents.")
 
         # Remove from file hashes
         for hash_value, name in list(st.session_state.file_hashes.items()):
             if name == file_name:
                 del st.session_state.file_hashes[hash_value]
+                st.info(f"{file_name} removed from session state file hashes.")
 
         # Remove from selected documents if present
         if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
+            st.info(f"{file_name} removed from session state selected documents.")
 
         # Remove from qa_history if present
         if 'qa_history' in st.session_state:
+            original_length = len(st.session_state.qa_history)
             st.session_state.qa_history = [qa for qa in st.session_state.qa_history if file_name not in qa['documents_queried']]
+            if len(st.session_state.qa_history) < original_length:
+                st.info(f"{file_name} references removed from session state QA history.")
 
         st.success(f"{file_name} has been successfully removed from the database and application state.")
         return True
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
+
+# Main section
+st.sidebar.subheader("📌 Custom AI Tasks")
+custom_queries = get_all_custom_queries()
+
+if custom_queries:
+    for index, custom_query in enumerate(custom_queries):
+        if st.button(f"📌 {custom_query['name']}", key=f"custom_query_{index}"):
+            st.session_state.query_part_clicked = custom_query['query_part']
+            st.session_state.query_name_clicked = custom_query['name']
+            st.session_state.custom_query_selected = True
+
+# Add new custom query
+with st.sidebar.expander("➕ Add New Custom AI Task"):
+    with st.form(key="new_custom_query_form"):
+        new_query_name = st.text_input("AI Task Name")
+        new_query_part = st.text_area("AI Task Instructions")
+        submit_button = st.form_submit_button("Save Custom Query")
+        if submit_button:
+            handle_new_query(new_query_name, new_query_part)
+
+# Edit or delete existing custom queries
+with st.sidebar.expander("✏️ Edit or Delete Custom AI Tasks"):
+    for index, query in enumerate(st.session_state.custom_queries):
+        with st.form(key=f"edit_custom_query_form_{index}"):
+            st.markdown(f"### {query['name']}")
+            edited_query_part = st.text_area(f"AI task for {query['name']}", query['query_part'])
+            col1, col2 = st.columns(2)
+            with col1:
+                update_button = st.form_submit_button(f"Update {query['name']}")
+            with col2:
+                delete_button = st.form_submit_button(f"Delete {query['name']}")
+
+            if update_button:
+                handle_update_query(query['name'], edited_query_part)
+            elif delete_button:
+                delete_custom_query(query['name'])
+
 
 
 def remove_question(index):

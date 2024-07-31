@@ -975,18 +975,35 @@ def verify_collection_exists(collection_name):
         st.warning(f"Collection '{collection_name}' does not exist.")
         return False
 
-
 def remove_document(file_name):
     collection = get_or_create_collection("document_pages")  # Correct function for document pages collection
     if collection is None:
         st.error("Failed to access document pages collection")
         return
+
     try:
-        collection.delete(f"file_name == '{file_name}'")
-        st.write(f"Delete result: {delete_result}")  # Debug print to check the result
+        # Delete document from Milvus collection
+        collection.delete(expr=f"file_name == '{file_name}'")
+        st.session_state.documents.pop(file_name, None)
+        st.session_state.selected_documents.remove(file_name) if file_name in st.session_state.selected_documents else None
+
+        # Remove file hash and associated name
+        file_hashes = st.session_state.get('file_hashes', {})
+        for hash_value, name in list(file_hashes.items()):
+            if name == file_name:
+                del file_hashes[hash_value]
+
+        # Update QA history
+        qa_history = st.session_state.get('qa_history', [])
+        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
+
+        # Delay to allow UI to update
+        time.sleep(1)
+
+        # Use the reset_session function to reset the session state and rerun the app
+        reset_session()
     except Exception as e:
         st.error(f"Error deleting document: {str(e)}")
-
 
 def remove_question(index):
     if 0 <= index < len(st.session_state.qa_history):
@@ -1400,6 +1417,7 @@ try:
             # Place the remove button here, after displaying the document content
             if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
                 remove_document(file_name)
+
 
 
     # Display question history

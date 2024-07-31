@@ -72,30 +72,6 @@ def reset_session():
             window.location.reload();
         </script>
     """, unsafe_allow_html=True)
-    
-# Initialize session state variables if they don't exist
-if 'documents' not in st.session_state:
-    st.session_state.documents = {}
-if 'file_hashes' not in st.session_state:
-    st.session_state.file_hashes = {}
-if 'qa_history' not in st.session_state:
-    st.session_state.qa_history = []
-if 'custom_queries' not in st.session_state:
-    st.session_state.custom_queries = get_all_custom_queries()
-if 'custom_query_selected' not in st.session_state:
-    st.session_state.custom_query_selected = False
-if 'query_part_clicked' not in st.session_state:
-    st.session_state.query_part_clicked = None
-if 'query_name_clicked' not in st.session_state:
-    st.session_state.query_name_clicked = None
-if 'files_to_remove' not in st.session_state:
-    st.session_state.files_to_remove = []
-if 'selected_documents' not in st.session_state:
-    st.session_state.selected_documents = []
-if st.session_state.get('document_removed', False):
-    st.success(f"{st.session_state.removed_document_name} has been removed.")
-    st.session_state.document_removed = False
-    st.session_state.removed_document_name = None
 
 def get_or_create_custom_query_collection():
     collection_name = "custom_queries"
@@ -435,38 +411,28 @@ def delete_custom_query(name):
         st.error(f"Error deleting custom AI task: {str(e)}")
 
 def remove_document(file_name):
-    collection = get_or_create_document_pages_collection()
-    if collection is None:
-        st.error("Failed to access document pages collection")
-        return
-
     try:
-        # Delete document from Milvus collection
-        delete_result = collection.delete(f"file_name == '{file_name}'")
-        st.write(f"Delete result: {delete_result}")  # Debug print to check the result
+        # Remove from Milvus collection
+        collection = get_or_create_collection("document_pages")
+        collection.delete(f"file_name == '{file_name}'")
 
-        # Remove document from session state
-        st.session_state.documents.pop(file_name, None)
-        if file_name in st.session_state.selected_documents:
+        # Remove from session state
+        if file_name in st.session_state.documents:
+            del st.session_state.documents[file_name]
+
+        # Remove from file hashes
+        for hash_value, name in list(st.session_state.file_hashes.items()):
+            if name == file_name:
+                del st.session_state.file_hashes[hash_value]
+
+        # Remove from selected documents if present
+        if 'selected_documents' in st.session_state and file_name in st.session_state.selected_documents:
             st.session_state.selected_documents.remove(file_name)
 
-        # Remove file hash and associated name
-        file_hashes = st.session_state.get('file_hashes', {})
-        for hash_value, name in list(file_hashes.items()):
-            if name == file_name:
-                del file_hashes[hash_value]
-
-        # Update QA history
-        qa_history = st.session_state.get('qa_history', [])
-        st.session_state.qa_history = [qa for qa in qa_history if file_name not in qa.get('documents_queried', [])]
-
-        # Delay to allow UI to update
-        time.sleep(1)
-
-        # Use the reset_session function to reset the session state and rerun the app
-        reset_session()
+        return True
     except Exception as e:
-        st.error(f"Error deleting document: {str(e)}")
+        st.error(f"Error removing {file_name}: {str(e)}")
+        return False
 
 #sources
 def calculate_confidence(score):
@@ -1248,6 +1214,30 @@ def search_documents(query, selected_documents, custom_prompt=None):
 
 # Streamlit interface
 st.title('💡 DocuQuery AI')
+
+# Initialize session state variables if they don't exist
+if 'documents' not in st.session_state:
+    st.session_state.documents = {}
+if 'file_hashes' not in st.session_state:
+    st.session_state.file_hashes = {}
+if 'qa_history' not in st.session_state:
+    st.session_state.qa_history = []
+if 'custom_queries' not in st.session_state:
+    st.session_state.custom_queries = get_all_custom_queries()
+if 'custom_query_selected' not in st.session_state:
+    st.session_state.custom_query_selected = False
+if 'query_part_clicked' not in st.session_state:
+    st.session_state.query_part_clicked = None
+if 'query_name_clicked' not in st.session_state:
+    st.session_state.query_name_clicked = None
+if 'files_to_remove' not in st.session_state:
+    st.session_state.files_to_remove = []
+if 'selected_documents' not in st.session_state:
+    st.session_state.selected_documents = []
+if st.session_state.get('document_removed', False):
+    st.success(f"{st.session_state.removed_document_name} has been removed.")
+    st.session_state.document_removed = False
+    st.session_state.removed_document_name = None
 
 # Sidebar
 with st.sidebar:

@@ -976,7 +976,6 @@ def verify_collection_exists(collection_name):
         return False
 
 
-
 def remove_document(file_name):
     try:
         connect_to_milvus()  # Ensure Milvus connection is established

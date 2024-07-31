@@ -976,17 +976,24 @@ def handle_new_query(name, query_part):
     else:
         st.error(f"Failed to save custom query '{name}'")
 
+
 def remove_document(file_name):
     try:
-        # Get the collection
-        collection = Collection("document_pages")
+        # Check if the collection exists
+        if not utility.has_collection("document_pages"):
+            st.error("Collection 'document_pages' does not exist.")
+            return False
 
-        # Define the filter for the file_name
-        filter_expr = f"file_name=='{file_name}'"
+        # Get the collection and load it
+        collection = Collection("document_pages")
+        collection.load()
+
+        # Define the expression for the file_name
+        expr = f"file_name == '{file_name}'"
 
         # Delete all documents with the given file_name
         st.info(f"Attempting to delete all entries for {file_name} from Milvus.")
-        delete_result = collection.delete(filter=filter_expr)
+        delete_result = collection.delete(expr=expr)
         
         deleted_count = delete_result.delete_count
         st.write(f"Delete result: {deleted_count} entities deleted")
@@ -1003,7 +1010,7 @@ def remove_document(file_name):
 
         # Verify removal from Milvus
         collection.load()  # Reload to ensure we have the latest data
-        verification_result = collection.query(expr=filter_expr)
+        verification_result = collection.query(expr=expr)
 
         if verification_result:
             st.error(f"Failed to remove all entries for {file_name} from Milvus. {len(verification_result)} entries still exist.")

@@ -430,11 +430,11 @@ def delete_custom_query(name):
         reset_session()
     except Exception as e:
         st.error(f"Error deleting custom AI task: {str(e)}")
-        
+
 def remove_document(file_name):
     try:
         # Remove from Milvus collection
-        collection = get_or_create_collection("document_pages")
+        collection = "document_pages"
         collection.delete(f"file_name == '{file_name}'")
 
         # Remove from session state

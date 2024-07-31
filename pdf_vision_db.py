@@ -1430,6 +1430,14 @@ try:
             else:
                 st.info(f"No content available for {file_name}.")
 
+            # Place the remove button here, after displaying the document content
+            if st.button(f"🗑️ Remove {file_name}", key=f"remove_{file_name}"):
+                if remove_document(file_name):
+                    st.success(f"{file_name} has been removed.")
+                    st.rerun()
+                else:
+                    st.error(f"Failed to remove {file_name}. Please try again.")
+
 
     # Display question history
     if st.session_state.qa_history:

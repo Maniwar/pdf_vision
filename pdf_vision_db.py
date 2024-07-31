@@ -440,6 +440,30 @@ def get_confidence_info(confidence):
         return "orange", "🟠"  # Orange circle for medium confidence
     else:
         return "red", "🔴"  # Red circle for low confidence
+    
+# Initialize session state variables if they don't exist
+if 'documents' not in st.session_state:
+    st.session_state.documents = {}
+if 'file_hashes' not in st.session_state:
+    st.session_state.file_hashes = {}
+if 'qa_history' not in st.session_state:
+    st.session_state.qa_history = []
+if 'custom_queries' not in st.session_state:
+    st.session_state.custom_queries = get_all_custom_queries()
+if 'custom_query_selected' not in st.session_state:
+    st.session_state.custom_query_selected = False
+if 'query_part_clicked' not in st.session_state:
+    st.session_state.query_part_clicked = None
+if 'query_name_clicked' not in st.session_state:
+    st.session_state.query_name_clicked = None
+if 'files_to_remove' not in st.session_state:
+    st.session_state.files_to_remove = []
+if 'selected_documents' not in st.session_state:
+    st.session_state.selected_documents = []
+if st.session_state.get('document_removed', False):
+    st.success(f"{st.session_state.removed_document_name} has been removed.")
+    st.session_state.document_removed = False
+    st.session_state.removed_document_name = None
 
 def display_results(all_pages, custom_response, query, selected_documents):
     content = "\n".join([f"[{page['file_name']}-p{page['page_number']}] {page['content']}" for page in all_pages])
@@ -1218,29 +1242,6 @@ def search_documents(query, selected_documents, custom_prompt=None):
 # Streamlit interface
 st.title('💡 DocuQuery AI')
 
-# Initialize session state variables if they don't exist
-if 'documents' not in st.session_state:
-    st.session_state.documents = {}
-if 'file_hashes' not in st.session_state:
-    st.session_state.file_hashes = {}
-if 'qa_history' not in st.session_state:
-    st.session_state.qa_history = []
-if 'custom_queries' not in st.session_state:
-    st.session_state.custom_queries = get_all_custom_queries()
-if 'custom_query_selected' not in st.session_state:
-    st.session_state.custom_query_selected = False
-if 'query_part_clicked' not in st.session_state:
-    st.session_state.query_part_clicked = None
-if 'query_name_clicked' not in st.session_state:
-    st.session_state.query_name_clicked = None
-if 'files_to_remove' not in st.session_state:
-    st.session_state.files_to_remove = []
-if 'selected_documents' not in st.session_state:
-    st.session_state.selected_documents = []
-if st.session_state.get('document_removed', False):
-    st.success(f"{st.session_state.removed_document_name} has been removed.")
-    st.session_state.document_removed = False
-    st.session_state.removed_document_name = None
 
 # Sidebar
 with st.sidebar:

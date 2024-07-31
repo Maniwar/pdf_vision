@@ -1113,11 +1113,7 @@ def remove_document(file_name):
     except Exception as e:
         st.error(f"An unexpected error occurred while removing {file_name}: {str(e)}")
         return False
-    finally:
-        # Release the collection
-        if 'collection' in locals():
-            collection.release()
-            st.info("Collection released.")
+
 
 
 def remove_from_session_state(file_name, keys):

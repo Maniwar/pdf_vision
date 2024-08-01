@@ -373,10 +373,32 @@ def update_custom_query(name, new_query_part):
     try:
         # Generate embeddings for the new query part
         embedding = embeddings.embed_documents([new_query_part])[0]
-        collection.update(
+
+        # Check if the query exists
+        existing_query = collection.query(
             expr=f"name == '{name}'",
-            data={"query_part": new_query_part, "vector": embedding}
+            output_fields=["id"],
+            limit=1
         )
+
+        if existing_query:
+            # Delete the existing entry
+            collection.delete(expr=f"name == '{name}'")
+
+            # Insert the updated entry
+            collection.insert([{
+                "name": name,
+                "query_part": new_query_part,
+                "vector": embedding
+            }])
+        else:
+            # If it doesn't exist, insert as new
+            collection.insert([{
+                "name": name,
+                "query_part": new_query_part,
+                "vector": embedding
+            }])
+
         return True
     except Exception as e:
         st.error(f"Error updating custom AI task: {str(e)}")

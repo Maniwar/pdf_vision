@@ -1341,6 +1341,7 @@ with st.sidebar:
             submit_button = st.form_submit_button("Save Custom Query")
             if submit_button:
                 handle_new_query(new_query_name, new_query_part)
+                reset_session()
 
     # Edit or delete existing custom queries
     with st.expander("✏️ Edit or Delete Custom AI Tasks"):
@@ -1354,7 +1355,7 @@ with st.sidebar:
                         update_button = st.form_submit_button(f"Update {query['name']}")
                     with col2:
                         delete_button = st.form_submit_button(f"Delete {query['name']}")
-                    
+
                     if update_button:
                         handle_update_query(query['name'], edited_query_part)
                     elif delete_button:

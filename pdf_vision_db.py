@@ -437,17 +437,30 @@ def delete_custom_query(name):
     collection = get_or_create_custom_query_collection()
     if collection is None:
         st.error("Failed to access custom query collection")
-        return
+        return False
 
     try:
-        collection.delete(f"name == '{name}'")
-        st.session_state.custom_queries = get_all_custom_queries()
-        # Delay to allow UI to update
-        time.sleep(1)
-        # Use the reset_session function to reset the session state and rerun the app
-        reset_session()
+        # Delete the query from the collection
+        delete_result = collection.delete(expr=f"name == '{name}'")
+
+        # Check if any documents were deleted
+        if delete_result.delete_count > 0:
+            # Update the session state
+            if 'custom_queries' in st.session_state:
+                st.session_state.custom_queries = get_all_custom_queries()
+
+            # Set a flag to indicate successful removal
+            st.session_state.query_removed = True
+            st.session_state.removed_query_name = name
+
+            st.success(f"Custom AI task '{name}' successfully removed.")
+            return True
+        else:
+            st.warning(f"No custom AI task '{name}' found to delete.")
+            return False
     except Exception as e:
         st.error(f"Error deleting custom AI task: {str(e)}")
+        return False
 
 def remove_document(file_name):
     collection = get_or_create_document_pages_collection()

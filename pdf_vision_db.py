@@ -454,9 +454,11 @@ def delete_custom_query(name):
             st.session_state.removed_query_name = name
 
             st.success(f"Custom AI task '{name}' successfully removed.")
+            st.rerun()
             return True
         else:
             st.warning(f"No custom AI task '{name}' found to delete.")
+            st.rerun()
             return False
     except Exception as e:
         st.error(f"Error deleting custom AI task: {str(e)}")

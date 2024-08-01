@@ -1344,20 +1344,23 @@ with st.sidebar:
 
     # Edit or delete existing custom queries
     with st.expander("✏️ Edit or Delete Custom AI Tasks"):
-        for index, query in enumerate(st.session_state.custom_queries):
-            with st.form(key=f"edit_custom_query_form_{index}"):
-                st.markdown(f"### {query['name']}")
-                edited_query_part = st.text_area(f"AI task for {query['name']}", query['query_part'])
-                col1, col2 = st.columns(2)
-                with col1:
-                    update_button = st.form_submit_button(f"Update {query['name']}")
-                with col2:
-                    delete_button = st.form_submit_button(f"Delete {query['name']}")
+        if 'custom_queries' in st.session_state:
+            for index, query in enumerate(st.session_state.custom_queries):
+                with st.form(key=f"edit_custom_query_form_{index}_{query['name']}"):
+                    st.markdown(f"### {query['name']}")
+                    edited_query_part = st.text_area(f"AI task for {query['name']}", query['query_part'], key=f"query_part_{index}_{query['name']}")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        update_button = st.form_submit_button(f"Update {query['name']}", key=f"update_{index}_{query['name']}")
+                    with col2:
+                        delete_button = st.form_submit_button(f"Delete {query['name']}", key=f"delete_{index}_{query['name']}")
 
-                if update_button:
-                    handle_update_query(query['name'], edited_query_part)
-                elif delete_button:
-                    delete_custom_query(query['name'])
+                    if update_button:
+                        handle_update_query(query['name'], edited_query_part)
+                    elif delete_button:
+                        delete_custom_query(query['name'])
+        else:
+            st.info("No custom AI tasks available. Add a new task to get started.")
 
     st.markdown("## ℹ️ About")
     st.info(

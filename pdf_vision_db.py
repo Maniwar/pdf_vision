@@ -1069,6 +1069,7 @@ def handle_new_query(name, query_part):
         time.sleep(2)
         message.empty()
         st.rerun()
+        reset_session()
     else:
         st.error(f"Failed to save custom query '{name}'")
 

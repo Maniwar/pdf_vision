@@ -354,16 +354,33 @@ def save_custom_query(name, query_part, update=False):
         # Generate embeddings for the query part
         embedding = embeddings.embed_documents([query_part])[0]
 
-        if update:
-            # Delete existing query
+        # Check if a query with this name already exists
+        existing_query = collection.query(
+            expr=f"name == '{name}'",
+            output_fields=["name"],
+            limit=1
+        )
+
+        if existing_query and not update:
+            # If it exists and we're not updating, create a new versioned name
+            version = 1
+            new_name = f"{name} v{version}"
+            while collection.query(expr=f"name == '{new_name}'", limit=1):
+                version += 1
+                new_name = f"{name} v{version}"
+
+            st.warning(f"A query with the name '{name}' already exists. Saving as '{new_name}'.")
+            name = new_name
+        elif update:
+            # If we're updating, delete the existing query
             collection.delete(expr=f"name == '{name}'")
 
         # Insert new or updated query
         collection.insert([{"name": name, "query_part": query_part, "vector": embedding}])
-        return True
+        return True, name  # Return the (possibly updated) name
     except Exception as e:
         st.error(f"Error saving custom AI task: {str(e)}")
-        return False
+        return False, name
 
 def update_custom_query(name, new_query_part):
     collection = get_or_create_custom_query_collection()
@@ -1043,13 +1060,12 @@ def generate_summary(page_contents, progress_bar, status_text):
 
 #session states
 
-
-
 def handle_new_query(name, query_part):
-    if save_custom_query(name, query_part):
+    success, final_name = save_custom_query(name, query_part)
+    if success:
         st.session_state.custom_queries = get_all_custom_queries()
         message = st.empty()
-        message.success(f"Custom query '{name}' saved successfully!")
+        message.success(f"Custom query '{final_name}' saved successfully!")
         time.sleep(2)
         message.empty()
         st.rerun()

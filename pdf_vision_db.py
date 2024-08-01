@@ -81,7 +81,8 @@ def reset_session():
     message.empty()
 
     # Use st.experimental_rerun() to ensure a complete app rerun
-    st.experimental_rerun()
+    st.rerun()
+
 def get_or_create_custom_query_collection():
     collection_name = "custom_queries"
     try:
@@ -1369,10 +1370,13 @@ with st.sidebar:
 
                     if update_button:
                         handle_update_query(query['name'], edited_query_part)
+                        st.rerun()
                     elif delete_button:
                         delete_custom_query(query['name'])
+                        st.rerun()
         else:
             st.info("No custom AI tasks available. Add a new task to get started.")
+            st.rerun()
 
 
     st.markdown("## ℹ️ About")

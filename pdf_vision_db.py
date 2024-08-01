@@ -1638,13 +1638,7 @@ with st.expander("⚠️ By using this application, you agree to the following t
 
 # At the end of your main script
 if st.session_state.get('document_removed', False):
-    st.success(f"Document '{st.session_state.removed_document_name}' has been removed.")
+    st.success(f"{st.session_state.removed_document_name} has been removed.")
     st.session_state.document_removed = False
     st.session_state.removed_document_name = None
-    st.rerun()
-
-if st.session_state.get('query_removed', False):
-    st.success(f"Custom AI task '{st.session_state.removed_query_name}' has been removed.")
-    st.session_state.query_removed = False
-    st.session_state.removed_query_name = None
     st.rerun()

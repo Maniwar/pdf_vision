@@ -1076,12 +1076,17 @@ def generate_summary(page_contents, progress_bar, status_text):
 def handle_new_query(name, query_part):
     success, final_name = save_custom_query(name, query_part)
     if success:
+        # Update the session state with the new custom queries
         st.session_state.custom_queries = get_all_custom_queries()
-        message = st.empty()
-        message.success(f"Custom query '{final_name}' saved successfully!")
-        time.sleep(2)
-        message.empty()
-        st.rerun()
+        
+        # Set flags to indicate a new query was added
+        st.session_state.query_added = True
+        st.session_state.added_query_name = final_name
+        
+        # Create a success message
+        st.success(f"Custom query '{final_name}' saved successfully!")
+        
+        # Reset the session, which will trigger a rerun
         reset_session()
     else:
         st.error(f"Failed to save custom query '{name}'")
@@ -1649,5 +1654,12 @@ if st.session_state.get('query_removed', False):
     st.success(f"Custom AI task '{st.session_state.removed_query_name}' has been removed.")
     st.session_state.query_removed = False
     st.session_state.removed_query_name = None
+    reset_session()
+    st.rerun()
+    
+    if st.session_state.get('query_added', False):
+    st.success(f"Custom AI task '{st.session_state.added_query_name}' has been added.")
+    st.session_state.query_added = False
+    st.session_state.added_query_name = None
     reset_session()
     st.rerun()

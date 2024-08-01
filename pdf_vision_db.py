@@ -53,22 +53,8 @@ def connect_to_milvus():
         secure=True
     )
 def reset_session():
-    # Store current custom queries
-    current_custom_queries = st.session_state.get('custom_queries', [])
-
     # Clear session state variables
     st.session_state.clear()
-
-    # Reinitialize necessary session state variables
-    st.session_state.documents = {}
-    st.session_state.file_hashes = {}
-    st.session_state.qa_history = []
-    st.session_state.custom_queries = get_all_custom_queries()  # Fetch the latest custom queries
-    st.session_state.custom_query_selected = False
-    st.session_state.query_part_clicked = None
-    st.session_state.query_name_clicked = None
-    st.session_state.files_to_remove = []
-    st.session_state.selected_documents = []
 
     # Create a placeholder for the success message
     message = st.empty()
@@ -80,8 +66,12 @@ def reset_session():
     # Clear the success message
     message.empty()
 
-    # Use st.experimental_rerun() to ensure a complete app rerun
-    st.rerun()
+    # Reload the app using JavaScript
+    st.write("""
+        <script>
+            window.location.reload();
+        </script>
+    """, unsafe_allow_html=True)
 
 def get_or_create_custom_query_collection():
     collection_name = "custom_queries"
@@ -1353,7 +1343,6 @@ with st.sidebar:
             if submit_button:
                 handle_new_query(new_query_name, new_query_part)
                 reset_session()
-                st.rerun()
 
     # Edit or delete existing custom queries
     with st.expander("✏️ Edit or Delete Custom AI Tasks"):
@@ -1370,13 +1359,10 @@ with st.sidebar:
 
                     if update_button:
                         handle_update_query(query['name'], edited_query_part)
-                        st.rerun()
                     elif delete_button:
                         delete_custom_query(query['name'])
-                        st.rerun()
         else:
             st.info("No custom AI tasks available. Add a new task to get started.")
-            st.rerun()
 
 
     st.markdown("## ℹ️ About")

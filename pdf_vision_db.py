@@ -1083,11 +1083,8 @@ def handle_new_query(name, query_part):
         st.session_state.query_added = True
         st.session_state.added_query_name = final_name
         
-        # Create a success message
-        st.success(f"Custom query '{final_name}' saved successfully!")
-        
-        # Reset the session, which will trigger a rerun
-        reset_session()
+        # Trigger a rerun to refresh the app state
+        st.rerun()
     else:
         st.error(f"Failed to save custom query '{name}'")
 

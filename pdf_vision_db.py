@@ -1653,9 +1653,9 @@ if st.session_state.get('query_removed', False):
     st.session_state.removed_query_name = None
     reset_session()
     st.rerun()
-    
-    if st.session_state.get('query_added', False):
-    st.success(f"Custom AI task '{st.session_state.added_query_name}' has been added.")
+
+if st.session_state.get('query_added', False):
+    st.success(f"Custom AI task '{st.session_state.added_query_name}' has been added successfully!")
     st.session_state.query_added = False
     st.session_state.added_query_name = None
     reset_session()

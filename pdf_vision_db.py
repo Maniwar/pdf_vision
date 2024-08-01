@@ -1352,6 +1352,7 @@ with st.sidebar:
             if submit_button:
                 handle_new_query(new_query_name, new_query_part)
                 reset_session()
+                st.rerun()
 
     # Edit or delete existing custom queries
     with st.expander("✏️ Edit or Delete Custom AI Tasks"):

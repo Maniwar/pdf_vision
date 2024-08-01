@@ -37,7 +37,7 @@ st.set_page_config(layout="wide")
 # Set the API key using st.secrets for secure access
 os.environ["OPENAI_API_KEY"] = st.secrets["general"]["OPENAI_API_KEY"]
 MODEL = "gpt-4o-mini"  # Latest GPT-4 Turbo model
-MAX_TOKENS = 12000
+MAX_TOKENS = 120000
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
@@ -348,7 +348,7 @@ def get_document_content(file_name):
 def save_custom_query(name, query_part, update=False):
     collection = get_or_create_custom_query_collection()
     if collection is None:
-        return False
+        return False, name
 
     try:
         # Generate embeddings for the query part
@@ -369,7 +369,8 @@ def save_custom_query(name, query_part, update=False):
                 version += 1
                 new_name = f"{name} v{version}"
 
-            st.warning(f"A query with the name '{name}' already exists. Saving as '{new_name}'.")
+            st.session_state.query_message = f"A query with the name '{name}' already exists. Saving as '{new_name}'."
+            st.session_state.query_message_type = "warning"
             name = new_name
         elif update:
             # If we're updating, delete the existing query
@@ -379,7 +380,8 @@ def save_custom_query(name, query_part, update=False):
         collection.insert([{"name": name, "query_part": query_part, "vector": embedding}])
         return True, name  # Return the (possibly updated) name
     except Exception as e:
-        st.error(f"Error saving custom AI task: {str(e)}")
+        st.session_state.query_message = f"Error saving custom AI task: {str(e)}"
+        st.session_state.query_message_type = "error"
         return False, name
 
 def update_custom_query(name, new_query_part):
@@ -1083,10 +1085,15 @@ def handle_new_query(name, query_part):
         st.session_state.query_added = True
         st.session_state.added_query_name = final_name
         
-        # Trigger a rerun to refresh the app state
-        st.rerun()
+        # Store success message in session state
+        st.session_state.query_message = f"Custom query '{final_name}' saved successfully!"
+        st.session_state.query_message_type = "success"
     else:
-        st.error(f"Failed to save custom query '{name}'")
+        # Error message is already set in save_custom_query function
+        pass
+
+    # Trigger a rerun to refresh the app state
+    st.rerun()
 
 def verify_collection_exists(collection_name):
     if utility.has_collection(collection_name):
@@ -1644,18 +1651,32 @@ if st.session_state.get('document_removed', False):
     st.success(f"Document '{st.session_state.removed_document_name}' has been removed.")
     st.session_state.document_removed = False
     st.session_state.removed_document_name = None
-    reset_session()
+    time.sleep(2)  # Pause for 2 seconds to allow message to be read
     st.rerun()
 
 if st.session_state.get('query_removed', False):
     st.success(f"Custom AI task '{st.session_state.removed_query_name}' has been removed.")
     st.session_state.query_removed = False
     st.session_state.removed_query_name = None
-    reset_session()
+    time.sleep(2)  # Pause for 2 seconds to allow message to be read
     st.rerun()
 
+if 'query_message' in st.session_state:
+    if st.session_state.query_message_type == "success":
+        st.success(st.session_state.query_message)
+    elif st.session_state.query_message_type == "warning":
+        st.warning(st.session_state.query_message)
+    elif st.session_state.query_message_type == "error":
+        st.error(st.session_state.query_message)
+    
+    # Clear the message after displaying
+    time.sleep(2)  # Pause for 2 seconds to allow message to be read
+    del st.session_state.query_message
+    del st.session_state.query_message_type
+    st.rerun()
+
+# Reset session if a query was added (this should be after displaying the message)
 if st.session_state.get('query_added', False):
-    st.success(f"Custom AI task '{st.session_state.added_query_name}' has been added successfully!")
     st.session_state.query_added = False
     st.session_state.added_query_name = None
     reset_session()

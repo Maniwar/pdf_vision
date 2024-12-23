@@ -27,7 +27,7 @@ from bs4 import BeautifulSoup
 import traceback
 import time
 from streamlit.runtime.scriptrunner import RerunException
-from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
+#from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 
 
